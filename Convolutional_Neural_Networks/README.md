@@ -57,5 +57,5 @@
 	 ```
 </br>
 
-## MNIST classification results
+## MNIST classification result
 ![result](/Convolutional_Neural_Networks/result.PNG)
