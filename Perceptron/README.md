@@ -12,4 +12,4 @@
   ```
 
 ## MNIST classification result
-![result](/result.PNG)
+![result](/Perceptron/result.PNG)
