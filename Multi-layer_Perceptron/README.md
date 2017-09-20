@@ -45,4 +45,4 @@
 </br>
 
 ## MNIST classification results
-![result](/result.PNG)
+![result](/Multi-layer_Perceptron/result.PNG)
