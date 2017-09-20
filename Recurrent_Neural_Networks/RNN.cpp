@@ -1913,7 +1913,7 @@ void Recurrent_Neural_Networks::Load_Parameter(char path[]){
 		fclose(file);
 	}
 	else{
-		fprintf(stderr, "[Load_Parameter], %s not found.\n", path);
+		fprintf(stderr, "[Load_Parameter], %s not found\n", path);
 	}
 }
 void Recurrent_Neural_Networks::Save_Parameter(char path[]){
