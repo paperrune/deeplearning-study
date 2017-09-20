@@ -22,7 +22,7 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 		fclose(file);
 	}
 	else{
-		fprintf(stderr, "[Read_MNIST], %s not found.\n", training_set_images);
+		fprintf(stderr, "[Read_MNIST], %s not found\n", training_set_images);
 	}
 
 	if(file = fopen(training_set_labels, "rb")){
@@ -41,7 +41,7 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 		fclose(file);
 	}
 	else{
-		fprintf(stderr, "[Read_MNIST], %s not found.\n", training_set_labels);
+		fprintf(stderr, "[Read_MNIST], %s not found\n", training_set_labels);
 	}
 
 	if(file = fopen(test_set_images, "rb")){
@@ -59,7 +59,7 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 		fclose(file);
 	}
 	else{
-		fprintf(stderr, "[Read_MNIST], %s not found.\n", test_set_images);
+		fprintf(stderr, "[Read_MNIST], %s not found\n", test_set_images);
 	}
 
 	if(file = fopen(test_set_labels, "rb")){
@@ -78,7 +78,7 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 		fclose(file);
 	}
 	else{
-		fprintf(stderr, "[Read_MNIST], %s not found.\n", test_set_labels);
+		fprintf(stderr, "[Read_MNIST], %s not found\n", test_set_labels);
 	}
 }
 
