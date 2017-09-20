@@ -14,7 +14,7 @@
   91: int number_map[]    = { 1, 24, 24, 48, 48, 192, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
-  - Type start with 'C(connecting/convolution)' and 'P(padding/pooling)' is for hidden layer.  
+  - Type start with 'C(connecting/convolution)' and 'P(padding/pooling)' is for hidden layer.  
   
   	```
     C(connecting/convolution)
