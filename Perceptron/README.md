@@ -10,3 +10,6 @@
   ```C++
   86: int number_neuron[] = {28 * 28, 10};
   ```
+
+## MNIST classification result
+![result](/result.PNG)
