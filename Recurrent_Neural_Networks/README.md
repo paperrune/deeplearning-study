@@ -14,7 +14,7 @@
   96: int length_map[]    = {1, 1, 1};
   97: int number_map[]    = {784 / length_train, 100, 10};
   ```  
-  - The type is extended in Convolutional_Neural_Networks, and only new types are shown on this page.
+  - The type is extended in Convolutional_Neural_Networks, and only new types are shown on this page.
  
   	```
     C(connecting/convolution)
