@@ -96,11 +96,11 @@ int main(){
 	int number_map[]	 = {784 / time_step, 100, 10};
 	int number_iteration = 100;
 	int number_layer	 = sizeof(type_layer) / sizeof(type_layer[0]);
-	int number_thread	 = 4;
+	int number_thread	 = 6;
 	int number_training	 = 6000;
 	int number_test		 = 1000;
 
-	/* Training using the entire dataset takes more than 1000 seconds per iteration on the i7-4790K with 4 threads.
+	/* Training using the entire dataset takes about 800 seconds per iteration on the i7-4790K with 6 threads.
 	int number_training	 = 60000;
 	int number_test		 = 10000;
 	*/
@@ -143,7 +143,7 @@ int main(){
 
 		double *output = new double[number_map[number_layer - 1]];
 
-		for(int i = 0;i < number_training + number_test;i++){
+		for(int i = number_training;i < number_training + number_test;i++){
 			for(int t = 0;t < time_step;t++){
 				int argmax;
 
