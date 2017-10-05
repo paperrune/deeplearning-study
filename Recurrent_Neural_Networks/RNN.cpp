@@ -2029,7 +2029,8 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 }
 
 double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int time_step, int time_stride, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output){
-	int number_batch = 0;
+	int number_batch	= 0;
+	int number_data		= 0;
 
 	int ***index = new int**[number_training];
 
@@ -2046,6 +2047,8 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 			index[i][j]		= new int[2];
 			index[i][j][0]	= i;
 			index[i][j][1]	= j;
+			
+			if(output_mask == 0 || output_mask[j]) number_data++;
 		}
 	}
 	for(int i = 0;i < number_training;i++){
@@ -2260,5 +2263,5 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 	}
 	delete[] target_output_batch;
 
-	return loss / (number_training * time_step);
+	return loss / (number_data * time_step);
 }
