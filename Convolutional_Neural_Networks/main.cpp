@@ -124,7 +124,7 @@ int main(){
 
 		double *output = new double[number_map[number_layer - 1]];
 
-		for(int i = number_training;i < number_training + number_test;i++){
+		for(int i = 0;i < number_training + number_test;i++){
 			int argmax;
 
 			double max = 0;
