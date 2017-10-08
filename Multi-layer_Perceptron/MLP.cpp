@@ -84,14 +84,14 @@ void Multilayer_Perceptron::Adjust_Parameter(int layer_index, int neuron_index){
 		double *derivative	 = this->derivative[0][i][h];
 		double *lower_neuron = this->neuron[0][i - 1][h];
 
-		for(int k = 0;k < number_neuron[i - 1];k++){
+		for(int k = 0;k < number_neurons[i - 1];k++){
 			weight[i][j][k] -= derivative[j] * lower_neuron[k];
 		}
-		weight[i][j][number_neuron[i - 1]] -= derivative[j];
+		weight[i][j][number_neurons[i - 1]] -= derivative[j];
 	}
 }
 void Multilayer_Perceptron::Backpropagate(int layer_index, int neuron_index){
-	if(layer_index == number_layer - 1){
+	if(layer_index == number_layers - 1){
 		return;
 	}
 
@@ -104,7 +104,7 @@ void Multilayer_Perceptron::Backpropagate(int layer_index, int neuron_index){
 		double *derivative		 = this->derivative[0][i][h];
 		double *upper_derivative = this->derivative[0][i + 1][h];
 
-		for(int k = 0;k < number_neuron[i + 1];k++){
+		for(int k = 0;k < number_neurons[i + 1];k++){
 			sum += upper_derivative[k] * weight[i + 1][k][j];
 		}
 		derivative[j] = sum;
@@ -177,10 +177,10 @@ void Multilayer_Perceptron::Feedforward(int layer_index, int neuron_index){
 		double *lower_neuron = this->neuron[0][i - 1][h];
 		double *neuron		 = this->neuron[0][i][h];
 
-		for(int k = 0;k < number_neuron[i - 1];k++){
+		for(int k = 0;k < number_neurons[i - 1];k++){
 			sum += lower_neuron[k] * weight[i][j][k];
 		}
-		neuron[j] = sum + weight[i][j][number_neuron[i - 1]];
+		neuron[j] = sum + weight[i][j][number_neurons[i - 1]];
 	}
 }
 void Multilayer_Perceptron::Softmax(int layer_index){
@@ -193,17 +193,17 @@ void Multilayer_Perceptron::Softmax(int layer_index){
 
 			double *neuron = this->neuron[0][i][h];
 
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				if(max < neuron[j]){
 					max = neuron[j];
 				}
 			}
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				neuron[j] = exp(neuron[j] - max);
 
 				sum += neuron[j];
 			}
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				neuron[j] /= sum;
 			}
 		}
@@ -312,8 +312,8 @@ void Multilayer_Perceptron::Batch_Normalization_Differentiate(int layer_index, i
 
 void Multilayer_Perceptron::Resize_Memory(int batch_size){
 	if(this->batch_size != batch_size){
-		for(int g = 0;g < number_memory_type;g++){
-			for(int i = 0;i < number_layer;i++){
+		for(int g = 0;g < number_memory_types;g++){
+			for(int i = 0;i < number_layers;i++){
 				if(Access_Memory(g, i)){
 					for(int h = 0;h < this->batch_size;h++){
 						delete[] derivative[g][i][h];
@@ -323,8 +323,8 @@ void Multilayer_Perceptron::Resize_Memory(int batch_size){
 					neuron[g][i]	 = (double**)realloc(neuron[g][i],		sizeof(double*) * batch_size);
 
 					for(int h = 0;h < batch_size;h++){
-						derivative[g][i][h] = new double[number_neuron[i]];
-						neuron[g][i][h]		= new double[number_neuron[i]];
+						derivative[g][i][h] = new double[number_neurons[i]];
+						neuron[g][i][h]		= new double[number_neurons[i]];
 					}
 				}
 			}
@@ -340,70 +340,70 @@ bool Multilayer_Perceptron::Access_Memory(int type_index, int layer_index){
 	return (g == 0 || strstr(type_layer[i], "bn"));
 }
 
-Multilayer_Perceptron::Multilayer_Perceptron(char **type_layer, int number_layer, int number_neuron[]){
-	this->number_layer	= number_layer;
-	this->number_neuron = new int[number_layer];
-	this->type_layer	= new char*[number_layer];
+Multilayer_Perceptron::Multilayer_Perceptron(char **type_layer, int number_layers, int number_neurons[]){
+	this->number_layers	 = number_layers;
+	this->number_neurons = new int[number_layers];
+	this->type_layer	 = new char*[number_layers];
 
 	batch_size			= 1;
-	number_memory_type	= 3;
+	number_memory_types	= 3;
 
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		this->type_layer[i] = new char[strlen(type_layer[i]) + 1];
 		strcpy(this->type_layer[i], type_layer[i]);
-		this->number_neuron[i] = number_neuron[i];
+		this->number_neurons[i] = number_neurons[i];
 	}
 
-	gamma		 = new double*[number_layer];
-	beta		 = new double*[number_layer];
-	mean		 = new double*[number_layer];
-	variance	 = new double*[number_layer];
-	sum_mean	 = new double*[number_layer];
-	sum_variance = new double*[number_layer];
+	gamma		 = new double*[number_layers];
+	beta		 = new double*[number_layers];
+	mean		 = new double*[number_layers];
+	variance	 = new double*[number_layers];
+	sum_mean	 = new double*[number_layers];
+	sum_variance = new double*[number_layers];
 
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
-			gamma[i]		= new double[number_neuron[i]];
-			beta[i]			= new double[number_neuron[i]];
-			mean[i]			= new double[number_neuron[i]];
-			variance[i]		= new double[number_neuron[i]];
-			sum_mean[i]		= new double[number_neuron[i]];
-			sum_variance[i]	= new double[number_neuron[i]];
+			gamma[i]		= new double[number_neurons[i]];
+			beta[i]			= new double[number_neurons[i]];
+			mean[i]			= new double[number_neurons[i]];
+			variance[i]		= new double[number_neurons[i]];
+			sum_mean[i]		= new double[number_neurons[i]];
+			sum_variance[i]	= new double[number_neurons[i]];
 		}
 	}
 
-	derivative	= new double***[number_memory_type];
-	neuron		= new double***[number_memory_type];
+	derivative	= new double***[number_memory_types];
+	neuron		= new double***[number_memory_types];
 
-	for(int g = 0;g < number_memory_type;g++){
-		derivative[g]	= new double**[number_layer];
-		neuron[g]		= new double**[number_layer];
+	for(int g = 0;g < number_memory_types;g++){
+		derivative[g]	= new double**[number_layers];
+		neuron[g]		= new double**[number_layers];
 
-		for(int i = 0;i < number_layer;i++){
+		for(int i = 0;i < number_layers;i++){
 			if(Access_Memory(g, i)){
 				derivative[g][i] = new double*[batch_size];
 				neuron[g][i]	 = new double*[batch_size];
 
 				for(int h = 0;h < batch_size;h++){
-					derivative[g][i][h] = new double[number_neuron[i]];
-					neuron[g][i][h]		= new double[number_neuron[i]];
+					derivative[g][i][h] = new double[number_neurons[i]];
+					neuron[g][i][h]		= new double[number_neurons[i]];
 				}
 			}
 		}
 	}
 
-	weight = new double**[number_layer];
+	weight = new double**[number_layers];
 
-	for(int i = 1;i < number_layer;i++){
-		weight[i] = new double*[number_neuron[i]];
+	for(int i = 1;i < number_layers;i++){
+		weight[i] = new double*[number_neurons[i]];
 
-		for(int j = 0;j < number_neuron[i];j++){
-			weight[i][j] = new double[number_neuron[i - 1] + 1];
+		for(int j = 0;j < number_neurons[i];j++){
+			weight[i][j] = new double[number_neurons[i - 1] + 1];
 		}
 	}
 }
 Multilayer_Perceptron::~Multilayer_Perceptron(){
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
 			delete[] gamma[i];
 			delete[] beta[i];
@@ -420,8 +420,8 @@ Multilayer_Perceptron::~Multilayer_Perceptron(){
 	delete[] sum_mean;
 	delete[] sum_variance;
 
-	for(int g = 0;g < number_memory_type;g++){
-		for(int i = 0;i < number_layer;i++){
+	for(int g = 0;g < number_memory_types;g++){
+		for(int i = 0;i < number_layers;i++){
 			if(Access_Memory(g, i)){
 				for(int h = 0;h < batch_size;h++){
 					delete[] derivative[g][i][h];
@@ -437,34 +437,34 @@ Multilayer_Perceptron::~Multilayer_Perceptron(){
 	delete[] derivative;
 	delete[] neuron;
 
-	for(int i = 1;i < number_layer;i++){
-		for(int j = 0;j < number_neuron[i];j++){
+	for(int i = 1;i < number_layers;i++){
+		for(int j = 0;j < number_neurons[i];j++){
 			delete[] weight[i][j];
 		}
 		delete[] weight[i];
 	}
 	delete[] weight;
 
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		delete[] type_layer[i];
 	}
 	delete[] type_layer;
 
-	delete[] number_neuron;
+	delete[] number_neurons;
 }
 
 void Multilayer_Perceptron::Initialize_Parameter(int seed, double scale, double shift){
 	srand(seed);
 
-	for(int i = 1;i < number_layer;i++){
+	for(int i = 1;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				gamma[i][j]	= 1;
 				beta[i][j]	= 0;
 			}
 		}
-		for(int j = 0;j < number_neuron[i];j++){
-			for(int k = 0;k < number_neuron[i - 1] + 1;k++){
+		for(int j = 0;j < number_neurons[i];j++){
+			for(int k = 0;k < number_neurons[i - 1] + 1;k++){
 				weight[i][j][k] = scale * rand() / RAND_MAX + shift;
 			}
 		}
@@ -473,18 +473,18 @@ void Multilayer_Perceptron::Initialize_Parameter(int seed, double scale, double 
 void Multilayer_Perceptron::Test(double input[], double output[]){
 	Resize_Memory(1);
 
-	for(int i = 0, j = 0;j < number_neuron[i];j++){
+	for(int i = 0, j = 0;j < number_neurons[i];j++){
 		neuron[0][i][0][j] = input[j];
 	}
-	for(int i = 1;i < number_layer;i++){
+	for(int i = 1;i < number_layers;i++){
 		#pragma omp parallel for
-		for(int j = 0;j < number_neuron[i];j++){
+		for(int j = 0;j < number_neurons[i];j++){
 			Feedforward	(i, j);
 			Activate	("test", i, j);
 		}
 		Softmax(i);
 	}
-	for(int i = number_layer - 1, j = 0;j < number_neuron[i];j++){
+	for(int i = number_layers - 1, j = 0;j < number_neurons[i];j++){
 		output[j] = neuron[0][i][0][j];
 	}
 }
@@ -508,13 +508,13 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, double 
 	}
 
 	for(int h = 0;h < batch_size;h++){
-		target_output_batch[h] = new double[number_neuron[number_layer - 1]];
+		target_output_batch[h] = new double[number_neurons[number_layers - 1]];
 	}
 	Resize_Memory(batch_size);
 
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				sum_mean[i][j]		= 0;
 				sum_variance[i][j]	= 0;
 			}
@@ -523,40 +523,40 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, double 
 	this->epsilon = epsilon;
 
 	for(int g = 0, h = 0;g < number_training;g++){
-		for(int j = 0;j < number_neuron[0];j++){
+		for(int j = 0;j < number_neurons[0];j++){
 			neuron[0][0][h][j] = input[index[g]][j];
 		}
-		for(int j = 0;j < number_neuron[number_layer - 1];j++){
+		for(int j = 0;j < number_neurons[number_layers - 1];j++){
 			target_output_batch[h][j] = target_output[index[g]][j];
 		}
 
 		if(++h == batch_size){
 			h = 0;
 
-			for(int i = 1;i < number_layer;i++){
+			for(int i = 1;i < number_layers;i++){
 				#pragma omp parallel for
-				for(int j = 0;j < number_neuron[i];j++){
+				for(int j = 0;j < number_neurons[i];j++){
 					Feedforward	(i, j);
 					Activate	("train", i, j);
 				}
 				Softmax(i);
 			}
-			for(int i = number_layer - 1;i > 0;i--){
+			for(int i = number_layers - 1;i > 0;i--){
 				#pragma omp parallel for
-				for(int j = 0;j < number_neuron[i];j++){
+				for(int j = 0;j < number_neurons[i];j++){
 					Backpropagate	(i, j);
 					Differentiate	(i, j, learning_rate, target_output_batch);
 				}
 			}
-			for(int i = number_layer - 1;i > 0;i--){
+			for(int i = number_layers - 1;i > 0;i--){
 				#pragma omp parallel for
-				for(int j = 0;j < number_neuron[i];j++){
+				for(int j = 0;j < number_neurons[i];j++){
 					Adjust_Parameter(i, j);
 				}
 			}
 
 			for(int h = 0;h < batch_size;h++){
-				for(int i = number_layer - 1, j = 0;j < number_neuron[i];j++){
+				for(int i = number_layers - 1, j = 0;j < number_neurons[i];j++){
 					if(strstr(type_layer[i], "ce")){
 						loss -= target_output_batch[h][j] * log(neuron[0][i][h][j] + 0.000001) + (1 - target_output_batch[h][j]) * log(1 - neuron[0][i][h][j] + 0.000001);
 					}
@@ -568,9 +568,9 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, double 
 		}
 	}
 
-	for(int i = 0;i < number_layer;i++){
+	for(int i = 0;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
-			for(int j = 0;j < number_neuron[i];j++){
+			for(int j = 0;j < number_neurons[i];j++){
 				mean[i][j]		= sum_mean[i][j] / (number_training / batch_size);
 				variance[i][j]	= ((double)batch_size / (batch_size - 1)) * sum_variance[i][j] / (number_training / batch_size);
 			}
