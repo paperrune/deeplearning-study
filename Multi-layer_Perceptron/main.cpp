@@ -85,13 +85,13 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 int main(){
 	char *type_layer[] = {"MNIST", "Cbn", "Cbn,do.5", "Lce,sm"};
 
-	int batch_size		 = 60;
-	int number_iteration = 100;
-	int number_layer	 = sizeof(type_layer) / sizeof(type_layer[0]);
-	int number_neuron[]	 = {28 * 28, 400, 400, 10};
-	int number_thread	 = 4;
-	int number_training	 = 60000;
-	int number_test		 = 10000;
+	int batch_size			= 60;
+	int number_iterations	= 100;
+	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
+	int number_neurons[]	= {28 * 28, 400, 400, 10};
+	int number_threads		= 2;
+	int number_training		= 60000;
+	int number_test			= 10000;
 
 	double epsilon		 = 0.001;
 	double learning_rate = 0.005;
@@ -99,23 +99,23 @@ int main(){
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
 
-	Multilayer_Perceptron *MLP = new Multilayer_Perceptron(type_layer, number_layer, number_neuron);
+	Multilayer_Perceptron *MLP = new Multilayer_Perceptron(type_layer, number_layers, number_neurons);
 
 	for(int h = 0;h < number_training + number_test;h++){
-		input[h]		 = new double[number_neuron[0]];
-		target_output[h] = new double[number_neuron[number_layer - 1]];
+		input[h]		 = new double[number_neurons[0]];
+		target_output[h] = new double[number_neurons[number_layers - 1]];
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
 
 	MLP->Initialize_Parameter(0, 0.2, -0.1);
-	omp_set_num_threads(number_thread);
+	omp_set_num_threads(number_threads);
 
-	for(int h = 0, time = clock();h < number_iteration;h++){
+	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };			
 
 		double loss = MLP->Train(batch_size, number_training, epsilon, learning_rate, input, target_output);
 
-		double *output = new double[number_neuron[number_layer - 1]];
+		double *output = new double[number_neurons[number_layers - 1]];
 
 		for(int i = 0;i < number_training + number_test;i++){
 			int argmax;
@@ -124,7 +124,7 @@ int main(){
 
 			MLP->Test(input[i], output);
 
-			for(int j = 0;j < number_neuron[number_layer - 1];j++){
+			for(int j = 0;j < number_neurons[number_layers - 1];j++){
 				if(max < output[j]){
 					argmax = j;
 					max = output[j];
