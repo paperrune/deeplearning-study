@@ -3,10 +3,10 @@ private:
 	char **type_layer;
 
 	int batch_size;
-	int number_layer;
-	int number_memory_type;
+	int number_layers;
+	int number_memory_types;
 
-	int *number_neuron;
+	int *number_neurons;
 
 	double ***weight;
 
@@ -39,7 +39,7 @@ private:
 
 	bool Access_Memory(int type_index, int layer_index);
 public:
-	Multilayer_Perceptron(char **type_layer, int number_layer, int number_neuron[]);
+	Multilayer_Perceptron(char **type_layer, int number_layers, int number_neurons[]);
 	~Multilayer_Perceptron();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
