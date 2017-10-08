@@ -2263,5 +2263,5 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 	}
 	delete[] target_output_batch;
 
-	return loss / (number_data * time_step);
+	return loss / (number_data * (double)time_step / time_stride);
 }
