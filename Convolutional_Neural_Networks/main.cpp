@@ -86,16 +86,16 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 int main(){
 	char *type_layer[] = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
 
-	int batch_size		 = 60;
-	int length_map[]	 = {28,	24, 12,  8,  4,   1,  1};
-	int number_map[]	 = { 1, 24, 24, 48, 48, 192, 10};
-	int number_iteration = 100;
-	int number_layer	 = sizeof(type_layer) / sizeof(type_layer[0]);
-	int number_thread	 = 6;
-	int number_training	 = 6000;
-	int number_test		 = 1000;
+	int batch_size			= 60;
+	int length_map[]		= {28,	24, 12,  8,  4,   1,  1};
+	int number_maps[]		= { 1, 24, 24, 48, 48, 192, 10};
+	int number_iterations	= 100;
+	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
+	int number_threads		= 6;
+	int number_training		= 6000;
+	int number_test			= 1000;
 
-	/* Training using the entire dataset takes about 400 seconds per iteration on the i7-4790K with 6 threads.
+	/* Training using the entire dataset takes about 560 seconds per iteration on the i7-4790K with 6 threads.
 	int number_training	 = 60000;
 	int number_test		 = 10000;
 	*/
@@ -106,23 +106,23 @@ int main(){
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
 
-	Convolutional_Neural_Networks *CNN = new Convolutional_Neural_Networks(type_layer, number_layer, length_map, number_map);
+	Convolutional_Neural_Networks *CNN = new Convolutional_Neural_Networks(type_layer, number_layers, length_map, number_maps);
 
 	for(int h = 0;h < number_training + number_test;h++){
-		input[h]		 = new double[number_map[0] * length_map[0] * length_map[0]];
-		target_output[h] = new double[number_map[number_layer - 1]];
+		input[h]		 = new double[number_maps[0] * length_map[0] * length_map[0]];
+		target_output[h] = new double[number_maps[number_layers - 1]];
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);	
 
 	CNN->Initialize_Parameter(0, 0.2, -0.1);
-	omp_set_num_threads(number_thread);
+	omp_set_num_threads(number_threads);
 
-	for(int h = 0, time = clock();h < number_iteration;h++){
+	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
 		double loss = CNN->Train(batch_size, number_training, epsilon, learning_rate, input, target_output);
 
-		double *output = new double[number_map[number_layer - 1]];
+		double *output = new double[number_maps[number_layers - 1]];
 
 		for(int i = 0;i < number_training + number_test;i++){
 			int argmax;
@@ -131,7 +131,7 @@ int main(){
 
 			CNN->Test(input[i], output);
 
-			for(int j = 0;j < number_map[number_layer - 1];j++){
+			for(int j = 0;j < number_maps[number_layers - 1];j++){
 				if(max < output[j]){
 					argmax = j;
 					max = output[j];
