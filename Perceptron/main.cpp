@@ -82,8 +82,8 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 }
 
 int main(){
-	int number_iteration = 200;
-	int number_neuron[]	 = {28 * 28, 10};
+	int number_iterations = 200;
+	int number_neurons[] = {28 * 28, 10};
 	int number_training	 = 60000;
 	int number_test		 = 10000;
 
@@ -92,23 +92,23 @@ int main(){
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
 
-	Perceptron *perceptron = new Perceptron(number_neuron);
+	Perceptron *perceptron = new Perceptron(number_neurons);
 
 	for(int h = 0;h < number_training + number_test;h++){
-		input[h]		 = new double[number_neuron[0]];
-		target_output[h] = new double[number_neuron[1]];
+		input[h]		 = new double[number_neurons[0]];
+		target_output[h] = new double[number_neurons[1]];
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
 
 	perceptron->Initialize_Parameter(0, 0.2, -0.1);
 
-	for(int h = 0, time = clock();h < number_iteration;h++){
+	for(int h = 0, time = clock();h < number_iterations;h++){
 		double loss = perceptron->Train(number_training, learning_rate, input, target_output);
 
 		if((h + 1) % 10 == 0){
 			int number_correct[2] = {0, };
 
-			double *output = new double[number_neuron[1]];
+			double *output = new double[number_neurons[1]];
 
 			for(int i = 0;i < number_training + number_test;i++){
 				int argmax;
@@ -117,7 +117,7 @@ int main(){
 
 				perceptron->Test(input[i], output);
 
-				for(int j = 0;j < number_neuron[1];j++){
+				for(int j = 0;j < number_neurons[1];j++){
 					if(max < output[j]){
 						argmax = j;
 						max = output[j];
