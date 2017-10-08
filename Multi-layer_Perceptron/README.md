@@ -10,8 +10,8 @@
 - The network structure is determined by two variables in the main.cpp.
 
   ```C++
-  86: char *type_layer[]  = {"MNIST", "Cbn", "Cbn,do.5", "Lce,sm"};
-  91: int number_neuron[] = {28 * 28, 400, 400, 10};
+  86: char *type_layer[]   = {"MNIST", "Cbn", "Cbn,do.5", "Lce,sm"};
+  91: int number_neurons[] = {28 * 28, 400, 400, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
   - Type start with 'C(connecting)' is for hidden layer.
