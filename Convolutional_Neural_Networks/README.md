@@ -11,7 +11,7 @@
   ```C++
   87: char *type_layer[]  = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
   90: int length_map[]    = {28, 24, 12,  8,  4,   1,  1};
-  91: int number_map[]    = { 1, 24, 24, 48, 48, 192, 10};
+  91: int number_maps[]   = { 1, 24, 24, 48, 48, 192, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
   - Type start with 'C(connecting/convolution)' and 'P(padding/pooling)' is for hidden layer.  
