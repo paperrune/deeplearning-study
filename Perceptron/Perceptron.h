@@ -1,8 +1,8 @@
 class Perceptron{
 private:
-	int number_layer;
+	int number_layers;
 
-	int *number_neuron;
+	int *number_neurons;
 
 	double **neuron;
 	double **derivative;
@@ -14,7 +14,7 @@ private:
 	void Differentiate(int layer_index, int neuron_index, double learning_rate, double target_output[]);
 	void Feedforward(int layer_index, int neuron_index);
 public:
-	Perceptron(int number_neuron[]);
+	Perceptron(int number_neurons[]);
 	~Perceptron();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
