@@ -95,6 +95,7 @@ int main(){
 
 	double epsilon		 = 0.001;
 	double learning_rate = 0.005;
+	double decay_rate	 = 0.993;
 
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
@@ -133,7 +134,7 @@ int main(){
 			number_correct[(i < number_training) ? (0):(1)] += (int)target_output[i][argmax];
 		}
 		printf("score: %d / %d, %d / %d  loss: %lf  step %d  %.2lf sec\n", number_correct[0], number_training, number_correct[1], number_test, loss, h + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		learning_rate *= 0.993;
+		learning_rate *= decay_rate;
 
 		delete[] output;
 	}
