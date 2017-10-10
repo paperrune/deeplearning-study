@@ -88,6 +88,7 @@ int main(){
 	int number_test		 = 10000;
 
 	double learning_rate = 0.01;
+	double decay_rate	 = 0.993;
 
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
@@ -129,7 +130,7 @@ int main(){
 
 			delete[] output;
 		}
-		learning_rate *= 0.993;
+		learning_rate *= decay_rate;
 	}
 
 	for(int h = 0;h < number_training + number_test;h++){
