@@ -92,7 +92,9 @@ int main(){
 
 	int batch_size			= 60;
 	int time_step			= 28;
-	int time_stride			= 28;
+	int time_stride			= time_step;
+	// int width_map[i]		= {1, 1, 1};
+	// int height_map[i]	= {1, 1, 1};
 	int number_maps[]		= {784 / time_step, 100, 10};
 	int number_iterations	= 100;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
@@ -111,11 +113,12 @@ int main(){
 	double epsilon				= 0.001;
 	double gradient_threshold	= 10;
 	double learning_rate		= 0.005; // 0.001 for vanilla RNN
+	double decay_rate			= 0.977;
 
 	double ***input			= new double**[number_training + number_test];
 	double ***target_output	= new double**[number_training + number_test];
 
-	Recurrent_Neural_Networks *RNN = new Recurrent_Neural_Networks(type_layer, number_layers, 0, number_maps);
+	Recurrent_Neural_Networks RNN = Recurrent_Neural_Networks(type_layer, number_layers, 0, 0, number_maps);
 
 	for(int h = 0;h < number_training + number_test;h++){
 		length_data[h] = time_step;
@@ -133,13 +136,13 @@ int main(){
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", time_step, number_training, number_test, input, target_output);	
 
-	RNN->Initialize_Parameter(0, 0.2, -0.1);
+	RNN.Initialize_Parameter(0, 0.2, -0.1);
 	omp_set_num_threads(number_threads);
 
 	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
-		double loss = RNN->Train(batch_size, number_training, time_step, time_stride, length_data, output_mask, epsilon, gradient_threshold, learning_rate, input, target_output);
+		double loss = RNN.Train(batch_size, number_training, time_step, time_stride, length_data, output_mask, epsilon, gradient_threshold, learning_rate, input, target_output);
 
 		double *output = new double[number_maps[number_layers - 1]];
 
@@ -149,7 +152,7 @@ int main(){
 
 				double max = 0;
 
-				RNN->Test(t == 0, input[i][t], output);
+				RNN.Test(t == 0, input[i][t], output);
 
 				if(output_mask == 0 || output_mask[t]){
 					for(int j = 0;j < number_maps[number_layers - 1];j++){
@@ -163,7 +166,7 @@ int main(){
 			}
 		}
 		printf("score: %d / %d, %d / %d  loss: %lf  step %d  %.2lf sec\n", number_correct[0], number_training, number_correct[1], number_test, loss, h + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		learning_rate *= 0.977;
+		learning_rate *= decay_rate;
 
 		delete[] output;
 	}
@@ -180,7 +183,6 @@ int main(){
 	delete[] target_output;
 	delete[] length_data;
 	delete[] output_mask;
-	delete RNN;
 
 	return 0;
 }
