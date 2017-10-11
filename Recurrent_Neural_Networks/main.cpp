@@ -93,8 +93,8 @@ int main(){
 	int batch_size			= 60;
 	int time_step			= 28;
 	int time_stride			= time_step;
-	// int width_map[i]		= {1, 1, 1};
-	// int height_map[i]	= {1, 1, 1};
+	// int map_width[i]		= {1, 1, 1};
+	// int map_height[i]	= {1, 1, 1};
 	int number_maps[]		= {784 / time_step, 100, 10};
 	int number_iterations	= 100;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
