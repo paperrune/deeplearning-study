@@ -10,10 +10,13 @@ private:
 	int number_weight_types;
 	int time_step;
 
-	int *length_filter;
-	int *length_map;
+	int *kernel_width;
+	int *kernel_height;
+	int *map_width;
+	int *map_height;
 	int *number_maps;
-	int *stride;
+	int *stride_width;
+	int *stride_height;
 
 	int ***dropout_mask;
 
@@ -67,7 +70,7 @@ private:
 	double Tangent(double x);
 	double Sigmoid(double x);
 public:
-	Recurrent_Neural_Networks(char **type_layer, int number_layers, int length_map[], int number_maps[]);
+	Recurrent_Neural_Networks(char **type_layer, int number_layers, int map_width[], int map_height[], int number_maps[]);
 	~Recurrent_Neural_Networks();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
