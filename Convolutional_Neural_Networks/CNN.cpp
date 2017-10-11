@@ -28,8 +28,8 @@ void Convolutional_Neural_Networks::Activate(char option[], int layer_index, int
 					mask = atof(rate);
 				}
 			}
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &neuron = this->neuron[0][i][h][j][k][l];
 
 					if(strstr(type_layer[i], "ht")){
@@ -52,8 +52,8 @@ void Convolutional_Neural_Networks::Activate(char option[], int layer_index, int
 	else
 	if(type_layer[i][0] == 'L'){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &neuron = this->neuron[0][i][h][j][k][l];
 
 					if(strstr(type_layer[i], "ce")){
@@ -96,15 +96,15 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 			double ***lower_neuron	= this->neuron[0][i - 1][h];
 		
 			for(int m = 0;m < number_maps[i - 1];m++){
-				for(int n = 0;n < length_filter[i];n++){
-					for(int o = 0;o < length_filter[i];o++){
+				for(int n = 0;n < kernel_height[i];n++){
+					for(int o = 0;o < kernel_width[i];o++){
 						double sum = 0;
 
-						for(int k = 0;k < length_map[i];k++){
-							for(int l = 0;l < length_map[i];l++){
-								int index[2] = {k * stride[i] + n, l * stride[i] + o};
+						for(int k = 0;k < map_height[i];k++){
+							for(int l = 0;l < map_width[i];l++){
+								int index[2] = {k * stride_height[i] + n, l * stride_width[i] + o};
 
-								if(index[0] < length_map[i - 1] && index[1] < length_map[i - 1]){
+								if(index[0] < map_height[i - 1] && index[1] < map_width[i - 1]){
 									sum += derivative[j][k][l] * lower_neuron[m][index[0]][index[1]];
 								}
 							}
@@ -116,8 +116,8 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 
 			double sum = 0;
 
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					sum += derivative[j][k][l];
 				}
 			}
@@ -138,11 +138,11 @@ void Convolutional_Neural_Networks::Backpropagate(int layer_index, int map_index
 			double ***derivative		= this->derivative[0][i][h];
 			double ***upper_derivative	= this->derivative[0][i + 1][h];
 
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
-					int ks		 = k / stride[i + 1];
-					int ls		 = l / stride[i + 1];
-					int index[2] = {ks - (length_filter[i + 1] - 1), ls - (length_filter[i + 1] - 1)};
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
+					int ks		 = k / stride_height[i + 1];
+					int ls		 = l / stride_width[i + 1];
+					int index[2] = {ks - (kernel_height[i + 1] - 1), ls - (kernel_width[i + 1] - 1)};
 
 					double sum = 0;
 
@@ -150,8 +150,8 @@ void Convolutional_Neural_Networks::Backpropagate(int layer_index, int map_index
 					if(index[1] < 0) index[1] = 0;
 
 					for(int m = 0;m < number_maps[i + 1];m++){
-						for(int n = index[0];n < length_map[i + 1] && n <= ks;n++){
-							for(int o = index[1];o < length_map[i + 1] && o <= ls;o++){
+						for(int n = index[0];n < map_height[i + 1] && n <= ks;n++){
+							for(int o = index[1];o < map_width[i + 1] && o <= ls;o++){
 								sum += upper_derivative[m][n][o] * weight[i + 1][m][j][abs(ks - n)][abs(ls - o)];
 							}
 						}
@@ -164,29 +164,29 @@ void Convolutional_Neural_Networks::Backpropagate(int layer_index, int map_index
 	else
 	if(type_layer[i + 1][0] == 'P'){
 		if(strstr(type_layer[i + 1], "pad")){
-			int margin = (length_map[i + 1] - length_map[i]) / 2;
+			int margin[] = {(map_height[i + 1] - map_height[i]) / 2, (map_width[i + 1] - map_width[i]) / 2};
 
 			for(int h = 0;h < batch_size;h++){
 				double **derivative			= this->derivative[0][i][h][j];
 				double **upper_derivative	= this->derivative[0][i + 1][h][j];
 
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
-						derivative[k][l] = upper_derivative[margin + k][margin + l];
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
+						derivative[k][l] = upper_derivative[margin[0] + k][margin[1] + l];
 					}
 				}
 			}
 		}
 		else{
-			int stride = length_map[i] / length_map[i + 1];
+			int stride[] = {map_height[i] / map_height[i + 1], map_width[i] / map_width[i + 1]};
 
 			for(int h = 0;h < batch_size;h++){
 				double **derivative			= this->derivative[0][i][h][j];
 				double **upper_derivative	= this->derivative[0][i + 1][h][j];
 
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
-						derivative[k][l] = upper_derivative[k / stride][l / stride];
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
+						derivative[k][l] = upper_derivative[k / stride[0]][l / stride[1]];
 					}
 				}
 			}
@@ -199,8 +199,8 @@ void Convolutional_Neural_Networks::Differentiate(int layer_index, int map_index
 
 	if(type_layer[i][0] == 'C'){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &derivative	= this->derivative[0][i][h][j][k][l];
 					double &neuron		= this->neuron[0][i][h][j][k][l];
 
@@ -225,8 +225,8 @@ void Convolutional_Neural_Networks::Differentiate(int layer_index, int map_index
 	else
 	if(type_layer[i][0] == 'L'){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &derivative	= this->derivative[0][i][h][j][k][l];
 					double &neuron		= this->neuron[0][i][h][j][k][l];
 
@@ -267,16 +267,16 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 			double ***lower_neuron	= this->neuron[0][i - 1][h];
 			double ***neuron		= this->neuron[0][i][h];
 
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double sum = 0;
 
 					for(int m = 0;m < number_maps[i - 1];m++){
-						for(int n = 0;n < length_filter[i];n++){
-							for(int o = 0;o < length_filter[i];o++){
-								int index[2] = {k * stride[i] + n, l * stride[i] + o};
+						for(int n = 0;n < kernel_height[i];n++){
+							for(int o = 0;o < kernel_width[i];o++){
+								int index[2] = {k * stride_height[i] + n, l * stride_width[i] + o};
 
-								if(index[0] < length_map[i - 1] && index[1] < length_map[i - 1]){
+								if(index[0] < map_height[i - 1] && index[1] < map_width[i - 1]){
 									sum += lower_neuron[m][index[0]][index[1]] * weight[i][j][m][n][o];
 								}
 							}
@@ -290,51 +290,51 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 	else
 	if(type_layer[i][0] == 'P'){
 		if(strstr(type_layer[i], "pad")){
-			int margin = (length_map[i] - length_map[i - 1]) / 2;
+			int margin[] = {(map_height[i] - map_height[i - 1]) / 2, (map_width[i] - map_width[i - 1]) / 2};
 
 			for(int h = 0;h < batch_size;h++){
 				double **lower_neuron	= this->neuron[0][i - 1][h][j];
 				double **neuron			= this->neuron[0][i][h][j];
 
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						neuron[k][l] = 0;
 					}
 				}
-				for(int k = 0;k < length_map[i - 1];k++){
-					for(int l = 0;l < length_map[i - 1];l++){
-						neuron[margin + k][margin + l] = lower_neuron[k][l];
+				for(int k = 0;k < map_height[i - 1];k++){
+					for(int l = 0;l < map_width[i - 1];l++){
+						neuron[margin[0] + k][margin[1] + l] = lower_neuron[k][l];
 					}
 				}
 			}
 		}
 		else{
-			int stride = length_map[i - 1] / length_map[i];
+			int stride[] = {map_height[i - 1] / map_height[i], map_width[i - 1] / map_width[i]};
 
 			for(int h = 0;h < batch_size;h++){
 				double **lower_neuron	= this->neuron[0][i - 1][h][j];
 				double **neuron			= this->neuron[0][i][h][j];
 
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						if(strstr(type_layer[i], "avg")){
 							double sum = 0;
 						
-							for(int m = 0;m < stride;m++){
-								for(int n = 0;n < stride;n++){
-									sum += lower_neuron[k * stride + m][l * stride + n];
+							for(int m = 0;m < stride[0];m++){
+								for(int n = 0;n < stride[1];n++){
+									sum += lower_neuron[k * stride[0] + m][l * stride[1] + n];
 								}
 							}
-							neuron[k][l] = sum / (stride * stride);
+							neuron[k][l] = sum / (stride[0] * stride[1]);
 						}
 						else
 						if(strstr(type_layer[i], "max")){
 							double max = -1;
 						
-							for(int m = 0;m < stride;m++){
-								for(int n = 0;n < stride;n++){
-									if(max < lower_neuron[k * stride + m][l * stride + n]){
-										max = lower_neuron[k * stride + m][l * stride + n];
+							for(int m = 0;m < stride[0];m++){
+								for(int n = 0;n < stride[1];n++){
+									if(max < lower_neuron[k * stride[0] + m][l * stride[1] + n]){
+										max = lower_neuron[k * stride[0] + m][l * stride[1] + n];
 									}
 								}
 							}
@@ -351,8 +351,8 @@ void Convolutional_Neural_Networks::Softmax(int layer_index){
 
 	if(strstr(type_layer[i], "sm")){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double max = 0;
 					double sum = 0;
 
@@ -394,27 +394,27 @@ void Convolutional_Neural_Networks::Batch_Normalization_Activate(char option[], 
 		double sum = 0;
 
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					sum += neuron[h][j][k][l];
 				}
 			}
 		}
-		sum_mean += (mean = sum / (batch_size * length_map[i] * length_map[i]));
+		sum_mean += (mean = sum / (batch_size * map_height[i] * map_width[i]));
 							
 		sum = 0;
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					sum += (neuron[h][j][k][l] - mean) * (neuron[h][j][k][l] - mean);
 				}
 			}
 		}
-		sum_variance += (variance = sum / (batch_size * length_map[i] * length_map[i]));
+		sum_variance += (variance = sum / (batch_size * map_height[i] * map_width[i]));
 			
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					neuron_batch[0][h][j][k][l] = (neuron[h][j][k][l] - mean) / sqrt(variance + epsilon);
 					neuron_batch[1][h][j][k][l] = neuron[h][j][k][l];
 
@@ -428,8 +428,8 @@ void Convolutional_Neural_Networks::Batch_Normalization_Activate(char option[], 
 		double stdv = sqrt(variance + epsilon);
 
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					neuron[h][j][k][l] = gamma / stdv * neuron[h][j][k][l] + (beta - gamma * mean / stdv);
 				}
 			}
@@ -446,8 +446,8 @@ void Convolutional_Neural_Networks::Batch_Normalization_Adjust_Parameter(int lay
 	double ****neuron_batch		= this->neuron[1][i];
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[h][j][k][l] * neuron_batch[h][j][k][l];
 			}
 		}
@@ -456,8 +456,8 @@ void Convolutional_Neural_Networks::Batch_Normalization_Adjust_Parameter(int lay
 						
 	sum = 0;
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[h][j][k][l];
 			}
 		}
@@ -482,8 +482,8 @@ void Convolutional_Neural_Networks::Batch_Normalization_Differentiate(int layer_
 	double ****neuron_batch[2]		= {this->neuron[1][i], this->neuron[2][i]};
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				derivative_batch[0][h][j][k][l] = derivative[h][j][k][l] * gamma;
 				sum += derivative_batch[0][h][j][k][l] * (neuron_batch[1][h][j][k][l] - mean);
 			}
@@ -493,8 +493,8 @@ void Convolutional_Neural_Networks::Batch_Normalization_Differentiate(int layer_
 				
 	sum = 0;
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[0][h][j][k][l];
 			}
 		}
@@ -502,11 +502,11 @@ void Convolutional_Neural_Networks::Batch_Normalization_Differentiate(int layer_
 	derivative_mean = -sum / sqrt(variance + epsilon);
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				derivative_batch[1][h][j][k][l] = derivative[h][j][k][l];
 
-				derivative[h][j][k][l] = derivative_batch[0][h][j][k][l] / sqrt(variance + epsilon) + derivative_variance * 2 * (neuron_batch[1][h][j][k][l] - mean) / (batch_size * length_map[i] * length_map[i]) + derivative_mean / (batch_size * length_map[i] * length_map[i]);
+				derivative[h][j][k][l] = derivative_batch[0][h][j][k][l] / sqrt(variance + epsilon) + derivative_variance * 2 * (neuron_batch[1][h][j][k][l] - mean) / (batch_size * map_height[i] * map_width[i]) + derivative_mean / (batch_size * map_height[i] * map_width[i]);
 			}
 		}
 	}
@@ -519,7 +519,7 @@ void Convolutional_Neural_Networks::Resize_Memory(int batch_size){
 				if(Access_Memory(g, i)){
 					for(int h = 0;h < this->batch_size;h++){
 						for(int j = 0;j < number_maps[i];j++){
-							for(int k = 0;k < length_map[i];k++){
+							for(int k = 0;k < map_height[i];k++){
 								delete[] derivative[g][i][h][j][k];
 								delete[] neuron[g][i][h][j][k];
 							}
@@ -537,12 +537,12 @@ void Convolutional_Neural_Networks::Resize_Memory(int batch_size){
 						neuron[g][i][h]		= new double**[number_maps[i]];
 
 						for(int j = 0;j < number_maps[i];j++){
-							derivative[g][i][h][j]	= new double*[length_map[i]];
-							neuron[g][i][h][j]		= new double*[length_map[i]];
+							derivative[g][i][h][j]	= new double*[map_height[i]];
+							neuron[g][i][h][j]		= new double*[map_height[i]];
 
-							for(int k = 0;k < length_map[i];k++){
-								derivative[g][i][h][j][k]	= new double[length_map[i]];
-								neuron[g][i][h][j][k]		= new double[length_map[i]];
+							for(int k = 0;k < map_height[i];k++){
+								derivative[g][i][h][j][k]	= new double[map_width[i]];
+								neuron[g][i][h][j][k]		= new double[map_width[i]];
 							}
 						}
 					}
@@ -560,28 +560,50 @@ bool Convolutional_Neural_Networks::Access_Memory(int type_index, int layer_inde
 	return (g == 0 || strstr(type_layer[i], "bn"));
 }
 
-Convolutional_Neural_Networks::Convolutional_Neural_Networks(char **type_layer, int number_layers, int length_map[], int number_maps[]){
-	this->length_filter	= new int[number_layers];
-	this->length_map	= new int[number_layers];
+Convolutional_Neural_Networks::Convolutional_Neural_Networks(char **type_layer, int number_layers, int map_width[], int map_height[], int number_maps[]){
+	this->kernel_width	= new int[number_layers];
+	this->kernel_height	= new int[number_layers];
+	this->map_width		= new int[number_layers];
+	this->map_height	= new int[number_layers];
 	this->number_layers	= number_layers;
 	this->number_maps	= new int[number_layers];
-	this->stride		= new int[number_layers];
+	this->stride_width	= new int[number_layers];
+	this->stride_height = new int[number_layers];
 	this->type_layer	= new char*[number_layers];
 
 	batch_size			= 1;
 	number_memory_types	= 3;
 
 	for(int i = 0;i < number_layers;i++){
-		this->type_layer[i] = new char[strlen(type_layer[i]) + 1];
+		this->type_layer[i]	 = new char[strlen(type_layer[i]) + 1];
 		strcpy(this->type_layer[i], type_layer[i]);
 		this->number_maps[i] = number_maps[i];
-		this->length_map[i] = (length_map == 0) ? (1):(length_map[i]);
+		this->map_width[i]	 = (map_width == 0) ? (1):(map_width[i]);
+		this->map_height[i]	 = (map_height == 0) ? (1):(map_height[i]);
 
-		if(strstr(type_layer[i], "fs"))	length_filter[i] = atoi(strstr(type_layer[i], "fs") + 2);
-		else							length_filter[i] = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->length_map[i - 1] - this->length_map[i] + 1);
+		if(strstr(type_layer[i], "ks")){
+			char *kernel_size = strstr(type_layer[i], "ks");
 
-		if(strstr(type_layer[i], "st"))	stride[i] = atoi(strstr(type_layer[i], "st") + 2);
-		else							stride[i] = 1;
+			kernel_width[i] = atoi(kernel_size + 2);
+			kernel_size = strstr(kernel_size, ",");
+			kernel_height[i] = (kernel_size && atoi(kernel_size + 1) > 0) ? (atoi(kernel_size + 1)):(kernel_width[i]);
+		}
+		else{
+			kernel_width[i]	 = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->map_width[i - 1] - this->map_width[i] + 1);
+			kernel_height[i] = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->map_height[i - 1] - this->map_height[i] + 1);
+		}
+
+		if(strstr(type_layer[i], "st")){
+			char *stride = strstr(type_layer[i], "st");
+
+			stride_width[i] = atoi(stride + 2);
+			stride = strstr(stride, ",");
+			stride_height[i] = (stride && atoi(stride + 1) > 0) ? (atoi(stride + 1)):(stride_width[i]);
+		}
+		else{
+			stride_width[i]	 = 1;
+			stride_height[i] = 1;
+		}
 	}
 
 	gamma		 = new double*[number_layers];
@@ -619,12 +641,12 @@ Convolutional_Neural_Networks::Convolutional_Neural_Networks(char **type_layer, 
 					neuron[g][i][h]		= new double**[number_maps[i]];
 
 					for(int j = 0;j < number_maps[i];j++){
-						derivative[g][i][h][j]	= new double*[length_map[i]];
-						neuron[g][i][h][j]		= new double*[length_map[i]];
+						derivative[g][i][h][j]	= new double*[map_height[i]];
+						neuron[g][i][h][j]		= new double*[map_height[i]];
 
-						for(int k = 0;k < length_map[i];k++){
-							derivative[g][i][h][j][k]	= new double[length_map[i]];
-							neuron[g][i][h][j][k]		= new double[length_map[i]];
+						for(int k = 0;k < map_height[i];k++){
+							derivative[g][i][h][j][k]	= new double[map_width[i]];
+							neuron[g][i][h][j][k]		= new double[map_width[i]];
 						}
 					}
 				}
@@ -635,17 +657,17 @@ Convolutional_Neural_Networks::Convolutional_Neural_Networks(char **type_layer, 
 	weight = new double****[number_layers];
 
 	for(int i = 0;i < number_layers;i++){
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			weight[i] = new double***[number_maps[i]];
 
 			for(int j = 0;j < number_maps[i];j++){
 				weight[i][j] = new double**[number_maps[i - 1] + 1];
 
 				for(int k = 0;k < number_maps[i - 1] + 1;k++){
-					weight[i][j][k] = new double*[length_filter[i]];
+					weight[i][j][k] = new double*[kernel_height[i]];
 
-					for(int l = 0;l < length_filter[i];l++){
-						weight[i][j][k][l] = new double[length_filter[i]];
+					for(int l = 0;l < kernel_height[i];l++){
+						weight[i][j][k][l] = new double[kernel_width[i]];
 					}
 				}
 			}
@@ -675,7 +697,7 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks(){
 			if(Access_Memory(g, i)){
 				for(int h = 0;h < batch_size;h++){
 					for(int j = 0;j < number_maps[i];j++){
-						for(int k = 0;k < length_map[i];k++){
+						for(int k = 0;k < map_height[i];k++){
 							delete[] derivative[g][i][h][j][k];
 							delete[] neuron[g][i][h][j][k];
 						}
@@ -696,10 +718,10 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks(){
 	delete[] neuron;
 
 	for(int i = 0;i < number_layers;i++){
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			for(int j = 0;j < number_maps[i];j++){
 				for(int k = 0;k < number_maps[i - 1] + 1;k++){
-					for(int l = 0;l < length_filter[i];l++){
+					for(int l = 0;l < kernel_height[i];l++){
 						delete[] weight[i][j][k][l];
 					}
 					delete[] weight[i][j][k];
@@ -716,10 +738,13 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks(){
 	}
 	delete[] type_layer;
 
-	delete[] length_filter;
-	delete[] length_map;
+	delete[] kernel_width;
+	delete[] kernel_height;
+	delete[] map_width;
+	delete[] map_height;
 	delete[] number_maps;
-	delete[] stride;
+	delete[] stride_width;
+	delete[] stride_height;
 }
 
 void Convolutional_Neural_Networks::Initialize_Parameter(int seed, double scale, double shift){
@@ -732,11 +757,11 @@ void Convolutional_Neural_Networks::Initialize_Parameter(int seed, double scale,
 				beta[i][j]	= 0;
 			}
 		}
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			for(int j = 0;j < number_maps[i];j++){
 				for(int k = 0;k < number_maps[i - 1] + 1;k++){
-					for(int l = 0;l < length_filter[i];l++){
-						for(int m = 0;m < length_filter[i];m++){
+					for(int l = 0;l < kernel_height[i];l++){
+						for(int m = 0;m < kernel_width[i];m++){
 							weight[i][j][k][l][m] = scale * rand() / RAND_MAX + shift;
 						}
 					}
@@ -758,11 +783,11 @@ void Convolutional_Neural_Networks::Load_Parameter(char path[]){
 				for(int j = 0;j < number_maps[i];j++) fscanf(file, "%lf", &mean[i][j]);
 				for(int j = 0;j < number_maps[i];j++) fscanf(file, "%lf", &variance[i][j]);
 			}
-			if(length_filter[i] > 0){
+			if(kernel_width[i] > 0){
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + 1;k++){
-						for(int l = 0;l < length_filter[i];l++){
-							for(int m = 0;m < length_filter[i];m++){
+						for(int l = 0;l < kernel_height[i];l++){
+							for(int m = 0;m < kernel_width[i];m++){
 								fscanf(file, "%lf", &weight[i][j][k][l][m]);
 							}
 						}
@@ -788,11 +813,11 @@ void Convolutional_Neural_Networks::Save_Parameter(char path[]){
 			for(int j = 0;j < number_maps[i];j++) fprintf(file, "%f\n", mean[i][j]);
 			for(int j = 0;j < number_maps[i];j++) fprintf(file, "%f\n", variance[i][j]);
 		}
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			for(int j = 0;j < number_maps[i];j++){
 				for(int k = 0;k < number_maps[i - 1] + 1;k++){
-					for(int l = 0;l < length_filter[i];l++){
-						for(int m = 0;m < length_filter[i];m++){
+					for(int l = 0;l < kernel_height[i];l++){
+						for(int m = 0;m < kernel_width[i];m++){
 							fprintf(file, "%f\n", weight[i][j][k][l][m]);
 						}
 					}
@@ -806,10 +831,10 @@ void Convolutional_Neural_Networks::Test(double input[], double output[]){
 	Resize_Memory(1);
 
 	#pragma omp parallel for
-	for(int h = 0;h < number_maps[0] * length_map[0] * length_map[0];h++){
-		int j = (h / (length_map[0] * length_map[0]));
-		int k = (h % (length_map[0] * length_map[0])) / length_map[0];
-		int l = (h % (length_map[0] * length_map[0])) % length_map[0];
+	for(int h = 0;h < number_maps[0] * map_height[0] * map_width[0];h++){
+		int j = (h / (map_height[0] * map_width[0]));
+		int k = (h % (map_height[0] * map_width[0])) / map_width[0];
+		int l = (h % (map_height[0] * map_width[0])) % map_width[0];
 
 		neuron[0][0][0][j][k][l] = input[h];
 	}
@@ -862,10 +887,10 @@ double Convolutional_Neural_Networks::Train(int batch_size, int number_training,
 
 	for(int g = 0, h = 0;g < number_training;g++){
 		#pragma omp parallel for
-		for(int i = 0;i < number_maps[0] * length_map[0] * length_map[0];i++){
-			int j = (i / (length_map[0] * length_map[0]));
-			int k = (i % (length_map[0] * length_map[0])) / length_map[0];
-			int l = (i % (length_map[0] * length_map[0])) % length_map[0];
+		for(int i = 0;i < number_maps[0] * map_height[0] * map_width[0];i++){
+			int j = (i / (map_height[0] * map_width[0]));
+			int k = (i % (map_height[0] * map_width[0])) / map_width[0];
+			int l = (i % (map_height[0] * map_width[0])) % map_width[0];
 
 			neuron[0][0][h][j][k][l] = input[index[g]][i];
 		}
