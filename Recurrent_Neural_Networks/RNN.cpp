@@ -32,17 +32,6 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 	double ****previous_cell_neuron			= this->neuron[5][1][i][(t - 1 < 0) ? (time_step):(t - 1)];
 
 	if(type_layer[i][0] == 'C'){
-		if(strstr(type_layer[i], "or") && j < number_maps[number_layers - 1]){
-			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
-						neuron[h][j][k][l] = this->neuron[0][0][number_layers - 1][(t - 1 < 0) ? (time_step):(t - 1)][h][j][0][0];
-					}
-				}
-			}
-			return;
-		}
-
 		if(strstr(type_layer[i], "bn")){
 			if(strstr(type_layer[i], "gru")){
 				Batch_Normalization_Activate(option, 1, 1, layer_index, time_index, map_index);
@@ -71,8 +60,8 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 
 		if(strstr(type_layer[i], "gru")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						reset_neuron[h][j][k][l]	= Sigmoid(reset_neuron[h][j][k][l] + reset_neuron_patch[0][h][j][k][l] + reset_neuron_patch[1][h][j][k][l]);
 						update_neuron[h][j][k][l]	= Sigmoid(update_neuron[h][j][k][l] + update_neuron_patch[0][h][j][k][l] + update_neuron_patch[1][h][j][k][l]);
 					}
@@ -93,8 +82,8 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 						mask = atof(strstr(type_layer[i], "do") + 2);
 					}
 				}
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						forget_neuron[h][j][k][l]		= Sigmoid(forget_neuron[h][j][k][l] + forget_neuron_patch[0][h][j][k][l] + forget_neuron_patch[1][h][j][k][l]);
 						input_neuron[h][j][k][l]		= Sigmoid(input_neuron[h][j][k][l] + input_neuron_patch[0][h][j][k][l] + input_neuron_patch[1][h][j][k][l]);
 						block_cell_neuron[h][j][k][l]	= Tangent(block_cell_neuron[h][j][k][l] + block_cell_neuron_patch[0][h][j][k][l] + block_cell_neuron_patch[1][h][j][k][l]);						
@@ -106,8 +95,8 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 		else
 		if(strstr(type_layer[i], "rc")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						neuron[h][j][k][l] = Tangent(neuron[h][j][k][l] + neuron_patch[0][h][j][k][l] + neuron_patch[1][h][j][k][l]);
 					}
 				}
@@ -127,8 +116,8 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 					}
 				}
 
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double &neuron = this->neuron[0][0][i][t][h][j][k][l];
 
 						if(strstr(type_layer[i], "ht")){
@@ -152,8 +141,8 @@ void Recurrent_Neural_Networks::Activate(char option[], int layer_index, int tim
 	else
 	if(type_layer[i][0] == 'L'){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &neuron = this->neuron[0][0][i][t][h][j][k][l];
 
 					if(strstr(type_layer[i], "ce")){
@@ -293,16 +282,16 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 		double ****derivative = (derivative_patch) ? (derivative_patch[0]):(_derivative);
 
 		for(int m = 0;m < number_maps[i - 1];m++){
-			for(int n = 0;n < length_filter[i];n++){
-				for(int o = 0;o < length_filter[i];o++){
+			for(int n = 0;n < kernel_height[i];n++){
+				for(int o = 0;o < kernel_width[i];o++){
 					double sum[2] = {0, };
 
 					for(int h = 0;h < batch_size;h++){
-						for(int k = 0;k < length_map[i];k++){
-							for(int l = 0;l < length_map[i];l++){
-								int index[2] = {k * stride[i] + n, l * stride[i] + o};
+						for(int k = 0;k < map_height[i];k++){
+							for(int l = 0;l < map_width[i];l++){
+								int index[2] = {k * stride_height[i] + n, l * stride_width[i] + o};
 
-								if(index[0] < length_map[i - 1] && index[1] < length_map[i - 1]){
+								if(index[0] < map_height[i - 1] && index[1] < map_width[i - 1]){
 									double momentum = derivative[h][j][k][l] * lower_neuron[h][m][index[0]][index[1]];
 
 									sum[0] += momentum;
@@ -324,8 +313,8 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 			double sum[2] = {0, };
 
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double momentum = derivative[h][j][k][l] * previous_neuron[h][m][k][l] * ((reset_neuron) ? (reset_neuron[h][m][k][l]):(1));
 
 						sum[0] += momentum;
@@ -339,8 +328,8 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 	}
 
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				double momentum = _derivative[h][j][k][l];
 
 				sum[0] += momentum;
@@ -355,8 +344,8 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 		double sum[2] = {0, };
 
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double momentum = _derivative[h][j][k][l] * cell_neuron[h][j][k][l];
 
 					sum[0] += momentum;
@@ -475,23 +464,23 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 		else
 		if(type_layer[i + 1][0] == 'P'){
 			if(strstr(type_layer[i + 1], "pad")){
-				int margin = (length_map[i + 1] - length_map[i]) / 2;
+				int margin[] = {(map_height[i + 1] - map_height[i]) / 2, (map_width[i + 1] - map_width[i]) / 2};
 
 				for(int h = 0;h < batch_size;h++){
-					for(int k = 0;k < length_map[i];k++){
-						for(int l = 0;l < length_map[i];l++){
-							derivative[h][j][k][l] = upper_derivative[h][j][margin + k][margin + l];
+					for(int k = 0;k < map_height[i];k++){
+						for(int l = 0;l < map_width[i];l++){
+							derivative[h][j][k][l] = upper_derivative[h][j][margin[0] + k][margin[1] + l];
 						}
 					}
 				}
 			}
 			else{
-				int stride = length_map[i] / length_map[i + 1];
+				int stride[] = {map_height[i] / map_height[i + 1], map_width[i] / map_width[i + 1]};
 
 				for(int h = 0;h < batch_size;h++){
-					for(int k = 0;k < length_map[i];k++){
-						for(int l = 0;l < length_map[i];l++){
-							derivative[h][j][k][l] = upper_derivative[h][j][k / stride][l / stride];
+					for(int k = 0;k < map_height[i];k++){
+						for(int l = 0;l < map_width[i];l++){
+							derivative[h][j][k][l] = upper_derivative[h][j][k / stride[0]][l / stride[1]];
 						}
 					}
 				}
@@ -500,8 +489,8 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 
 		if(strstr(type_layer[i], "gru")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double sum[2] = {0, };
 
 						for(int m = 0;m < number_maps[i];m++){
@@ -517,8 +506,8 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 		else
 		if(strstr(type_layer[i], "lstm")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
@@ -535,8 +524,8 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 		else
 		if(strstr(type_layer[i], "rc")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
@@ -557,8 +546,8 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 				if(strstr(type_layer[i], "do")){
 					mask = dropout_mask[i][h][j];
 				}
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
@@ -589,8 +578,8 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 				if(strstr(type_layer[i], "do")){
 					mask = dropout_mask[i][h][j];
 				}
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double sum = 0;
 
 						sum += next_forget_derivative[h][j][k][l] * forget_cell_weight[j];
@@ -627,11 +616,11 @@ void Recurrent_Neural_Networks::Backpropagate(bool initialize, int layer_index, 
 	int j = map_index;
 
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
-				int ks		 = k / stride[i + 1];
-				int ls		 = l / stride[i + 1];
-				int index[2] = {ks - (length_filter[i + 1] - 1), ls - (length_filter[i + 1] - 1)};
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
+				int ks		 = k / stride_height[i + 1];
+				int ls		 = l / stride_width[i + 1];
+				int index[2] = {ks - (kernel_height[i + 1] - 1), ls - (kernel_width[i + 1] - 1)};
 
 				double sum = 0;
 
@@ -639,8 +628,8 @@ void Recurrent_Neural_Networks::Backpropagate(bool initialize, int layer_index, 
 				if(index[1] < 0) index[1] = 0;
 
 				for(int m = 0;m < number_maps[i + 1];m++){
-					for(int n = index[0];n < length_map[i + 1] && n <= ks;n++){
-						for(int o = index[1];o < length_map[i + 1] && o <= ls;o++){
+					for(int n = index[0];n < map_height[i + 1] && n <= ks;n++){
+						for(int o = index[1];o < map_width[i + 1] && o <= ls;o++){
 							sum += upper_derivative[h][m][n][o] * upper_weight[i + 1][m][j][abs(ks - n)][abs(ls - o)];
 						}
 					}
@@ -674,21 +663,6 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 	double ****cell_neuron			 = this->neuron[5][0][i][t];
 
 	if(type_layer[i][0] == 'C'){
-		if(strstr(type_layer[i], "or") && t > 0 && j < number_maps[number_layers - 1]){
-			for(int h = 0;h < batch_size;h++){
-				double sum = 0;
-
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
-						sum += derivative[h][j][k][l];
-						derivative[h][j][k][l] = 0;
-					}
-				}
-				this->derivative[0][0][number_layers - 1][t - 1][h][j][0][0] = sum / (length_map[i] * length_map[i]) * (1 - this->neuron[0][0][number_layers - 1][t - 1][h][j][0][0]) * this->neuron[0][0][number_layers - 1][t - 1][h][j][0][0];
-			}
-			return;
-		}
-
 		if(strstr(type_layer[i], "gru")){
 			for(int h = 0;h < batch_size;h++){
 				double mask = 1;
@@ -696,8 +670,8 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 				if(strstr(type_layer[i], "do")){
 					mask = dropout_mask[i][h][j];
 				}
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						block_derivative[h][j][k][l]			= mask * derivative[h][j][k][l] * update_neuron[h][j][k][l] * (1 - block_neuron[h][j][k][l]) * (1 + block_neuron[h][j][k][l]);
 						block_derivative_patch[0][h][j][k][l]	= block_derivative[h][j][k][l];
 						block_derivative_patch[1][h][j][k][l]	= block_derivative[h][j][k][l];
@@ -708,8 +682,8 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 		else
 		if(strstr(type_layer[i], "lstm")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						cell_derivative[h][j][k][l]				= derivative[h][j][k][l] * output_neuron[h][j][k][l] * (1 - Tangent(cell_neuron[h][j][k][l])) * (1 + Tangent(cell_neuron[h][j][k][l]));
 						output_derivative[h][j][k][l]			= derivative[h][j][k][l] * Tangent(cell_neuron[h][j][k][l]) * (1 - output_neuron[h][j][k][l]) * output_neuron[h][j][k][l];
 						output_derivative_patch[0][h][j][k][l]	= output_derivative[h][j][k][l];
@@ -721,8 +695,8 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 		else
 		if(strstr(type_layer[i], "rc")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						derivative[h][j][k][l]			*= (1 - neuron[h][j][k][l]) * (1 + neuron[h][j][k][l]);
 						derivative_patch[0][h][j][k][l]	= derivative[h][j][k][l];
 						derivative_patch[1][h][j][k][l]	= derivative[h][j][k][l];
@@ -732,8 +706,8 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 		}
 		else{
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						double &derivative	= this->derivative[0][0][i][t][h][j][k][l];
 						double neuron		= this->neuron[0][0][i][t][h][j][k][l];
 
@@ -776,8 +750,8 @@ void Recurrent_Neural_Networks::Differentiate(int layer_index, int time_index, i
 	else
 	if(type_layer[i][0] == 'L'){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double &derivative	= this->derivative[0][0][i][t][h][j][k][l];
 					double &neuron		= this->neuron[0][0][i][t][h][j][k][l];
 
@@ -879,51 +853,51 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 		else
 		if(type_layer[i][0] == 'P'){
 			if(strstr(type_layer[i], "pad")){
-				int margin = (length_map[i] - length_map[i - 1]) / 2;
+				int margin[] = {(map_height[i] - map_height[i - 1]) / 2, (map_width[i] - map_width[i - 1]) / 2};
 
 				for(int h = 0;h < batch_size;h++){
 					double **lower_neuron	= this->neuron[0][0][i - 1][t][h][j];
 					double **neuron			= this->neuron[0][0][i][t][h][j];
 
-					for(int k = 0;k < length_map[i];k++){
-						for(int l = 0;l < length_map[i];l++){
+					for(int k = 0;k < map_height[i];k++){
+						for(int l = 0;l < map_width[i];l++){
 							neuron[k][l] = 0;
 						}
 					}
-					for(int k = 0;k < length_map[i - 1];k++){
-						for(int l = 0;l < length_map[i - 1];l++){
-							neuron[margin + k][margin + l] = lower_neuron[k][l];
+					for(int k = 0;k < map_height[i - 1];k++){
+						for(int l = 0;l < map_width[i - 1];l++){
+							neuron[margin[0] + k][margin[1] + l] = lower_neuron[k][l];
 						}
 					}
 				}
 			}
 			else{
-				int stride = length_map[i - 1] / length_map[i];
+				int stride[] = {map_height[i - 1] / map_height[i], map_width[i - 1] / map_width[i]};
 
 				for(int h = 0;h < batch_size;h++){
 					double **lower_neuron	= this->neuron[0][0][i - 1][t][h][j];
 					double **neuron			= this->neuron[0][0][i][t][h][j];
 
-					for(int k = 0;k < length_map[i];k++){
-						for(int l = 0;l < length_map[i];l++){
+					for(int k = 0;k < map_height[i];k++){
+						for(int l = 0;l < map_width[i];l++){
 							if(strstr(type_layer[i], "avg")){
 								double sum = 0;
 						
-								for(int m = 0;m < stride;m++){
-									for(int n = 0;n < stride;n++){
-										sum += lower_neuron[k * stride + m][l * stride + n];
+								for(int m = 0;m < stride[0];m++){
+									for(int n = 0;n < stride[1];n++){
+										sum += lower_neuron[k * stride[0] + m][l * stride[1] + n];
 									}
 								}
-								neuron[k][l] = sum / (stride * stride);
+								neuron[k][l] = sum / (stride[0] * stride[1]);
 							}
 							else
 							if(strstr(type_layer[i], "max")){
 								double max = -1;
 						
-								for(int m = 0;m < stride;m++){
-									for(int n = 0;n < stride;n++){
-										if(max < lower_neuron[k * stride + m][l * stride + n]){
-											max = lower_neuron[k * stride + m][l * stride + n];
+								for(int m = 0;m < stride[0];m++){
+									for(int n = 0;n < stride[1];n++){
+										if(max < lower_neuron[k * stride[0] + m][l * stride[1] + n]){
+											max = lower_neuron[k * stride[0] + m][l * stride[1] + n];
 										}
 									}
 								}
@@ -956,8 +930,8 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 						mask = atof(strstr(type_layer[i], "do") + 2);
 					}
 				}
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						block_neuron[h][j][k][l] = Tangent(block_neuron[h][j][k][l] + block_neuron_patch[0][h][j][k][l] + block_neuron_patch[1][h][j][k][l]);
 						neuron[h][j][k][l]		 = (1 - update_neuron[h][j][k][l]) * previous_neuron[h][j][k][l] + update_neuron[h][j][k][l] * mask * block_neuron[h][j][k][l];
 					}
@@ -967,8 +941,8 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 		else
 		if(strstr(type_layer[i], "lstm")){
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						cell_neuron_patch[h][j][k][l] = cell_neuron[h][j][k][l];
 					}
 				}
@@ -981,8 +955,8 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 				Batch_Normalization_Activate(option, 5, 0, layer_index, time_index, map_index);
 			}
 			for(int h = 0;h < batch_size;h++){
-				for(int k = 0;k < length_map[i];k++){
-					for(int l = 0;l < length_map[i];l++){
+				for(int k = 0;k < map_height[i];k++){
+					for(int l = 0;l < map_width[i];l++){
 						output_neuron[h][j][k][l]	= Sigmoid(output_neuron[h][j][k][l] + output_neuron_patch[0][h][j][k][l] + output_neuron_patch[1][h][j][k][l]);
 						neuron[h][j][k][l]			= output_neuron[h][j][k][l] * Tangent(cell_neuron[h][j][k][l]);
 					}
@@ -996,19 +970,19 @@ void Recurrent_Neural_Networks::Feedforward(int layer_index, int map_index, doub
 	int j = map_index;
 
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				neuron[h][j][k][l] = weight[j][number_maps[i - 1] + number_maps[i]][0][0];
 
 				if(lower_neuron){
 					double sum = 0;
 
 					for(int m = 0;m < number_maps[i - 1];m++){
-						for(int n = 0;n < length_filter[i];n++){
-							for(int o = 0;o < length_filter[i];o++){
-								int index[2] = {k * stride[i] + n, l * stride[i] + o};
+						for(int n = 0;n < kernel_height[i];n++){
+							for(int o = 0;o < kernel_width[i];o++){
+								int index[2] = {k * stride_height[i] + n, l * stride_width[i] + o};
 
-								if(index[0] < length_map[i - 1] && index[1] < length_map[i - 1]){
+								if(index[0] < map_height[i - 1] && index[1] < map_width[i - 1]){
 									sum += lower_neuron[h][m][index[0]][index[1]] * weight[j][m][n][o];
 								}
 							}
@@ -1042,8 +1016,8 @@ void Recurrent_Neural_Networks::Softmax(int layer_index, int time_index){
 
 	if(strstr(type_layer[i], "sm")){
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					double max = 0;
 					double sum = 0;
 
@@ -1088,27 +1062,27 @@ void Recurrent_Neural_Networks::Batch_Normalization_Activate(char option[], int 
 		double sum = 0;
 
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					sum += neuron[h][j][k][l];
 				}
 			}
 		}
-		sum_mean += (mean = sum / (batch_size * length_map[i] * length_map[i]));
+		sum_mean += (mean = sum / (batch_size * map_height[i] * map_width[i]));
 							
 		sum = 0;
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					sum += (neuron[h][j][k][l] - mean) * (neuron[h][j][k][l] - mean);
 				}
 			}
 		}
-		sum_variance += (variance = sum / (batch_size * length_map[i] * length_map[i]));
+		sum_variance += (variance = sum / (batch_size * map_height[i] * map_width[i]));
 			
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					neuron_batch[0][h][j][k][l] = (neuron[h][j][k][l] - mean) / sqrt(variance + epsilon);
 					neuron_batch[1][h][j][k][l] = neuron[h][j][k][l];
 
@@ -1122,8 +1096,8 @@ void Recurrent_Neural_Networks::Batch_Normalization_Activate(char option[], int 
 		double stdv = sqrt(variance + epsilon);
 
 		for(int h = 0;h < batch_size;h++){
-			for(int k = 0;k < length_map[i];k++){
-				for(int l = 0;l < length_map[i];l++){
+			for(int k = 0;k < map_height[i];k++){
+				for(int l = 0;l < map_width[i];l++){
 					neuron[h][j][k][l] = gamma / stdv * neuron[h][j][k][l] + (beta - gamma * mean / stdv);
 				}
 			}
@@ -1146,8 +1120,8 @@ void Recurrent_Neural_Networks::Batch_Normalization_Adjust_Parameter(int memory_
 	double ****neuron_batch		= this->neuron[g][2 * (h / 2) + 3][i][t];
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[h][j][k][l] * neuron_batch[h][j][k][l];
 			}
 		}
@@ -1157,8 +1131,8 @@ void Recurrent_Neural_Networks::Batch_Normalization_Adjust_Parameter(int memory_
 						
 	sum = 0;
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[h][j][k][l];
 			}
 		}
@@ -1187,8 +1161,8 @@ void Recurrent_Neural_Networks::Batch_Normalization_Differentiate(int memory_typ
 	double ****neuron_batch[2]		= {this->neuron[g][2 * (h / 2) + 3][i][t], this->neuron[g][2 * (h / 2) + 4][i][t]};
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				derivative_batch[0][h][j][k][l] = derivative[h][j][k][l] * gamma;
 				sum += derivative_batch[0][h][j][k][l] * (neuron_batch[1][h][j][k][l] - mean);
 			}
@@ -1198,8 +1172,8 @@ void Recurrent_Neural_Networks::Batch_Normalization_Differentiate(int memory_typ
 				
 	sum = 0;
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				sum += derivative_batch[0][h][j][k][l];
 			}
 		}
@@ -1207,11 +1181,11 @@ void Recurrent_Neural_Networks::Batch_Normalization_Differentiate(int memory_typ
 	derivative_mean = -sum / sqrt(variance + epsilon);
 		
 	for(int h = 0;h < batch_size;h++){
-		for(int k = 0;k < length_map[i];k++){
-			for(int l = 0;l < length_map[i];l++){
+		for(int k = 0;k < map_height[i];k++){
+			for(int l = 0;l < map_width[i];l++){
 				derivative_batch[1][h][j][k][l] = derivative[h][j][k][l];
 
-				derivative[h][j][k][l] = derivative_batch[0][h][j][k][l] / sqrt(variance + epsilon) + derivative_variance * 2 * (neuron_batch[1][h][j][k][l] - mean) / (batch_size * length_map[i] * length_map[i]) + derivative_mean / (batch_size * length_map[i] * length_map[i]);
+				derivative[h][j][k][l] = derivative_batch[0][h][j][k][l] / sqrt(variance + epsilon) + derivative_variance * 2 * (neuron_batch[1][h][j][k][l] - mean) / (batch_size * map_height[i] * map_width[i]) + derivative_mean / (batch_size * map_height[i] * map_width[i]);
 			}
 		}
 	}
@@ -1256,13 +1230,13 @@ void Recurrent_Neural_Networks::Refer_Memory(char option[], int time_index){
 								derivative[g][h][i][t][m] = new double**[number_maps[i]];
 
 								for(int j = 0;j < number_maps[i];j++){
-									derivative[g][h][i][t][m][j] = new double*[length_map[i]];
+									derivative[g][h][i][t][m][j] = new double*[map_height[i]];
 
-									for(int k = 0;k < length_map[i];k++){
-										derivative[g][h][i][t][m][j][k] = new double[length_map[i]];
+									for(int k = 0;k < map_height[i];k++){
+										derivative[g][h][i][t][m][j][k] = new double[map_width[i]];
 
 										if(i == number_layers - 1){
-											for(int l = 0;l < length_map[i];l++){
+											for(int l = 0;l < map_width[i];l++){
 												derivative[g][h][i][t][m][j][k][l] = 0;
 											}
 										}
@@ -1274,7 +1248,7 @@ void Recurrent_Neural_Networks::Refer_Memory(char option[], int time_index){
 						if(strstr(option, "delete")){
 							for(int m = 0;m < batch_size;m++){
 								for(int j = 0;j < number_maps[i];j++){
-									for(int k = 0;k < length_map[i];k++){
+									for(int k = 0;k < map_height[i];k++){
 										delete[] derivative[g][h][i][t][m][j][k];
 									}
 									delete[] derivative[g][h][i][t][m][j];
@@ -1287,8 +1261,8 @@ void Recurrent_Neural_Networks::Refer_Memory(char option[], int time_index){
 						if(strstr(option, "zeroise")){
 							for(int m = 0;m < batch_size;m++){
 								for(int j = 0;j < number_maps[i];j++){
-									for(int k = 0;k < length_map[i];k++){
-										for(int l = 0;l < length_map[i];l++){
+									for(int k = 0;k < map_height[i];k++){
+										for(int l = 0;l < map_width[i];l++){
 											derivative[g][h][i][t][m][j][k][l] = 0;
 										}
 									}
@@ -1301,8 +1275,8 @@ void Recurrent_Neural_Networks::Refer_Memory(char option[], int time_index){
 						if(strstr(option, "zeroise")){
 							for(int m = 0;m < batch_size;m++){
 								for(int j = 0;j < number_maps[i];j++){
-									for(int k = 0;k < length_map[i];k++){
-										for(int l = 0;l < length_map[i];l++){
+									for(int k = 0;k < map_height[i];k++){
+										for(int l = 0;l < map_width[i];l++){
 											neuron[g][h][i][t][m][j][k][l] = 0;
 										}
 									}
@@ -1423,8 +1397,8 @@ void Recurrent_Neural_Networks::Refer_Parameter(char option[], char type_paramet
 				#pragma omp parallel for
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + recurrent * number_maps[i] + 1;k++){
-						for(int l = 0;l < length_filter[i];l++){
-							for(int m = 0;m < length_filter[i];m++){
+						for(int l = 0;l < kernel_height[i];l++){
+							for(int m = 0;m < kernel_width[i];m++){
 								switch(option_index){
 								case 0:
 									weight[1][h][i][j][k][l][m]	+= weight[0][h][i][j][k][l][m];
@@ -1468,7 +1442,7 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 							if(t == this->time_step){
 								for(int m = 0;m < this->batch_size;m++){
 									for(int j = 0;j < number_maps[i];j++){
-										for(int k = 0;k < length_map[i];k++){
+										for(int k = 0;k < map_height[i];k++){
 											delete[] derivative[g][h][i][t][m][j][k];
 										}
 										delete[] derivative[g][h][i][t][m][j];
@@ -1479,7 +1453,7 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 							}
 							for(int m = 0;m < this->batch_size;m++){
 								for(int j = 0;j < number_maps[i];j++){
-									for(int k = 0;k < length_map[i];k++){
+									for(int k = 0;k < map_height[i];k++){
 										delete[] neuron[g][h][i][t][m][j][k];
 									}
 									delete[] neuron[g][h][i][t][m][j];
@@ -1500,10 +1474,10 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 									derivative[g][h][i][t][m] = new double**[number_maps[i]];
 
 									for(int j = 0;j < number_maps[i];j++){
-										derivative[g][h][i][t][m][j] = new double*[length_map[i]];
+										derivative[g][h][i][t][m][j] = new double*[map_height[i]];
 
-										for(int k = 0;k < length_map[i];k++){
-											derivative[g][h][i][t][m][j][k] = new double[length_map[i]];
+										for(int k = 0;k < map_height[i];k++){
+											derivative[g][h][i][t][m][j][k] = new double[map_width[i]];
 										}
 									}
 								}
@@ -1515,10 +1489,10 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 								neuron[g][h][i][t][m] = new double**[number_maps[i]];
 
 								for(int j = 0;j < number_maps[i];j++){
-									neuron[g][h][i][t][m][j] = new double*[length_map[i]];
+									neuron[g][h][i][t][m][j] = new double*[map_height[i]];
 
-									for(int k = 0;k < length_map[i];k++){
-										neuron[g][h][i][t][m][j][k]	= new double[length_map[i]];
+									for(int k = 0;k < map_height[i];k++){
+										neuron[g][h][i][t][m][j][k]	= new double[map_width[i]];
 									}
 								}
 							}
@@ -1527,8 +1501,8 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 				}
 			}
 		}
-		this->batch_size	= batch_size;
-		this->time_step	= time_step;
+		this->batch_size = batch_size;
+		this->time_step	 = time_step;
 	}
 }
 
@@ -1543,7 +1517,7 @@ bool Recurrent_Neural_Networks::Access_Weight(int weight_type, int layer_index){
 	int h = weight_type;
 	int i = layer_index;
 
-	return (h == 0 || (h < 3 && strstr(type_layer[i], "gru")) || strstr(type_layer[i], "lstm")) && (length_filter[i] > 0);
+	return (h == 0 || (h < 3 && strstr(type_layer[i], "gru")) || strstr(type_layer[i], "lstm")) && (kernel_width[i] > 0);
 }
 
 double Recurrent_Neural_Networks::Tangent(double x){
@@ -1553,14 +1527,16 @@ double Recurrent_Neural_Networks::Sigmoid(double x){
 	return 1 / (1 + exp(-x));
 }
 
-Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int number_layers, int length_map[], int number_maps[]){
-	this->length_map	= new int[number_layers];
+Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int number_layers, int map_width[], int map_height[], int number_maps[]){
+	this->kernel_height	= new int[number_layers];
+	this->kernel_width	= new int[number_layers];
+	this->map_width		= new int[number_layers];
+	this->map_height	= new int[number_layers];
 	this->number_layers	= number_layers;
 	this->number_maps	= new int[number_layers];
+	this->stride_width	= new int[number_layers];
+	this->stride_height	= new int[number_layers];
 	this->type_layer	= new char*[number_layers];
-
-	length_filter	= new int[number_layers];
-	stride			= new int[number_layers];
 
 	batch_size				= 1;
 	time_step				= 1;
@@ -1573,13 +1549,32 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 		this->type_layer[i] = new char[strlen(type_layer[i]) + 1];
 		strcpy(this->type_layer[i], type_layer[i]);
 		this->number_maps[i] = number_maps[i];
-		this->length_map[i] = (length_map == 0) ? (1):(length_map[i]);
+		this->map_width[i]	 = (map_width == 0) ? (1):(map_width[i]);
+		this->map_height[i]	 = (map_height == 0) ? (1):(map_height[i]);
 
-		if(strstr(type_layer[i], "fs"))	length_filter[i] = atoi(strstr(type_layer[i], "fs") + 2);
-		else							length_filter[i] = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->length_map[i - 1] - this->length_map[i] + 1);
+		if(strstr(type_layer[i], "ks")){
+			char *kernel_size = strstr(type_layer[i], "ks");
 
-		if(strstr(type_layer[i], ",st"))	stride[i] = atoi(strstr(type_layer[i], ",st") + 3);
-		else								stride[i] = 1;
+			kernel_width[i] = atoi(kernel_size + 2);
+			kernel_size = strstr(kernel_size, ",");
+			kernel_height[i] = (kernel_size && atoi(kernel_size + 1) > 0) ? (atoi(kernel_size + 1)):(kernel_width[i]);
+		}
+		else{
+			kernel_width[i]	 = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->map_width[i - 1] - this->map_width[i] + 1);
+			kernel_height[i] = (i == 0 || type_layer[i][0] == 'P') ? (0):(this->map_height[i - 1] - this->map_height[i] + 1);
+		}
+
+		if(strstr(type_layer[i], "st")){
+			char *stride = strstr(type_layer[i], "st");
+
+			stride_width[i] = atoi(stride + 2);
+			stride = strstr(stride, ",");
+			stride_height[i] = (stride && atoi(stride + 1) > 0) ? (atoi(stride + 1)):(stride_width[i]);
+		}
+		else{
+			stride_width[i]	 = 1;
+			stride_height[i] = 1;
+		}
 	}
 
 	gamma			= new double***[number_layers];
@@ -1656,10 +1651,10 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 							neuron[g][h][i][t][m] = new double**[number_maps[i]];
 
 							for(int j = 0;j < number_maps[i];j++){
-								neuron[g][h][i][t][m][j] = new double*[this->length_map[i]];
+								neuron[g][h][i][t][m][j] = new double*[this->map_height[i]];
 
-								for(int k = 0;k < this->length_map[i];k++){
-									neuron[g][h][i][t][m][j][k] = new double[this->length_map[i]];
+								for(int k = 0;k < this->map_height[i];k++){
+									neuron[g][h][i][t][m][j][k] = new double[this->map_width[i]];
 								}
 							}
 						}
@@ -1695,12 +1690,12 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 					weight_momentum[h][i][j]	= new double**[number_maps[i - 1] + number_maps[i] + 1];
 
 					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-						weight[h][i][j][k]			= new double*[length_filter[i]];
-						weight_momentum[h][i][j][k]	= new double*[length_filter[i]];
+						weight[h][i][j][k]			= new double*[kernel_height[i]];
+						weight_momentum[h][i][j][k]	= new double*[kernel_height[i]];
 
-						for(int l = 0;l < length_filter[i];l++){
-							weight[h][i][j][k][l]			= new double[length_filter[i]];
-							weight_momentum[h][i][j][k][l]	= new double[length_filter[i]];
+						for(int l = 0;l < kernel_height[i];l++){
+							weight[h][i][j][k][l]			= new double[kernel_width[i]];
+							weight_momentum[h][i][j][k][l]	= new double[kernel_width[i]];
 						}
 					}
 				}
@@ -1765,7 +1760,7 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 					for(int t = 0;t < time_step + 1;t++){
 						for(int m = 0;m < batch_size;m++){
 							for(int j = 0;j < number_maps[i];j++){
-								for(int k = 0;k < length_map[i];k++){
+								for(int k = 0;k < map_height[i];k++){
 									delete[] neuron[g][h][i][t][m][j][k];
 								}
 								delete[] neuron[g][h][i][t][m][j];
@@ -1796,7 +1791,7 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 			if(Access_Weight(h, i)){
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-						for(int l = 0;l < length_filter[i];l++){
+						for(int l = 0;l < kernel_height[i];l++){
 							delete[] weight[h][i][j][k][l];
 							delete[] weight_momentum[h][i][j][k][l];
 						}
@@ -1823,10 +1818,13 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 	for(int i = 0;i < number_layers;i++){
 		delete[] type_layer[i];
 	}
-	delete[] length_filter;
-	delete[] length_map;
+	delete[] kernel_width;
+	delete[] kernel_height;
+	delete[] map_width;
+	delete[] map_height;
 	delete[] number_maps;
-	delete[] stride;
+	delete[] stride_width;
+	delete[] stride_height;
 	delete[] type_layer;
 }
 
@@ -1858,8 +1856,8 @@ void Recurrent_Neural_Networks::Initialize_Parameter(int seed, double scale, dou
 			if(Access_Weight(h, i)){
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-						for(int l = 0;l < length_filter[i];l++){
-							for(int m = 0;m < length_filter[i];m++){
+						for(int l = 0;l < kernel_height[i];l++){
+							for(int m = 0;m < kernel_width[i];m++){
 								weight[h][i][j][k][l][m] = scale * rand() / RAND_MAX + shift;
 							}
 						}
@@ -1900,8 +1898,8 @@ void Recurrent_Neural_Networks::Load_Parameter(char path[]){
 				if(Access_Weight(h, i)){
 					for(int j = 0;j < number_maps[i];j++){
 						for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-							for(int l = 0;l < length_filter[i];l++){
-								for(int m = 0;m < length_filter[i];m++){
+							for(int l = 0;l < kernel_height[i];l++){
+								for(int m = 0;m < kernel_width[i];m++){
 									fscanf(file, "%lf", &weight[h][i][j][k][l][m]);
 								}
 							}
@@ -1946,8 +1944,8 @@ void Recurrent_Neural_Networks::Save_Parameter(char path[]){
 			if(Access_Weight(h, i)){
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-						for(int l = 0;l < length_filter[i];l++){
-							for(int m = 0;m < length_filter[i];m++){
+						for(int l = 0;l < kernel_height[i];l++){
+							for(int m = 0;m < kernel_width[i];m++){
 								fprintf(file, "%f\n", weight[h][i][j][k][l][m]);
 							}
 						}
@@ -1962,10 +1960,10 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 	Resize_Memory(1, 1);
 
 	#pragma omp parallel for
-	for(int h = 0;h < number_maps[0] * length_map[0] * length_map[0];h++){
-		int j = (h / (length_map[0] * length_map[0]));
-		int k = (h % (length_map[0] * length_map[0])) / length_map[0];
-		int l = (h % (length_map[0] * length_map[0])) % length_map[0];
+	for(int h = 0;h < number_maps[0] * map_height[0] * map_width[0];h++){
+		int j = (h / (map_height[0] * map_width[0]));
+		int k = (h % (map_height[0] * map_width[0])) / map_width[0];
+		int l = (h % (map_height[0] * map_width[0])) % map_width[0];
 
 		neuron[0][0][0][0][0][j][k][l] = input[h];
 	}
@@ -1973,12 +1971,12 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 	if(initialize){
 		for(int i = 1;i < number_layers;i++){
 			#pragma omp parallel for
-			for(int h = 0;h < number_maps[i] * length_map[i] * length_map[i];h++){
-				int j = (h / (length_map[i] * length_map[i]));
-				int k = (h % (length_map[i] * length_map[i])) / length_map[i];
-				int l = (h % (length_map[i] * length_map[i])) % length_map[i];
+			for(int h = 0;h < number_maps[i] * map_height[i] * map_width[i];h++){
+				int j = (h / (map_height[i] * map_width[i]));
+				int k = (h % (map_height[i] * map_width[i])) / map_width[i];
+				int l = (h % (map_height[i] * map_width[i])) % map_width[i];
 
-				if(strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc") || i == number_layers - 1){
+				if(strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
 					neuron[0][0][i][1][0][j][k][l] = 0;
 				}
 				else
@@ -2011,12 +2009,12 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 
 	for(int i = 1;i < number_layers;i++){
 		#pragma omp parallel for
-		for(int h = 0;h < number_maps[i] * length_map[i] * length_map[i];h++){
-			int j = (h / (length_map[i] * length_map[i]));
-			int k = (h % (length_map[i] * length_map[i])) / length_map[i];
-			int l = (h % (length_map[i] * length_map[i])) % length_map[i];
+		for(int h = 0;h < number_maps[i] * map_height[i] * map_width[i];h++){
+			int j = (h / (map_height[i] * map_width[i]));
+			int k = (h % (map_height[i] * map_width[i])) / map_width[i];
+			int l = (h % (map_height[i] * map_width[i])) % map_width[i];
 
-			if(strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc") || i == number_layers - 1){
+			if(strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
 				neuron[0][0][i][1][0][j][k][l] = neuron[0][0][i][0][0][j][k][l];
 			}
 			else
@@ -2029,7 +2027,7 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 }
 
 double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int time_step, int time_stride, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output){
-	int number_batch	= 0;
+	int number_batches	= 0;
 	int number_data		= 0;
 
 	int ***index = new int**[number_training];
@@ -2076,7 +2074,7 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 				dropout_mask[i][h] = new int[number_maps[i]];
 			}
 		}
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			gradient[i] = new double[number_maps[i]];
 		}
 	}
@@ -2113,10 +2111,10 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 		for(int s = 0;s < length_data[g] - time_step + 1;s += time_stride){
 			for(int t = 0;t < time_step;t++){
 				#pragma omp parallel for
-				for(int i = 0;i < number_maps[0] * length_map[0] * length_map[0];i++){
-					int j = (i / (length_map[0] * length_map[0]));
-					int k = (i % (length_map[0] * length_map[0])) / length_map[0];
-					int l = (i % (length_map[0] * length_map[0])) % length_map[0];
+				for(int i = 0;i < number_maps[0] * map_height[0] * map_width[0];i++){
+					int j = (i / (map_height[0] * map_width[0]));
+					int k = (i % (map_height[0] * map_width[0])) / map_width[0];
+					int l = (i % (map_height[0] * map_width[0])) % map_width[0];
 
 					neuron[0][0][0][t][h][j][k][l] = input[index[g][s][0]][index[g][s][1] + t][i];
 				}
@@ -2127,7 +2125,7 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 
 			if(++h == batch_size){
 				for(int i = 0;i < number_layers;i++){
-					if(length_filter[i] > 0){
+					if(kernel_width[i] > 0){
 						for(int j = 0;j < number_maps[i];j++){
 							gradient[i][j] = 0;
 						}
@@ -2159,7 +2157,7 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 						}
 						Softmax(i, t);
 					}
-					number_batch++;
+					number_batches++;
 				}
 
 				Refer_Parameter	("zeroise", "momentum", 0, 0);
@@ -2226,8 +2224,8 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 				int l = (h % (number_memory_types * number_memory_parts)) % number_memory_parts;
 
 				if(Access_Memory(k, 0, i)){
-					mean[i][j][k][l][0]		= sum_mean[i][j][k][l] / number_batch;
-					variance[i][j][k][l][0]	= (double)batch_size / (batch_size - 1) * sum_variance[i][j][k][l] / number_batch;
+					mean[i][j][k][l][0]		= sum_mean[i][j][k][l] / number_batches;
+					variance[i][j][k][l][0]	= (double)batch_size / (batch_size - 1) * sum_variance[i][j][k][l] / number_batches;
 				}
 			}
 		}
@@ -2248,7 +2246,7 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 			}
 			delete[] dropout_mask[i];
 		}
-		if(length_filter[i] > 0){
+		if(kernel_width[i] > 0){
 			delete[] gradient[i];
 		}
 	}
