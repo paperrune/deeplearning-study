@@ -6,10 +6,13 @@ private:
 	int number_layers;
 	int number_memory_types;
 
-	int *length_filter;
-	int *length_map;
+	int *kernel_width;
+	int *kernel_height;
+	int *map_width;
+	int *map_height;
 	int *number_maps;
-	int *stride;
+	int *stride_width;
+	int *stride_height;
 
 	double *****weight;
 
@@ -42,7 +45,7 @@ private:
 
 	bool Access_Memory(int type_index, int layer_index);
 public:
-	Convolutional_Neural_Networks(char **type_layer, int number_layers, int length_map[], int number_maps[]);
+	Convolutional_Neural_Networks(char **type_layer, int number_layers, int map_width[], int map_height[], int number_maps[]);
 	~Convolutional_Neural_Networks();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
