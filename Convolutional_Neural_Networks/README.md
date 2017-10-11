@@ -9,9 +9,10 @@
 - The network structure is determined by three variables in the main.cpp.
 
   ```C++
-  87: char *type_layer[]  = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
-  90: int length_map[]    = {28, 24, 12,  8,  4,   1,  1};
-  91: int number_maps[]   = { 1, 24, 24, 48, 48, 192, 10};
+  88: char *type_layer[]  = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
+  91: int map_width[]     = {28, 24, 12,  8,  4,   1,  1};
+  92: int map_height[]    = {28, 24, 12,  8,  4,   1,  1};
+  93: int number_maps[]   = { 1, 24, 24, 48, 48, 192, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
   - Type start with 'C(connecting/convolution)' and 'P(padding/pooling)' is for hidden layer.  
@@ -24,8 +25,10 @@
     ""     : default is ReLU
     
     > Property
-    "fsn"  : setting filter size to n^2  [default filter size : (length_map[i - 1] - length_map[i] + 1)^2]
-    "stn"  : setting stride to n         [default stride      : 1]
+    "ksm,n"  : set kernel width to m and height to n  [default kernel size : (map_width[i - 1] - map_width[i] + 1)*(map_height[i - 1] - map_height[i] + 1)]
+    "ksm     : same with ksm,m
+    "stm,n"  : set stride width to m and height to n  [default stride size : 1*1]
+    "stm     : same with stm,m
 
     > Regularization
     "bn"   : Batch Normalization
