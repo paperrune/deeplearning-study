@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "CNN.h"
 
@@ -87,7 +88,8 @@ int main(){
 	char *type_layer[] = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
 
 	int batch_size			= 60;
-	int length_map[]		= {28,	24, 12,  8,  4,   1,  1};
+	int map_width[]			= {28, 24, 12,  8,  4,   1,  1};
+	int map_height[]		= {28, 24, 12,  8,  4,   1,  1};
 	int number_maps[]		= { 1, 24, 24, 48, 48, 192, 10};
 	int number_iterations	= 100;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
@@ -102,25 +104,26 @@ int main(){
 
 	double epsilon		 = 0.001;
 	double learning_rate = 0.005;
+	double decay_rate	 = 0.993;
 
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
 
-	Convolutional_Neural_Networks *CNN = new Convolutional_Neural_Networks(type_layer, number_layers, length_map, number_maps);
+	Convolutional_Neural_Networks CNN = Convolutional_Neural_Networks(type_layer, number_layers, map_width, map_height, number_maps);
 
 	for(int h = 0;h < number_training + number_test;h++){
-		input[h]		 = new double[number_maps[0] * length_map[0] * length_map[0]];
+		input[h]		 = new double[number_maps[0] * map_height[0] * map_width[0]];
 		target_output[h] = new double[number_maps[number_layers - 1]];
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);	
 
-	CNN->Initialize_Parameter(0, 0.2, -0.1);
+	CNN.Initialize_Parameter(0, 0.2, -0.1);
 	omp_set_num_threads(number_threads);
 
 	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
-		double loss = CNN->Train(batch_size, number_training, epsilon, learning_rate, input, target_output);
+		double loss = CNN.Train(batch_size, number_training, epsilon, learning_rate, input, target_output);
 
 		double *output = new double[number_maps[number_layers - 1]];
 
@@ -129,7 +132,7 @@ int main(){
 
 			double max = 0;
 
-			CNN->Test(input[i], output);
+			CNN.Test(input[i], output);
 
 			for(int j = 0;j < number_maps[number_layers - 1];j++){
 				if(max < output[j]){
@@ -140,7 +143,7 @@ int main(){
 			number_correct[(i < number_training) ? (0):(1)] += (int)target_output[i][argmax];
 		}
 		printf("score: %d / %d, %d / %d  loss: %lf  step %d  %.2lf sec\n", number_correct[0], number_training, number_correct[1], number_test, loss, h + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		learning_rate *= 0.993;
+		learning_rate *= decay_rate;
 
 		delete[] output;
 	}
@@ -151,7 +154,6 @@ int main(){
 	}
 	delete[] input;
 	delete[] target_output;
-	delete CNN;
 
 	return 0;
 }
