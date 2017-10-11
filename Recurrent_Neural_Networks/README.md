@@ -10,9 +10,11 @@
 
   ```C++
   91: char *type_layer[]  = {"MNIST", "Clstm", "Lce,sm"};
-  94: int length_train    = 28;
-  96: int length_map[]    = {1, 1, 1};
-  97: int number_maps[]   = {784 / length_train, 100, 10};
+  94: int time_step       = 28;
+  95: int time_stride     = time_step;
+  96: int width_map[]     = {1, 1, 1};
+  97: int height_map[]    = {1, 1, 1};
+  98: int number_maps[]   = {784 / length_train, 100, 10};
   ```  
   - The type is extended in [Convolutional Neural Networks](https://github.com/paperrune/Neural-Networks/tree/master/Convolutional_Neural_Networks), and only new types are shown on this page.
  
