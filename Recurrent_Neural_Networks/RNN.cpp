@@ -1735,8 +1735,6 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 	delete[] sum_mean;
 	delete[] sum_variance;
 
-	Refer_Memory("delete derivative", time_step);
-
 	for(int g = 0;g < number_memory_types;g++){
 		for(int h = 0;h < number_memory_parts + number_memory_batches;h++){
 			for(int i = 0;i < number_layers;i++){
@@ -1745,12 +1743,16 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 						for(int m = 0;m < batch_size;m++){
 							for(int j = 0;j < number_maps[i];j++){
 								for(int k = 0;k < map_height[i];k++){
+									delete[] derivative[g][h][i][t][m][j][k];
 									delete[] neuron[g][h][i][t][m][j][k];
 								}
+								delete[] derivative[g][h][i][t][m][j];
 								delete[] neuron[g][h][i][t][m][j];
 							}
+							delete[] derivative[g][h][i][t][m];
 							delete[] neuron[g][h][i][t][m];
 						}
+						delete[] derivative[g][h][i][t];
 						delete[] neuron[g][h][i][t];
 					}
 				}
