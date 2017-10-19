@@ -78,5 +78,6 @@ public:
 	void Save_Parameter(char path[]);
 	void Test(bool initialize, double input[], double output[]);
 
+	double Train(int batch_size, int number_training, int time_step, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output);
 	double Train(int batch_size, int number_training, int time_step, int time_stride, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output);
 };
