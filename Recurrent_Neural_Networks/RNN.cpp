@@ -1439,27 +1439,19 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
 				for(int i = 0;i < number_layers;i++){
 					if(Access_Memory(g, h, i)){
 						for(int t = 0;t < this->time_step + 1;t++){
-							if(t == this->time_step){
-								for(int m = 0;m < this->batch_size;m++){
-									for(int j = 0;j < number_maps[i];j++){
-										for(int k = 0;k < map_height[i];k++){
-											delete[] derivative[g][h][i][t][m][j][k];
-										}
-										delete[] derivative[g][h][i][t][m][j];
-									}
-									delete[] derivative[g][h][i][t][m];
-								}
-								delete[] derivative[g][h][i][t];
-							}
 							for(int m = 0;m < this->batch_size;m++){
 								for(int j = 0;j < number_maps[i];j++){
 									for(int k = 0;k < map_height[i];k++){
+										delete[] derivative[g][h][i][t][m][j][k];
 										delete[] neuron[g][h][i][t][m][j][k];
 									}
+									delete[] derivative[g][h][i][t][m][j];
 									delete[] neuron[g][h][i][t][m][j];
 								}
+								delete[] derivative[g][h][i][t][m];
 								delete[] neuron[g][h][i][t][m];
 							}
+							delete[] derivative[g][h][i][t];
 							delete[] neuron[g][h][i][t];
 						}
 
@@ -1467,32 +1459,20 @@ void Recurrent_Neural_Networks::Resize_Memory(int batch_size, int time_step){
     					neuron[g][h][i]		= (double*****)realloc(neuron[g][h][i],		sizeof(double****) * (time_step + 1));
 
 						for(int t = 0;t < time_step + 1;t++){
-							if(t == time_step){
-								derivative[g][h][i][t] = new double***[batch_size];
-
-								for(int m = 0;m < batch_size;m++){
-									derivative[g][h][i][t][m] = new double**[number_maps[i]];
-
-									for(int j = 0;j < number_maps[i];j++){
-										derivative[g][h][i][t][m][j] = new double*[map_height[i]];
-
-										for(int k = 0;k < map_height[i];k++){
-											derivative[g][h][i][t][m][j][k] = new double[map_width[i]];
-										}
-									}
-								}
-							}
-
-							neuron[g][h][i][t] = new double***[batch_size];
+							derivative[g][h][i][t]	= new double***[batch_size];
+							neuron[g][h][i][t]		= new double***[batch_size];
 
 							for(int m = 0;m < batch_size;m++){
-								neuron[g][h][i][t][m] = new double**[number_maps[i]];
+								derivative[g][h][i][t][m]	= new double**[number_maps[i]];
+								neuron[g][h][i][t][m]		= new double**[number_maps[i]];
 
 								for(int j = 0;j < number_maps[i];j++){
-									neuron[g][h][i][t][m][j] = new double*[map_height[i]];
+									derivative[g][h][i][t][m][j] = new double*[map_height[i]];
+									neuron[g][h][i][t][m][j]	 = new double*[map_height[i]];
 
 									for(int k = 0;k < map_height[i];k++){
-										neuron[g][h][i][t][m][j][k]	= new double[map_width[i]];
+										derivative[g][h][i][t][m][j][k]	= new double[map_width[i]];
+										neuron[g][h][i][t][m][j][k]		= new double[map_width[i]];
 									}
 								}
 							}
@@ -1645,16 +1625,20 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 
 				if(Access_Memory(g, h, i)){
 					for(int t = 0;t < time_step + 1;t++){
-						neuron[g][h][i][t] = new double***[batch_size];
+						derivative[g][h][i][t]	= new double***[batch_size];
+						neuron[g][h][i][t]		= new double***[batch_size];
 
 						for(int m = 0;m < batch_size;m++){
-							neuron[g][h][i][t][m] = new double**[number_maps[i]];
+							derivative[g][h][i][t][m]	= new double**[number_maps[i]];
+							neuron[g][h][i][t][m]		= new double**[number_maps[i]];
 
 							for(int j = 0;j < number_maps[i];j++){
-								neuron[g][h][i][t][m][j] = new double*[this->map_height[i]];
+								derivative[g][h][i][t][m][j] = new double*[this->map_height[i]];
+								neuron[g][h][i][t][m][j]	 = new double*[this->map_height[i]];
 
 								for(int k = 0;k < this->map_height[i];k++){
-									neuron[g][h][i][t][m][j][k] = new double[this->map_width[i]];
+									derivative[g][h][i][t][m][j][k]	= new double[this->map_width[i]];
+									neuron[g][h][i][t][m][j][k]		= new double[this->map_width[i]];
 								}
 							}
 						}
@@ -2026,6 +2010,274 @@ void Recurrent_Neural_Networks::Test(bool initialize, double input[], double out
 	}
 }
 
+double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int time_step, int length_data[], int _output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output){
+	int number_batches	= 0;
+	int number_data		= 0;
+
+	int *index = new int[number_training];
+
+	double loss = 0;
+
+	double **gradient = new double*[number_layers];
+
+	double ***target_output_batch = new double**[batch_size];
+
+	for(int i = 0;i < number_training;i++){
+		index[i] = i;
+	}
+	for(int i = 0;i < number_training;i++){
+		int j = rand() % number_training;
+		int t = index[i];
+
+		index[i] = index[j];
+		index[j] = t;
+
+		for(int j = 0;j < length_data[i];j++){
+			if(_output_mask == 0 || _output_mask[j]){
+				number_data++;
+			}
+		}
+	}
+
+	dropout_mask = new int**[number_layers];
+
+	for(int i = 0;i < number_layers;i++){
+		if(strstr(type_layer[i], "do")){
+			dropout_mask[i] = new int*[batch_size];
+
+			for(int h = 0;h < batch_size;h++){
+				dropout_mask[i][h] = new int[number_maps[i]];
+			}
+		}
+		if(kernel_width[i] > 0){
+			gradient[i] = new double[number_maps[i]];
+		}
+	}
+
+	for(int h = 0;h < batch_size;h++){
+		target_output_batch[h] = new double*[time_step];
+
+		for(int t = 0;t < time_step;t++){
+			target_output_batch[h][t] = new double[number_maps[number_layers - 1]];
+		}
+	}
+
+	Resize_Memory(batch_size, time_step);
+	Refer_Memory ("zeroise derivative", time_step);
+
+	for(int i = 0;i < number_layers;i++){
+		if(strstr(type_layer[i], "bn")){
+			for(int j = 0;j < number_maps[i];j++){
+				for(int k = 0;k < number_memory_types;k++){
+					if(Access_Memory(k, 0, i)){
+						for(int l = 0;l < number_memory_parts;l++){
+							sum_mean[i][j][k][l]	 = 0;
+							sum_variance[i][j][k][l] = 0;
+						}
+					}
+				}
+			}
+		}
+	}
+	this->epsilon = epsilon;
+
+	for(int g = 0, h = 0;g < number_training;g++){
+		if(++h == batch_size){
+			int maximum_length_data = 0;
+
+			h = 0;
+
+			for(int i = g - (batch_size - 1);i < g;i++){
+				if(maximum_length_data < length_data[i]){
+					maximum_length_data = length_data[i];
+				}
+			}
+			Refer_Memory("zeroise neuron", time_step);
+
+			for(int s = 0;s < maximum_length_data;s += time_step){
+				int *output_mask = new int[time_step];
+
+				for(int i = g - (batch_size - 1);i <= g;i++){
+					int batch_index = i - g + (batch_size - 1);
+
+					for(int t = 0;t < time_step;t++){
+						if(s + t < length_data[index[i]]){
+							output_mask[t] = (_output_mask == 0) ? (1):(_output_mask[t]);
+
+							#pragma omp parallel for
+							for(int m = 0;m < number_maps[0] * map_height[0] * map_width[0];m++){
+								int j = (m / (map_height[0] * map_width[0]));
+								int k = (m % (map_height[0] * map_width[0])) / map_width[0];
+								int l = (m % (map_height[0] * map_width[0])) % map_width[0];
+
+								neuron[0][0][0][t][batch_index][j][k][l] = input[index[i]][s + t][m];
+							}
+							for(int j = 0;j < number_maps[number_layers - 1];j++){
+								target_output_batch[batch_index][t][j] = target_output[index[i]][s + t][j];
+							}
+						}
+						else{
+							output_mask[t] = 0;
+
+							#pragma omp parallel for
+							for(int m = 0;m < number_maps[0] * map_height[0] * map_width[0];m++){
+								int j = (m / (map_height[0] * map_width[0]));
+								int k = (m % (map_height[0] * map_width[0])) / map_width[0];
+								int l = (m % (map_height[0] * map_width[0])) % map_width[0];
+
+								neuron[0][0][0][t][batch_index][j][k][l] = 0;
+							}
+							for(int j = 0;j < number_maps[number_layers - 1];j++){
+								target_output_batch[batch_index][t][j] = 0;
+							}
+						}
+					}
+				}
+
+				for(int i = 0;i < number_layers;i++){
+					if(kernel_width[i] > 0){
+						for(int j = 0;j < number_maps[i];j++){
+							gradient[i][j] = 0;
+						}
+					}
+					if(strstr(type_layer[i], "do")){
+						for(int h = 0;h < batch_size;h++){
+							for(int j = 0;j < number_maps[i];j++){
+								dropout_mask[i][h][j] = ((double)rand() / RAND_MAX <= atof(strstr(type_layer[i], "do") + 2));
+							}
+						}
+					}
+				}
+
+				for(int t = 0;t < time_step;t++){
+					for(int i = 1;i < number_layers;i++){
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Feedforward	("train/A",	i, t, j);
+						}
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Activate	("train",	i, t, j);
+						}
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Feedforward	("train/B",	i, t, j);
+						}
+						Softmax(i, t);
+					}
+					number_batches++;
+				}
+
+				Refer_Parameter	("zeroise", "momentum", 0, 0);
+
+				for(int t = time_step - 1;t >= 0;t--){
+					for(int i = number_layers - 1;i > 0;i--){
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Backpropagate	('A', i, t, j);
+						}
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Differentiate	(i, t, j, output_mask, learning_rate, target_output_batch);
+						}
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Backpropagate	('B', i, t, j);
+						}
+						#pragma omp parallel for
+						for(int j = 0;j < number_maps[i];j++){
+							Adjust_Parameter(i, t, j, gradient);
+						}
+					}
+				}
+
+				Gradient_Clipping(gradient_threshold, gradient);
+
+				if(gradient_factor != 1){
+					Refer_Parameter("multiply", "momentum", 0, gradient_factor);
+				}
+				Refer_Parameter("add", "momentum", "parameter", 0);
+
+				for(int h = 0;h < batch_size;h++){
+					for(int t = 0;t < time_step;t++){
+						if(output_mask == 0 || output_mask[t]){
+							for(int i = number_layers - 1, j = 0;j < number_maps[i];j++){
+								if(strstr(type_layer[i], "ce")){
+									loss -= target_output_batch[h][t][j] * log(neuron[0][0][i][t][h][j][0][0] + 0.000001) + (1 - target_output_batch[h][t][j]) * log(1 - neuron[0][0][i][t][h][j][0][0] + 0.000001);
+								}
+								if(strstr(type_layer[i], "mse")){
+									loss += 0.5 * (neuron[0][0][i][t][h][j][0][0] - target_output_batch[h][t][j]) * (neuron[0][0][i][t][h][j][0][0] - target_output_batch[h][t][j]);
+								}
+							}
+						}
+					}
+				}
+
+				for(int h = 0;h < batch_size;h++){
+					for(int i = 0;i < number_layers;i++){
+						#pragma omp parallel for
+						for(int m = 0;m < number_maps[i] * map_height[i] * map_width[i];m++){
+							int j = (m / (map_height[i] * map_width[i]));
+							int k = (m % (map_height[i] * map_width[i])) / map_width[i];
+							int l = (m % (map_height[i] * map_width[i])) % map_width[i];
+
+							if(strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+								neuron[0][0][i][time_step][0][j][k][l] = neuron[0][0][i][time_step - 1][0][j][k][l];
+							}
+							else
+							if(strstr(type_layer[i], "lstm")){
+								neuron[0][0][i][time_step][0][j][k][l] = neuron[0][0][i][time_step - 1][0][j][k][l];
+								neuron[5][1][i][time_step][0][j][k][l] = neuron[5][1][i][time_step - 1][0][j][k][l];
+							}
+						}
+					}
+				}
+				delete[] output_mask;
+			}
+		}
+	}
+
+	for(int i = 0;i < number_layers;i++){
+		if(strstr(type_layer[i], "bn")){
+			#pragma omp parallel for
+			for(int h = 0;h < number_maps[i] * number_memory_types * number_memory_parts;h++){
+				int j = (h / (number_memory_types * number_memory_parts));
+				int k = (h % (number_memory_types * number_memory_parts)) / number_memory_parts;
+				int l = (h % (number_memory_types * number_memory_parts)) % number_memory_parts;
+
+				if(Access_Memory(k, 0, i)){
+					mean[i][j][k][l][0]		= sum_mean[i][j][k][l] / number_batches;
+					variance[i][j][k][l][0]	= (double)batch_size / (batch_size - 1) * sum_variance[i][j][k][l] / number_batches;
+				}
+			}
+		}
+	}
+
+	for(int i = 0;i < number_layers;i++){
+		if(strstr(type_layer[i], "do")){
+			for(int h = 0;h < batch_size;h++){
+				delete[] dropout_mask[i][h];
+			}
+			delete[] dropout_mask[i];
+		}
+		if(kernel_width[i] > 0){
+			delete[] gradient[i];
+		}
+	}
+	delete[] dropout_mask;
+	delete[] gradient;
+
+	for(int h = 0;h < batch_size;h++){
+		for(int t = 0;t < time_step;t++){
+			delete[] target_output_batch[h][t];
+		}
+		delete[] target_output_batch[h];
+	}
+	delete[] index;
+	delete[] target_output_batch;
+
+	return loss / number_data;
+}
 double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int time_step, int time_stride, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output){
 	int number_batches	= 0;
 	int number_data		= 0;
@@ -2161,11 +2413,8 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 				}
 
 				Refer_Parameter	("zeroise", "momentum", 0, 0);
-				Refer_Memory	("new derivative", time_step - 1);
 
 				for(int t = time_step - 1;t >= 0;t--){
-					Refer_Memory("new derivative", t - 1);
-
 					for(int i = number_layers - 1;i > 0;i--){
 						#pragma omp parallel for
 						for(int j = 0;j < number_maps[i];j++){
@@ -2184,11 +2433,7 @@ double Recurrent_Neural_Networks::Train(int batch_size, int number_training, int
 							Adjust_Parameter(i, t, j, gradient);
 						}
 					}
-					if(t + 1 < time_step){
-						Refer_Memory("delete derivative", t + 1);
-					}
 				}
-				Refer_Memory("delete derivative", 0);
 
 				Gradient_Clipping(gradient_threshold, gradient);
 
