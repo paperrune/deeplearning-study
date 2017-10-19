@@ -1647,7 +1647,6 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 			}
 		}
 	}
-	Refer_Memory("new derivative", time_step);
 
 	cell_weight			 = new double**[number_weight_types];
 	cell_weight_momentum = new double**[number_weight_types];
