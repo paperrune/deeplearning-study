@@ -92,9 +92,8 @@ int main(){
 
 	int batch_size			= 60;
 	int time_step			= 28;
-	int time_stride			= time_step;
-	// int map_width[i]		= {1, 1, 1};
-	// int map_height[i]	= {1, 1, 1};
+	// int map_width[]		= {1, 1, 1};
+	// int map_height[]		= {1, 1, 1};
 	int number_maps[]		= {784 / time_step, 100, 10};
 	int number_iterations	= 100;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
@@ -102,7 +101,7 @@ int main(){
 	int number_training		= 6000;
 	int number_test			= 1000;
 
-	/* Training using the entire dataset takes about 1000 seconds per iteration on the i7-4790K with 6 threads.
+	/* Training using the entire dataset takes about 800 seconds per iteration on the i7-4790K with 6 threads.
 	int number_training	 = 60000;
 	int number_test		 = 10000;
 	*/
@@ -142,7 +141,7 @@ int main(){
 	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
-		double loss = RNN.Train(batch_size, number_training, time_step, time_stride, length_data, output_mask, epsilon, gradient_threshold, learning_rate, input, target_output);
+		double loss = RNN.Train(batch_size, number_training, time_step, length_data, output_mask, epsilon, gradient_threshold, learning_rate, input, target_output);
 
 		double *output = new double[number_maps[number_layers - 1]];
 
