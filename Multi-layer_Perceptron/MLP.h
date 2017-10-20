@@ -43,6 +43,8 @@ public:
 	~Multilayer_Perceptron();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
+	void Load_Parameter(char path[]);
+	void Save_Parameter(char path[]);
 	void Test(double input[], double output[]);
 
 	double Train(int batch_size, int number_training, double epsilon, double learning_rate, double **input, double **target_output);
