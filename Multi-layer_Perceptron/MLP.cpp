@@ -1,4 +1,5 @@
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -469,6 +470,53 @@ void Multilayer_Perceptron::Initialize_Parameter(int seed, double scale, double 
 			}
 		}
 	}
+}
+void Multilayer_Perceptron::Load_Parameter(char path[]){
+	FILE *file = fopen(path, "rt");
+
+	if(file){
+		fscanf(file, "%lf", &epsilon);
+
+		for(int i = 1;i < number_layers;i++){
+			if(strstr(type_layer[i], "bn")){
+				for(int j = 0;j < number_neurons[i];j++) fscanf(file, "%lf", &gamma[i][j]);
+				for(int j = 0;j < number_neurons[i];j++) fscanf(file, "%lf", &beta[i][j]);
+				for(int j = 0;j < number_neurons[i];j++) fscanf(file, "%lf", &mean[i][j]);
+				for(int j = 0;j < number_neurons[i];j++) fscanf(file, "%lf", &variance[i][j]);
+			}
+
+			for(int j = 0;j < number_neurons[i];j++){
+				for(int k = 0;k < number_neurons[i - 1] + 1;k++){
+					fscanf(file, "%lf", &weight[i][j][k]);
+				}
+			}
+		}
+		fclose(file);
+	}
+	else{
+		fprintf(stderr, "[Load_Parameter], %s not found\n", path);
+	}
+}
+void Multilayer_Perceptron::Save_Parameter(char path[]){
+	FILE *file = fopen(path, "wt");
+
+	fprintf(file, "%f\n", epsilon);
+
+	for(int i = 1;i < number_layers;i++){
+		if(strstr(type_layer[i], "bn")){
+			for(int j = 0;j < number_neurons[i];j++) fprintf(file, "%f\n", gamma[i][j]);
+			for(int j = 0;j < number_neurons[i];j++) fprintf(file, "%f\n", beta[i][j]);
+			for(int j = 0;j < number_neurons[i];j++) fprintf(file, "%f\n", mean[i][j]);
+			for(int j = 0;j < number_neurons[i];j++) fprintf(file, "%f\n", variance[i][j]);
+		}
+
+		for(int j = 0;j < number_neurons[i];j++){
+			for(int k = 0;k < number_neurons[i - 1] + 1;k++){
+				fprintf(file, "%f\n", weight[i][j][k]);
+			}
+		}
+	}
+	fclose(file);
 }
 void Multilayer_Perceptron::Test(double input[], double output[]){
 	Resize_Memory(1);
