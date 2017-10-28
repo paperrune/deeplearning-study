@@ -1,4 +1,5 @@
 # Convolutional Neural Networks
+- cuda version: https://github.com/paperrune/CNN-cuda
 - Support Batch Normalization and Dropout.
 - To classify MNIST handwritten digits, following files are required from http://yann.lecun.com/exdb/mnist/
   - train-images.idx3-ubyte
