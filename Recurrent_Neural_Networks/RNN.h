@@ -8,7 +8,9 @@ private:
 	int number_memory_parts;
 	int number_memory_types;
 	int number_weight_types;
+	int networks_time_step;
 	int time_step;
+	int test_time_index;
 
 	int *kernel_width;
 	int *kernel_height;
@@ -38,28 +40,28 @@ private:
 	double ****gamma_momentum;
 	double ****beta;
 	double ****beta_momentum;
-	double ****sum_mean;
-	double ****sum_variance;
 
 	double *****mean;
 	double *****variance;
+	double *****sum_mean;
+	double *****sum_variance;
 	// *********************************
 
 	void Activate(char option[], int layer_index, int time_index, int map_index);
-	void Adjust_Parameter(int layer_index, int time_index, int map_index, double **gradient);
-	void Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double **gradient, double *cell_weight, double ****weight);
+	void Adjust_Parameter(int layer_index, int time_index, int map_index);
+	void Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double *cell_weight, double ****weight);
 	void Backpropagate(char option, int layer_index, int time_index, int map_index);
 	void Backpropagate(bool initialize, int layer_index, int map_index, double ****derivative, double ****upper_derivative, double *****upper_weight);
-	void Differentiate(int layer_index, int time_index, int map_index, int output_mask[], double learning_rate, double ***target_output);
+	void Differentiate(int layer_index, int time_index, int map_index, bool output_mask[], double learning_rate, double ***target_output);
 	void Feedforward(char option[], int layer_index, int time_index, int map_index);
 	void Feedforward(int layer_index, int map_index, double ****neuron, double *****neuron_patch, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double *cell_weight, double ****weight);
 	void Softmax(int layer_index, int time_index);
 
 	void Batch_Normalization_Activate(char option[], int memory_type, int memory_patch_index, int layer_index, int time_index, int map_index);
-	void Batch_Normalization_Adjust_Parameter(int memory_type, int memory_patch_index, int layer_index, int time_index, int map_index, double **gradient);
+	void Batch_Normalization_Adjust_Parameter(int memory_type, int memory_patch_index, int layer_index, int time_index, int map_index);
 	void Batch_Normalization_Differentiate(int memory_type, int memory_patch_index, int layer_index, int time_index, int map_index);
 
-	void Gradient_Clipping(double threshold, double **gradient);
+	void Gradient_Clipping(double threshold);
 	void Refer_Memory(char option[], int time_index);
 	void Refer_Parameter(char option[], char type_parameter_A[], char type_parameter_B[], double factor);
 	void Resize_Memory(int batch_size, int time_step);
@@ -70,14 +72,13 @@ private:
 	double Tangent(double x);
 	double Sigmoid(double x);
 public:
-	Recurrent_Neural_Networks(char **type_layer, int number_layers, int map_width[], int map_height[], int number_maps[]);
+	Recurrent_Neural_Networks(char **type_layer, int number_layers, int time_step, int map_width[], int map_height[], int number_maps[]);
 	~Recurrent_Neural_Networks();
 
 	void Initialize_Parameter(int seed, double scale, double shift);
 	void Load_Parameter(char path[]);
 	void Save_Parameter(char path[]);
-	void Test(bool initialize, double input[], double output[]);
+	void Test(bool initialize, int time_index, double input[], double output[]);
 
-	double Train(int batch_size, int number_training, int time_step, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output);
-	double Train(int batch_size, int number_training, int time_step, int time_stride, int length_data[], int output_mask[], double epsilon, double gradient_threshold, double learning_rate, double ***input, double ***target_output);
+	double Train(int batch_size, int number_training, int time_step, int length_data[], bool output_mask[], double epsilon, double gradient_threshold, double learning_rate, double noise_scale_factor, double ***input, double ***target_output);
 };
