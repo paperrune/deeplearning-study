@@ -88,7 +88,7 @@ void Read_MNIST(char training_set_images[], char training_set_labels[], char tes
 }
 
 int main(){
-	char *type_layer[] = {"MNIST", "Clstm", "Lce,sm"};
+	char *type_layer[] = {"MNIST", "Cbn,lstm", "Lce,sm"};
 
 	int batch_size			= 60;
 	int time_step			= 28;
@@ -106,18 +106,20 @@ int main(){
 	int number_test		 = 10000;
 	*/
 
+	bool *output_mask = new bool[time_step];
+
 	int *length_data = new int[number_training + number_test];
-	int *output_mask = new int[time_step];
 
 	double epsilon				= 0.001;
-	double gradient_threshold	= 10;
+	double gradient_threshold	= 1;
 	double learning_rate		= 0.005; // 0.001 for vanilla RNN
 	double decay_rate			= 0.977;
+	double noise_scale_factor	= 0.001; // Add gaussian noise to the input image to prevent zero mean
 
 	double ***input			= new double**[number_training + number_test];
 	double ***target_output	= new double**[number_training + number_test];
 
-	Recurrent_Neural_Networks RNN = Recurrent_Neural_Networks(type_layer, number_layers, 0, 0, number_maps);
+	Recurrent_Neural_Networks RNN = Recurrent_Neural_Networks(type_layer, number_layers, time_step, 0, 0, number_maps);
 
 	for(int h = 0;h < number_training + number_test;h++){
 		length_data[h] = time_step;
@@ -135,13 +137,14 @@ int main(){
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", time_step, number_training, number_test, input, target_output);	
 
-	RNN.Initialize_Parameter(0, 0.2, -0.1);
+	// RNN.Initialize_Parameter(0, 0.2, -0.1);
+	RNN.Load_Parameter("RNN.txt");
 	omp_set_num_threads(number_threads);
 
 	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
-		double loss = RNN.Train(batch_size, number_training, time_step, length_data, output_mask, epsilon, gradient_threshold, learning_rate, input, target_output);
+		double loss = 0;// RNN.Train(batch_size, number_training, time_step, length_data, output_mask, epsilon, gradient_threshold, learning_rate, noise_scale_factor, input, target_output);
 
 		double *output = new double[number_maps[number_layers - 1]];
 
@@ -151,7 +154,7 @@ int main(){
 
 				double max = 0;
 
-				RNN.Test(t == 0, input[i][t], output);
+				RNN.Test(t == 0, t, input[i][t], output);
 
 				if(output_mask == 0 || output_mask[t]){
 					for(int j = 0;j < number_maps[number_layers - 1];j++){
