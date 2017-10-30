@@ -1,6 +1,5 @@
 # Recurrent Neural Networks
 - cuda version: https://github.com/paperrune/RNN-cuda
-- Support Batch Normalization and Dropout.
 - To classify MNIST handwritten digits, following files are required from http://yann.lecun.com/exdb/mnist/
   - train-images.idx3-ubyte
   - train-labels.idx1-ubyte
@@ -26,8 +25,6 @@
     "lstm" : long-short term memory
    
     > Regularization
-    "bn"   : Batch Normalization
-             (https://arxiv.org/abs/1603.09025.pdf)
     "do.f" : Dropout with rate 0.f, each neurons is set to zero with a probability of (1 - 0.f)
              (https://www.stat.berkeley.edu/~tsmoon/files/Conference/asru2015.pdf)
 	  ``` 
