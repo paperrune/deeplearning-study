@@ -212,6 +212,14 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int time_index
 	double *input_cell_weight	= this->cell_weight_momentum[2][i];
 	double *output_cell_weight	= this->cell_weight_momentum[3][i];
 
+	double **recurrent_weight			= this->recurrent_weight_momentum[0][i];
+	double **reset_recurrent_weight		= this->recurrent_weight_momentum[1][i];
+	double **update_recurrent_weight	= this->recurrent_weight_momentum[2][i];
+
+	double **forget_recurrent_weight	= this->recurrent_weight_momentum[1][i];
+	double **input_recurrent_weight		= this->recurrent_weight_momentum[2][i];
+	double **output_recurrent_weight	= this->recurrent_weight_momentum[3][i];
+
 	double ****weight			= this->weight_momentum[0][i];
 	double ****reset_weight		= this->weight_momentum[1][i];
 	double ****update_weight	= this->weight_momentum[2][i];
@@ -253,27 +261,27 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int time_index
 		}
 
 		if(strstr(type_layer[i], "gru")){
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, reset_derivative, reset_derivative_patch, 0, reset_weight);
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, update_derivative, update_derivative_patch, 0, update_weight);
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, reset_neuron, block_derivative, block_derivative_patch, 0, weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, reset_derivative, reset_derivative_patch, 0, reset_recurrent_weight, reset_weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, update_derivative, update_derivative_patch, 0, update_recurrent_weight, update_weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, reset_neuron, block_derivative, block_derivative_patch, 0, recurrent_weight, weight);
 		}
 		else
 		if(strstr(type_layer[i], "lstm")){
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, previous_cell_neuron, 0, forget_derivative, forget_derivative_patch, forget_cell_weight, forget_weight);
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, previous_cell_neuron, 0, input_derivative, input_derivative_patch, input_cell_weight, input_weight);
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, cell_neuron_patch, 0, output_derivative, output_derivative_patch, output_cell_weight, output_weight);
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, block_cell_derivative, block_cell_derivative_patch, 0, weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, previous_cell_neuron, 0, forget_derivative, forget_derivative_patch, forget_cell_weight, forget_recurrent_weight, forget_weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, previous_cell_neuron, 0, input_derivative, input_derivative_patch, input_cell_weight, input_recurrent_weight, input_weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, cell_neuron_patch, 0, output_derivative, output_derivative_patch, output_cell_weight, output_recurrent_weight, output_weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, block_cell_derivative, block_cell_derivative_patch, 0, recurrent_weight, weight);
 		}
 		else
 		if(strstr(type_layer[i], "rc")){
-			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, derivative, derivative_patch, 0, weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, previous_neuron, 0, 0, derivative, derivative_patch, 0, recurrent_weight, weight);
 		}
 		else{
-			Adjust_Parameter(layer_index, map_index, lower_neuron, 0, 0, 0, derivative, 0, 0, weight);
+			Adjust_Parameter(layer_index, map_index, lower_neuron, 0, 0, 0, derivative, 0, 0, 0, weight);
 		}
 	}
 }
-void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double *cell_weight, double ****weight){
+void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double *cell_weight, double **recurrent_weight, double ****weight){
 	int i = layer_index;
 	int j = map_index;
 
@@ -316,7 +324,7 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 					}
 				}
 			}
-			weight[j][number_maps[i - 1] + m][0][0] -= sum;
+			recurrent_weight[j][m] -= sum;
 		}
 	}
 
@@ -327,7 +335,7 @@ void Recurrent_Neural_Networks::Adjust_Parameter(int layer_index, int map_index,
 			}
 		}
 	}
-	weight[j][number_maps[i - 1] + number_maps[i]][0][0] -= sum;
+	weight[j][number_maps[i - 1]][0][0] -= sum;
 
 	if(cell_neuron){
 		double sum = 0;
@@ -416,6 +424,14 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 	double *input_cell_weight	= this->cell_weight[2][i];
 	double *output_cell_weight	= this->cell_weight[3][i];
 
+	double **recurrent_weight			= this->recurrent_weight[0][i];
+	double **reset_recurrent_weight		= this->recurrent_weight[1][i];
+	double **update_recurrent_weight	= this->recurrent_weight[2][i];
+
+	double **forget_recurrent_weight	= this->recurrent_weight[1][i];
+	double **input_recurrent_weight		= this->recurrent_weight[2][i];
+	double **output_recurrent_weight	= this->recurrent_weight[3][i];
+
 	double *****weight			= this->weight[0];
 	double *****reset_weight	= this->weight[1];
 	double *****update_weight	= this->weight[2];
@@ -479,9 +495,9 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 						double sum[2] = {0, };
 
 						for(int m = 0;m < number_maps[i];m++){
-							sum[0] += next_reset_derivative_patch[1][h][m][k][l] * reset_weight[i][m][number_maps[i - 1] + j][0][0];
-							sum[0] += next_update_derivative_patch[1][h][m][k][l] * update_weight[i][m][number_maps[i - 1] + j][0][0];
-							sum[1] += next_block_derivative_patch[1][h][m][k][l] * weight[i][m][number_maps[i - 1] + j][0][0];
+							sum[0] += next_reset_derivative_patch[1][h][m][k][l] * reset_recurrent_weight[m][j];
+							sum[0] += next_update_derivative_patch[1][h][m][k][l] * update_recurrent_weight[m][j];
+							sum[1] += next_block_derivative_patch[1][h][m][k][l] * recurrent_weight[m][j];
 						}
 						derivative[h][j][k][l] += sum[0] + sum[1] * next_reset_neuron[h][j][k][l] + (1 - next_update_neuron[h][j][k][l]) * next_derivative[h][j][k][l];
 					}
@@ -496,10 +512,10 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
-							sum += next_forget_derivative_patch[1][h][m][k][l] * forget_weight[i][m][number_maps[i - 1] + j][0][0];
-							sum += next_input_derivative_patch[1][h][m][k][l] * input_weight[i][m][number_maps[i - 1] + j][0][0];
-							sum += next_output_derivative_patch[1][h][m][k][l] * output_weight[i][m][number_maps[i - 1] + j][0][0];
-							sum += next_block_cell_derivative_patch[1][h][m][k][l] * weight[i][m][number_maps[i - 1] + j][0][0];
+							sum += next_forget_derivative_patch[1][h][m][k][l] * forget_recurrent_weight[m][j];
+							sum += next_input_derivative_patch[1][h][m][k][l] * input_recurrent_weight[m][j];
+							sum += next_output_derivative_patch[1][h][m][k][l] * output_recurrent_weight[m][j];
+							sum += next_block_cell_derivative_patch[1][h][m][k][l] * recurrent_weight[m][j];
 						}
 						derivative[h][j][k][l] += sum;
 					}
@@ -514,7 +530,7 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
-							sum += next_derivative_patch[1][h][m][k][l] * weight[i][m][number_maps[i - 1] + j][0][0];
+							sum += next_derivative_patch[1][h][m][k][l] * recurrent_weight[m][j];
 						}
 						derivative[h][j][k][l] += sum;
 					}
@@ -536,7 +552,7 @@ void Recurrent_Neural_Networks::Backpropagate(char option, int layer_index, int 
 						double sum = 0;
 
 						for(int m = 0;m < number_maps[i];m++){
-							sum += block_derivative_patch[1][h][m][k][l] * weight[i][m][number_maps[i - 1] + j][0][0];
+							sum += block_derivative_patch[1][h][m][k][l] * recurrent_weight[m][j];
 						}
 						reset_derivative[h][j][k][l]			= sum * previous_neuron[h][j][k][l] * (1 - reset_neuron[h][j][k][l]) * reset_neuron[h][j][k][l];
 						reset_derivative_patch[0][h][j][k][l]	= reset_derivative[h][j][k][l];
@@ -807,6 +823,14 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 	double *input_cell_weight	= this->cell_weight[2][i];
 	double *output_cell_weight	= this->cell_weight[3][i];
 
+	double **recurrent_weight			= this->recurrent_weight[0][i];
+	double **reset_recurrent_weight		= this->recurrent_weight[1][i];
+	double **update_recurrent_weight	= this->recurrent_weight[2][i];
+
+	double **forget_recurrent_weight	= this->recurrent_weight[1][i];
+	double **input_recurrent_weight		= this->recurrent_weight[2][i];
+	double **output_recurrent_weight	= this->recurrent_weight[3][i];
+
 	double ****weight			= this->weight[0][i];
 	double ****reset_weight		= this->weight[1][i];
 	double ****update_weight	= this->weight[2][i];
@@ -818,21 +842,21 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 	if(strstr(option, "A")){
 		if(type_layer[i][0] == 'C' || type_layer[i][0] == 'L'){
 			if(strstr(type_layer[i], "gru")){
-				Feedforward(layer_index, map_index, reset_neuron, reset_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, reset_weight);
-				Feedforward(layer_index, map_index, update_neuron, update_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, update_weight);
+				Feedforward(layer_index, map_index, reset_neuron, reset_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, reset_recurrent_weight, reset_weight);
+				Feedforward(layer_index, map_index, update_neuron, update_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, update_recurrent_weight, update_weight);
 			}
 			else
 			if(strstr(type_layer[i], "lstm")){
-				Feedforward(layer_index, map_index, forget_neuron, forget_neuron_patch, lower_neuron, previous_neuron, previous_cell_neuron, 0, forget_cell_weight, forget_weight);
-				Feedforward(layer_index, map_index, input_neuron, input_neuron_patch, lower_neuron, previous_neuron, previous_cell_neuron, 0, input_cell_weight, input_weight);
-				Feedforward(layer_index, map_index, block_cell_neuron, block_cell_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, weight);
+				Feedforward(layer_index, map_index, forget_neuron, forget_neuron_patch, lower_neuron, previous_neuron, previous_cell_neuron, 0, forget_cell_weight, forget_recurrent_weight, forget_weight);
+				Feedforward(layer_index, map_index, input_neuron, input_neuron_patch, lower_neuron, previous_neuron, previous_cell_neuron, 0, input_cell_weight, input_recurrent_weight, input_weight);
+				Feedforward(layer_index, map_index, block_cell_neuron, block_cell_neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, recurrent_weight, weight);
 			}
 			else
 			if(strstr(type_layer[i], "rc")){
-				Feedforward(layer_index, map_index, neuron, neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, weight);
+				Feedforward(layer_index, map_index, neuron, neuron_patch, lower_neuron, previous_neuron, 0, 0, 0, recurrent_weight, weight);
 			}
 			else{
-				Feedforward(layer_index, map_index, neuron, 0, lower_neuron, 0, 0, 0, 0, weight);
+				Feedforward(layer_index, map_index, neuron, 0, lower_neuron, 0, 0, 0, 0, recurrent_weight, weight);
 			}
 		}
 		else
@@ -897,7 +921,7 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 	else
 	if(strstr(option, "B")){
 		if(strstr(type_layer[i], "gru")){
-			Feedforward(layer_index, map_index, block_neuron, block_neuron_patch, lower_neuron, previous_neuron, 0, reset_neuron, 0, weight);
+			Feedforward(layer_index, map_index, block_neuron, block_neuron_patch, lower_neuron, previous_neuron, 0, reset_neuron, 0, recurrent_weight, weight);
 
 			if(strstr(type_layer[i], "bn")){
 				Batch_Normalization_Activate(option, 3, 1, layer_index, time_index, map_index);
@@ -932,7 +956,7 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 					}
 				}
 			}
-			Feedforward(layer_index, map_index, output_neuron, output_neuron_patch, lower_neuron, previous_neuron, cell_neuron, 0, output_cell_weight, output_weight);
+			Feedforward(layer_index, map_index, output_neuron, output_neuron_patch, lower_neuron, previous_neuron, cell_neuron, 0, output_cell_weight, output_recurrent_weight, output_weight);
 
 			if(strstr(type_layer[i], "bn")){
 				Batch_Normalization_Activate(option, 3, 1, layer_index, time_index, map_index);
@@ -950,14 +974,14 @@ void Recurrent_Neural_Networks::Feedforward(char option[], int layer_index, int 
 		}
 	}
 }
-void Recurrent_Neural_Networks::Feedforward(int layer_index, int map_index, double ****neuron, double *****neuron_patch, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double *cell_weight, double ****weight){
+void Recurrent_Neural_Networks::Feedforward(int layer_index, int map_index, double ****neuron, double *****neuron_patch, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double *cell_weight, double **recurrent_weight, double ****weight){
 	int i = layer_index;
 	int j = map_index;
 
 	for(int h = 0;h < batch_size;h++){
 		for(int k = 0;k < map_height[i];k++){
 			for(int l = 0;l < map_width[i];l++){
-				neuron[h][j][k][l] = weight[j][number_maps[i - 1] + number_maps[i]][0][0];
+				neuron[h][j][k][l] = weight[j][number_maps[i - 1]][0][0];
 
 				if(lower_neuron){
 					double sum = 0;
@@ -984,7 +1008,7 @@ void Recurrent_Neural_Networks::Feedforward(int layer_index, int map_index, doub
 					double sum = 0;
 
 					for(int m = 0;m < number_maps[i];m++){
-						sum += previous_neuron[h][m][k][l] * ((reset_neuron) ? (reset_neuron[h][m][k][l]):(1)) * weight[j][number_maps[i - 1] + m][0][0];
+						sum += previous_neuron[h][m][k][l] * ((reset_neuron) ? (reset_neuron[h][m][k][l]):(1)) * recurrent_weight[j][m];
 					}
 					neuron_patch[1][h][j][k][l] = sum;
 				}
@@ -1207,15 +1231,24 @@ void Recurrent_Neural_Networks::Gradient_Clipping(double threshold){
 			if(Access_Weight(h, i)){
 				#pragma omp parallel for
 				for(int j = 0;j < number_maps[i];j++){
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
-						if(k < number_maps[i - 1]){
-							for(int l = 0;l < kernel_height[i];l++){
-								for(int m = 0;m < kernel_width[i];m++){
-									#pragma omp atomic
-									gradient += (weight_momentum[h][i][j][k][l][m] * weight_momentum[h][i][j][k][l][m]);
-								}
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
+						for(int l = 0;l < kernel_height[i];l++){
+							for(int m = 0;m < kernel_width[i];m++){
+								#pragma omp atomic
+								gradient += (weight_momentum[h][i][j][k][l][m] * weight_momentum[h][i][j][k][l][m]);
 							}
 						}
+					}
+				}
+
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					#pragma omp parallel for
+					for(int l = 0;l < number_maps[i] * number_maps[i];l++){
+						int j = l / number_maps[i];
+						int k = l % number_maps[i];
+
+						#pragma omp atomic
+						gradient += (recurrent_weight_momentum[h][i][j][k] * recurrent_weight_momentum[h][i][j][k]);
 					}
 				}
 			}
@@ -1317,20 +1350,24 @@ void Recurrent_Neural_Networks::Refer_Parameter(char option[], char type_paramet
 	double ****gamma[2];
 	double ****beta[2];
 
+	double ****recurrent_weight[2];
+
 	double ******weight[2];
 
 	if(!strcmp(type_parameter_A, "parameter")){
-		gamma[0]		= this->gamma;
-		beta[0]			= this->beta;
-		cell_weight[0]	= this->cell_weight;
-		weight[0]		= this->weight;
+		gamma[0]			= this->gamma;
+		beta[0]				= this->beta;
+		cell_weight[0]		= this->cell_weight;
+		recurrent_weight[0]	= this->recurrent_weight;
+		weight[0]			= this->weight;
 	}
 	else
 	if(!strcmp(type_parameter_A, "momentum")){
-		gamma[0]		= this->gamma_momentum;
-		beta[0]			= this->beta_momentum;
-		cell_weight[0]	= this->cell_weight_momentum;
-		weight[0]		= this->weight_momentum;
+		gamma[0]			= this->gamma_momentum;
+		beta[0]				= this->beta_momentum;
+		cell_weight[0]		= this->cell_weight_momentum;
+		recurrent_weight[0]	= this->recurrent_weight_momentum;
+		weight[0]			= this->weight_momentum;
 	}
 	else{
 		fprintf(stderr, "[Refer Parameter], [%s is unknown type]\n", type_parameter_A);
@@ -1338,17 +1375,19 @@ void Recurrent_Neural_Networks::Refer_Parameter(char option[], char type_paramet
 
 	if(type_parameter_B){
 		if(!strcmp(type_parameter_B, "parameter")){
-			gamma[1]		= this->gamma;
-			beta[1]			= this->beta;
-			cell_weight[1]	= this->cell_weight;
-			weight[1]		= this->weight;
+			gamma[1]			= this->gamma;
+			beta[1]				= this->beta;
+			cell_weight[1]		= this->cell_weight;
+			recurrent_weight[1]	= this->recurrent_weight;
+			weight[1]			= this->weight;
 		}
 		else
 		if(!strcmp(type_parameter_B, "momentum")){
-			gamma[1]		= this->gamma_momentum;
-			beta[1]			= this->beta_momentum;
-			cell_weight[1]	= this->cell_weight_momentum;
-			weight[1]		= this->weight_momentum;
+			gamma[1]			= this->gamma_momentum;
+			beta[1]				= this->beta_momentum;
+			cell_weight[1]		= this->cell_weight_momentum;
+			recurrent_weight[1]	= this->recurrent_weight_momentum;
+			weight[1]			= this->weight_momentum;
 		}
 		else{
 			fprintf(stderr, "[Refer Parameter], [%s is unknown type]\n", type_parameter_B);
@@ -1414,7 +1453,7 @@ void Recurrent_Neural_Networks::Refer_Parameter(char option[], char type_paramet
 			if(Access_Weight(h, i)){
 				#pragma omp parallel for
 				for(int j = 0;j < number_maps[i];j++){
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						for(int l = 0;l < kernel_height[i];l++){
 							for(int m = 0;m < kernel_width[i];m++){
 								switch(option_index){
@@ -1428,6 +1467,25 @@ void Recurrent_Neural_Networks::Refer_Parameter(char option[], char type_paramet
 									weight[0][h][i][j][k][l][m] = 0;
 								}
 							}
+						}
+					}
+				}
+
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					#pragma omp parallel for
+					for(int l = 0;l < number_maps[i] * number_maps[i];l++){
+						int j = l / number_maps[i];
+						int k = l % number_maps[i];
+
+						switch(option_index){
+						case 0:
+							recurrent_weight[1][h][i][j][k] += recurrent_weight[0][h][i][j][k];
+							break;
+						case 1:
+							recurrent_weight[0][h][i][j][k] *= factor;
+							break;
+						case 2:
+							recurrent_weight[0][h][i][j][k] = 0;
 						}
 					}
 				}
@@ -1669,16 +1727,20 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 		}
 	}
 
-	cell_weight			 = new double**[number_weight_types];
-	cell_weight_momentum = new double**[number_weight_types];
-	weight				 = new double*****[number_weight_types];
-	weight_momentum		 = new double*****[number_weight_types];
+	cell_weight					= new double**[number_weight_types];
+	cell_weight_momentum		= new double**[number_weight_types];
+	recurrent_weight			= new double***[number_weight_types];
+	recurrent_weight_momentum	= new double***[number_weight_types];
+	weight						= new double*****[number_weight_types];
+	weight_momentum				= new double*****[number_weight_types];
 
 	for(int h = 0;h < number_weight_types;h++){
-		cell_weight[h]			= new double*[number_layers];
-		cell_weight_momentum[h] = new double*[number_layers];
-		weight[h]				= new double****[number_layers];
-		weight_momentum[h]		= new double****[number_layers];
+		cell_weight[h]				 = new double*[number_layers];
+		cell_weight_momentum[h]		 = new double*[number_layers];
+		recurrent_weight[h]			 = new double**[number_layers];
+		recurrent_weight_momentum[h] = new double**[number_layers];
+		weight[h]					 = new double****[number_layers];
+		weight_momentum[h]			 = new double****[number_layers];
 
 		for(int i = 0;i < number_layers;i++){
 			if(strstr(type_layer[i], "lstm")){
@@ -1690,10 +1752,10 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 				weight_momentum[h][i]	= new double***[number_maps[i]];
 
 				for(int j = 0;j < number_maps[i];j++){
-					weight[h][i][j]				= new double**[number_maps[i - 1] + number_maps[i] + 1];
-					weight_momentum[h][i][j]	= new double**[number_maps[i - 1] + number_maps[i] + 1];
+					weight[h][i][j]			 = new double**[number_maps[i - 1] + 1];
+					weight_momentum[h][i][j] = new double**[number_maps[i - 1] + 1];
 
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						weight[h][i][j][k]			= new double*[kernel_height[i]];
 						weight_momentum[h][i][j][k]	= new double*[kernel_height[i]];
 
@@ -1701,6 +1763,16 @@ Recurrent_Neural_Networks::Recurrent_Neural_Networks(char **type_layer, int numb
 							weight[h][i][j][k][l]			= new double[kernel_width[i]];
 							weight_momentum[h][i][j][k][l]	= new double[kernel_width[i]];
 						}
+					}
+				}
+
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					recurrent_weight[h][i]			= new double*[number_maps[i]];
+					recurrent_weight_momentum[h][i]	= new double*[number_maps[i]];
+
+					for(int j = 0;j < number_maps[i];j++){
+						recurrent_weight[h][i][j]			= new double[number_maps[i]];
+						recurrent_weight_momentum[h][i][j]	= new double[number_maps[i]];
 					}
 				}
 			}
@@ -1797,8 +1869,16 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 				delete[] cell_weight_momentum[h][i];
 			}
 			if(Access_Weight(h, i)){
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					for(int j = 0;j < number_maps[i];j++){
+						delete[] recurrent_weight[h][i][j];
+						delete[] recurrent_weight_momentum[h][i][j];
+					}
+					delete[] recurrent_weight[h][i];
+					delete[] recurrent_weight_momentum[h][i];
+				}
 				for(int j = 0;j < number_maps[i];j++){
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						for(int l = 0;l < kernel_height[i];l++){
 							delete[] weight[h][i][j][k][l];
 							delete[] weight_momentum[h][i][j][k][l];
@@ -1815,11 +1895,15 @@ Recurrent_Neural_Networks::~Recurrent_Neural_Networks(){
 		}
 		delete[] cell_weight[h];
 		delete[] cell_weight_momentum[h];
+		delete[] recurrent_weight[h];
+		delete[] recurrent_weight_momentum[h];
 		delete[] weight[h];
 		delete[] weight_momentum[h];
 	}
 	delete[] cell_weight;
 	delete[] cell_weight_momentum;
+	delete[] recurrent_weight;
+	delete[] recurrent_weight_momentum;
 	delete[] weight;
 	delete[] weight_momentum;
 
@@ -1863,11 +1947,19 @@ void Recurrent_Neural_Networks::Initialize_Parameter(int seed, double scale, dou
 			}
 			if(Access_Weight(h, i)){
 				for(int j = 0;j < number_maps[i];j++){
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						for(int l = 0;l < kernel_height[i];l++){
 							for(int m = 0;m < kernel_width[i];m++){
 								weight[h][i][j][k][l][m] = scale * rand() / RAND_MAX + shift;
 							}
+						}
+					}
+				}
+
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					for(int j = 0;j < number_maps[i];j++){
+						for(int k = 0;k < number_maps[i];k++){
+							recurrent_weight[h][i][j][k] = scale * rand() / RAND_MAX + shift;
 						}
 					}
 				}
@@ -1907,11 +1999,19 @@ void Recurrent_Neural_Networks::Load_Parameter(char path[]){
 				}
 				if(Access_Weight(h, i)){
 					for(int j = 0;j < number_maps[i];j++){
-						for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+						for(int k = 0;k < number_maps[i - 1] + 1;k++){
 							for(int l = 0;l < kernel_height[i];l++){
 								for(int m = 0;m < kernel_width[i];m++){
 									fscanf(file, "%lf", &weight[h][i][j][k][l][m]);
 								}
+							}
+						}
+					}
+
+					if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+						for(int j = 0;j < number_maps[i];j++){
+							for(int k = 0;k < number_maps[i];k++){
+								fscanf(file, "%lf", &recurrent_weight[h][i][j][k]);
 							}
 						}
 					}
@@ -1955,11 +2055,19 @@ void Recurrent_Neural_Networks::Save_Parameter(char path[]){
 			}
 			if(Access_Weight(h, i)){
 				for(int j = 0;j < number_maps[i];j++){
-					for(int k = 0;k < number_maps[i - 1] + number_maps[i] + 1;k++){
+					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						for(int l = 0;l < kernel_height[i];l++){
 							for(int m = 0;m < kernel_width[i];m++){
 								fprintf(file, "%f\n", weight[h][i][j][k][l][m]);
 							}
+						}
+					}
+				}
+
+				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
+					for(int j = 0;j < number_maps[i];j++){
+						for(int k = 0;k < number_maps[i];k++){
+							fprintf(file, "%f\n", recurrent_weight[h][i][j][k]);
 						}
 					}
 				}
