@@ -27,6 +27,9 @@ private:
 	double ***cell_weight;
 	double ***cell_weight_momentum;
 
+	double ****recurrent_weight;
+	double ****recurrent_weight_momentum;
+
 	double ******weight;
 	double ******weight_momentum;
 
@@ -49,12 +52,12 @@ private:
 
 	void Activate(char option[], int layer_index, int time_index, int map_index);
 	void Adjust_Parameter(int layer_index, int time_index, int map_index);
-	void Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double *cell_weight, double ****weight);
+	void Adjust_Parameter(int layer_index, int map_index, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double ****_derivative, double *****derivative_patch, double *cell_weight, double **recurrent_weight, double ****weight);
 	void Backpropagate(char option, int layer_index, int time_index, int map_index);
 	void Backpropagate(bool initialize, int layer_index, int map_index, double ****derivative, double ****upper_derivative, double *****upper_weight);
 	void Differentiate(int layer_index, int time_index, int map_index, bool output_mask[], double learning_rate, double ***target_output);
 	void Feedforward(char option[], int layer_index, int time_index, int map_index);
-	void Feedforward(int layer_index, int map_index, double ****neuron, double *****neuron_patch, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double *cell_weight, double ****weight);
+	void Feedforward(int layer_index, int map_index, double ****neuron, double *****neuron_patch, double ****lower_neuron, double ****previous_neuron, double ****cell_neuron, double ****reset_neuron, double *cell_weight, double **recurrent_weight, double ****weight);
 	void Softmax(int layer_index, int time_index);
 
 	void Batch_Normalization_Activate(char option[], int memory_type, int memory_patch_index, int layer_index, int time_index, int map_index);
