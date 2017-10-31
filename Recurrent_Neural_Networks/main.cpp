@@ -95,7 +95,7 @@ int main(){
 	// int map_width[]		= {1, 1, 1};
 	// int map_height[]		= {1, 1, 1};
 	int number_maps[]		= {784 / time_step, 100, 10};
-	int number_iterations	= 100;
+	int number_iterations	= 1;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
 	int number_threads		= 6;
 	int number_training		= 6000;
@@ -114,7 +114,7 @@ int main(){
 	double gradient_threshold	= 1;
 	double learning_rate		= 0.005; // 0.001 for vanilla RNN
 	double decay_rate			= 0.977;
-	double noise_scale_factor	= 0.001; // Add gaussian noise to the input image to prevent zero mean
+	double noise_scale_factor	= 0.001; // Add gaussian noise to the input vector to prevent zero mean
 
 	double ***input			= new double**[number_training + number_test];
 	double ***target_output	= new double**[number_training + number_test];
@@ -137,14 +137,13 @@ int main(){
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", time_step, number_training, number_test, input, target_output);	
 
-	// RNN.Initialize_Parameter(0, 0.2, -0.1);
-	RNN.Load_Parameter("RNN.txt");
+	RNN.Initialize_Parameter(0, 0.2, -0.1);
 	omp_set_num_threads(number_threads);
 
 	for(int h = 0, time = clock();h < number_iterations;h++){
 		int number_correct[2] = {0, };
 
-		double loss = 0;// RNN.Train(batch_size, number_training, time_step, length_data, output_mask, epsilon, gradient_threshold, learning_rate, noise_scale_factor, input, target_output);
+		double loss = RNN.Train(batch_size, number_training, time_step, length_data, output_mask, epsilon, gradient_threshold, learning_rate, noise_scale_factor, input, target_output);
 
 		double *output = new double[number_maps[number_layers - 1]];
 
