@@ -1203,15 +1203,12 @@ void Recurrent_Neural_Networks::Gradient_Clipping(double threshold){
 
 	for(int i = 0;i < number_layers;i++){
 		if(strstr(type_layer[i], "bn")){
-			#pragma omp parallel for
 			for(int j = 0;j < number_maps[i];j++){
 				for(int k = 0;k < number_memory_types;k++){
 					if(Access_Memory(k, 0, i)){
 						for(int l = 0;l < number_memory_parts;l++){
-							#pragma omp atomic
-							gradient += (gamma_momentum[i][j][k][l] * gamma_momentum[i][j][k][l]);
-							#pragma omp atomic
-							gradient += (beta_momentum[i][j][k][l] * beta_momentum[i][j][k][l]);
+							gradient += gamma_momentum[i][j][k][l] * gamma_momentum[i][j][k][l];
+							gradient += beta_momentum[i][j][k][l] * beta_momentum[i][j][k][l];
 						}
 					}
 				}
@@ -1222,33 +1219,27 @@ void Recurrent_Neural_Networks::Gradient_Clipping(double threshold){
 	for(int h = 0;h < number_weight_types;h++){
 		for(int i = 0;i < number_layers;i++){
 			if(strstr(type_layer[i], "lstm")){
-				#pragma omp parallel for
 				for(int j = 0;j < number_maps[i];j++){
-					#pragma omp atomic
-					gradient += (cell_weight_momentum[h][i][j] * cell_weight_momentum[h][i][j]);
+					gradient += cell_weight_momentum[h][i][j] * cell_weight_momentum[h][i][j];
 				}
 			}
 			if(Access_Weight(h, i)){
-				#pragma omp parallel for
 				for(int j = 0;j < number_maps[i];j++){
 					for(int k = 0;k < number_maps[i - 1] + 1;k++){
 						for(int l = 0;l < kernel_height[i];l++){
 							for(int m = 0;m < kernel_width[i];m++){
-								#pragma omp atomic
-								gradient += (weight_momentum[h][i][j][k][l][m] * weight_momentum[h][i][j][k][l][m]);
+								gradient += weight_momentum[h][i][j][k][l][m] * weight_momentum[h][i][j][k][l][m];
 							}
 						}
 					}
 				}
 
 				if(strstr(type_layer[i], "lstm") || strstr(type_layer[i], "gru") || strstr(type_layer[i], "rc")){
-					#pragma omp parallel for
 					for(int l = 0;l < number_maps[i] * number_maps[i];l++){
 						int j = l / number_maps[i];
 						int k = l % number_maps[i];
 
-						#pragma omp atomic
-						gradient += (recurrent_weight_momentum[h][i][j][k] * recurrent_weight_momentum[h][i][j][k]);
+						gradient += recurrent_weight_momentum[h][i][j][k] * recurrent_weight_momentum[h][i][j][k];
 					}
 				}
 			}
