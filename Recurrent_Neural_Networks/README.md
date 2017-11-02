@@ -10,7 +10,7 @@
 - The network structure is determined by four variables in the main.cpp.
 
   ```C++
-  91: char *type_layer[]  = {"MNIST", "Clstm", "Lce,sm"};
+  91: char *type_layer[]  = {"MNIST", "Cbn,lstm", "Lce,sm"};
   94: int time_step       = 28;
   95: int map_width[]     = {1, 1, 1};
   96: int map_height[]    = {1, 1, 1};
@@ -33,4 +33,4 @@
 </br>
 
 ## MNIST classification results
-![result](/Recurrent_Neural_Networks/result.PNG)
+![result](/Recurrent_Neural_Networks/result.png)
