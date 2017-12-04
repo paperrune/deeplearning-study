@@ -7,7 +7,7 @@
   - t10k-images.idx3-ubyte
   - t10k-labels.idx1-ubyte
 
-- The network structure is determined by three variables in the main.cpp.
+- The network structure is determined by following variables in the main.cpp.
 
   ```C++
   88: char *type_layer[]  = {"MNIST", "Cbn", "Pmax", "Cbn", "Pmax", "Cbn", "Lce,sm"};
