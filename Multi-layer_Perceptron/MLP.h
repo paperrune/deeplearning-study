@@ -1,3 +1,10 @@
+#ifndef MLP_H
+#define MLP_H
+
+#include <string>
+
+using namespace std;
+
 class Multilayer_Perceptron{
 private:
 	char **type_layer;
@@ -39,13 +46,17 @@ private:
 
 	bool Access_Memory(int type_index, int layer_index);
 public:
-	Multilayer_Perceptron(char **type_layer, int number_layers, int number_neurons[]);
+	Multilayer_Perceptron(string path);
+	Multilayer_Perceptron(string type_layer[], int number_layers, int number_neurons[]);
 	~Multilayer_Perceptron();
 
-	void Initialize_Parameter(int seed, double scale, double shift);
-	void Load_Parameter(char path[]);
-	void Save_Parameter(char path[]);
+	void Initialize_Parameter(double scale, double shift, int seed = 0);
+	void Save_Model(string path);
 	void Test(double input[], double output[]);
+	void Test(int batch_size, double **input, double **output);
 
 	double Train(int batch_size, int number_training, double epsilon, double learning_rate, double **input, double **target_output);
+	double Train(int batch_size, int number_training, int length_data[], double epsilon, double learning_rate, double ***input, double ***target_output);
 };
+
+#endif
