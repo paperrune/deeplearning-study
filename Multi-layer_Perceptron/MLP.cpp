@@ -675,8 +675,8 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, double 
 	for (int i = 0; i < number_layers; i++){
 		if (strstr(type_layer[i], "bn")){
 			for (int j = 0; j < number_neurons[i]; j++){
-				mean[i][j]		= sum_mean[i][j] / (number_training / batch_size);
-				variance[i][j]	= ((double)batch_size / (batch_size - 1)) * sum_variance[i][j] / (number_training / batch_size);
+				mean[i][j] = sum_mean[i][j] / (number_training / batch_size);
+				variance[i][j] = ((double)batch_size / (batch_size - 1)) * sum_variance[i][j] / (number_training / batch_size);
 			}
 		}
 	}
@@ -776,8 +776,8 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, int len
 	for (int i = 0; i < number_layers; i++) {
 		if (strstr(type_layer[i], "bn")) {
 			for (int j = 0; j < number_neurons[i]; j++) {
-				mean[i][j]		= sum_mean[i][j] / number_batches;
-				variance[i][j]	= ((double)batch_size / (batch_size - 1)) * sum_variance[i][j] / number_batches;
+				mean[i][j] = sum_mean[i][j] / number_batches;
+				variance[i][j] = ((double)batch_size / (batch_size - 1)) * sum_variance[i][j] / number_batches;
 			}
 		}
 	}
