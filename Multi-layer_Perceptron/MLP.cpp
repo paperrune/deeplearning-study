@@ -547,13 +547,8 @@ void Multilayer_Perceptron::Save_Model(string path){
 	ofstream file(path);
 
 	file << number_layers << endl;
-
-	for (int i = 0; i < number_layers; i++) {
-		file << type_layer[i] << endl;
-	}
-	for (int i = 0; i < number_layers; i++) {
-		file << number_neurons[i] << endl;
-	}
+	for (int i = 0; i < number_layers; i++) file << type_layer[i] << endl;
+	for (int i = 0; i < number_layers; i++) file << number_neurons[i] << endl;
 	file << epsilon << endl;
 
 	for (int i = 1; i < number_layers; i++) {
