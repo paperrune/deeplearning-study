@@ -43,5 +43,5 @@
 	 ```
 </br>
 
-## MNIST classification results
-![result](/Multi-layer_Perceptron/result.PNG)
+## MNIST classification result
+![result](/Multi-layer_Perceptron/result.png)
