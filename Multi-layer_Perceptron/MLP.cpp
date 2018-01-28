@@ -624,7 +624,7 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, double 
 
 	for (int i = 0; i < number_layers; i++){
 		if (strstr(type_layer[i], "bn")){
-			memset(sum_mean[i],		0, sizeof(double) * number_neurons[i]);
+			memset(sum_mean[i], 0, sizeof(double) * number_neurons[i]);
 			memset(sum_variance[i], 0, sizeof(double) * number_neurons[i]);
 		}
 	}
@@ -723,7 +723,7 @@ double Multilayer_Perceptron::Train(int batch_size, int number_training, int len
 
 	for (int i = 0; i < number_layers; i++) {
 		if (strstr(type_layer[i], "bn")) {
-			memset(sum_mean[i],		0, sizeof(double) * number_neurons[i]);
+			memset(sum_mean[i], 0, sizeof(double) * number_neurons[i]);
 			memset(sum_variance[i], 0, sizeof(double) * number_neurons[i]);
 		}
 	}
