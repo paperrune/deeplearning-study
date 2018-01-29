@@ -10,7 +10,7 @@
 
   ```C++
   string type_layer[] = {"MNIST", "Cbn", "Cbn,do.5", "Lce,sm"};
-  int number_neurons[] = {28 * 28, 400, 400, 10};
+  int number_nodes[] = {28 * 28, 400, 400, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
   - Type start with 'C(connecting)' is for hidden layer.
