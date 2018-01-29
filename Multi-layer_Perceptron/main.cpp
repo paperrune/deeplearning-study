@@ -95,7 +95,7 @@ int main() {
 	int batch_size			= 60;
 	int number_iterations	= 100;
 	int number_layers		= sizeof(type_layer) / sizeof(type_layer[0]);
-	int number_neurons[]	= { 28 * 28, 400, 400, 10 };
+	int number_nodes[]		= { 28 * 28, 400, 400, 10 };
 	int number_threads		= 4;
 	int number_training		= 60000;
 	int number_test			= 10000;
@@ -107,11 +107,11 @@ int main() {
 	double **input			= new double*[number_training + number_test];
 	double **target_output	= new double*[number_training + number_test];
 
-	Multilayer_Perceptron MLP = Multilayer_Perceptron(type_layer, number_layers, number_neurons);
+	Multilayer_Perceptron MLP = Multilayer_Perceptron(type_layer, number_layers, number_nodes);
 
 	for (int h = 0; h < number_training + number_test; h++) {
-		input[h]		 = new double[number_neurons[0]];
-		target_output[h] = new double[number_neurons[number_layers - 1]];
+		input[h]		 = new double[number_nodes[0]];
+		target_output[h] = new double[number_nodes[number_layers - 1]];
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
 
@@ -123,14 +123,14 @@ int main() {
 
 		double loss = MLP.Train(batch_size, number_training, epsilon, learning_rate, input, target_output);
 
-		double *output = new double[number_neurons[number_layers - 1]];
+		double *output = new double[number_nodes[number_layers - 1]];
 
 		for (int i = 0, argmax; i < number_training + number_test; i++) {
 			double max = 0;
 
 			MLP.Test(input[i], output);
 
-			for (int j = 0; j < number_neurons[number_layers - 1]; j++) {
+			for (int j = 0; j < number_nodes[number_layers - 1]; j++) {
 				if (max < output[j]) {
 					max = output[argmax = j];
 				}

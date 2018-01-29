@@ -13,7 +13,7 @@ private:
 	int number_layers;
 	int number_memory_types;
 
-	int *number_neurons;
+	int *number_nodes;
 
 	double ***weight;
 
