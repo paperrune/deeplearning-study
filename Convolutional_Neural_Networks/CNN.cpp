@@ -496,8 +496,8 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 				neuron[g][i]	 = new double*[batch_size];
 
 				for (int h = 0; h < batch_size; h++){
-					derivative[g][i][h] = new double[number_maps[i] * map_height[i] * map_width[i]];
-					neuron[g][i][h]		= new double[number_maps[i] * map_height[i] * map_width[i]];
+					derivative[g][i][h] = new double[number_nodes[i] + 1];
+					neuron[g][i][h]		= new double[number_nodes[i] + 1];
 					neuron[g][i][h][number_nodes[i]] = 1;
 				}
 			}
@@ -508,8 +508,8 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 	connected_neuron	 = new vector<node>*[number_layers];
 	
 	for (int i = 0; i < number_layers; i++) {
-		connected_derivative[i] = new vector<node>[number_maps[i] * map_height[i] * map_width[i]];
-		connected_neuron[i]		= new vector<node>[number_maps[i] * map_height[i] * map_width[i]];
+		connected_derivative[i] = new vector<node>[number_nodes[i]];
+		connected_neuron[i]		= new vector<node>[number_nodes[i]];
 	}
 
 	for (int i = 1; i < number_layers; i++) {
