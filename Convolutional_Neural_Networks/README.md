@@ -15,7 +15,7 @@
   int number_maps[]   = { 1, 24, 24, 24, 48, 48, 192, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
-  - Type start with 'C(connection/convolution)' and 'P(padding/pooling)' is for hidden layer.  
+  - Type start with 'C(connection/convolution)' and 'P(pooling)' is for hidden layer.  
   
   	```
     C(connection/convolution)
@@ -27,20 +27,25 @@
     > Property
     "dw"     : depthwise separable convolution
     "ksm,n"  : set kernel width to m and height to n  [default kernel size : (map_width[i - 1] - map_width[i] + 1)*(map_height[i - 1] - map_height[i] + 1)]
-    "ksm"    = ksm,m
+    "ksm"    = "ksm,m"
     "stm,n"  : set stride width to m and height to n  [default stride size : 1*1]
-    "stm"    = stm,m
+    "stm"    = "stm,m"
 
     > Regularization
     "bn"   : Batch Normalization
     "do.f" : Dropout with rate 0.f, each neurons is set to zero with a probability of (1 - 0.f)
     ----------------------------------------------------------------------------------------------------
-    P(padding/pooling)
+    P(pooling)
     > Type
     "avg"  : Average Pooling
     "max"  : Max Pooling
     
-    default stride and pooling size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2
+    > Property
+    "ksm,n" : set pooling width to m and height to n [default pooling size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2]
+    "ksm"   = "ksm,m"
+    "stm,n" : set stride width to m and height to n  [default stride size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2]
+    "stm"   = "stm,m"
+ 
 	  ```
    - Type start with 'L(loss)' is for output layer.
    
