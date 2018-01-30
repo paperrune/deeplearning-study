@@ -775,7 +775,6 @@ void Convolutional_Neural_Networks::Test(double input[], double output[]){
 		}
 		Softmax(i);
 	}
-
 	memcpy(output, neuron[0][number_layers - 1][0], sizeof(double) * number_nodes[number_layers - 1]);
 }
 
