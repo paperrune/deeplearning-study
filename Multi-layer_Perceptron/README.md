@@ -9,11 +9,11 @@
 - The network structure is determined by two variables in the main.cpp.
 
   ```C++
-  string type_layer[] = {"MNIST", "Cbn", "Cbn,do.5", "Lce,sm"};
-  int number_nodes[] = {28 * 28, 400, 400, 10};
+  string type_layer[] = {"MNIST", "Cbn", "Cbn", "Lce,sm"};
+  int number_nodes[]  = {28 * 28, 400, 400, 10};
   ```  
   - There is no type for input layer. "MNIST" is a comments.
-  - Type start with 'C(connecting)' is for hidden layer.
+  - Type start with 'C(connection)' is for hidden layer.
   
   	```
 	> Activation Function
