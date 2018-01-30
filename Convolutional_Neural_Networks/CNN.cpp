@@ -700,10 +700,10 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks(){
 
 	delete[] kernel_width;
 	delete[] kernel_height;
-	delete[] number_nodes;
 	delete[] map_width;
 	delete[] map_height;
 	delete[] number_maps;
+	delete[] number_nodes;
 	delete[] stride_width;
 	delete[] stride_height;
 }
