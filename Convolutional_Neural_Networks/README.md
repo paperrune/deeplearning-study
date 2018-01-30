@@ -39,7 +39,6 @@
     > Type
     "avg"  : Average Pooling
     "max"  : Max Pooling
-    "pad"  : Zero Padding (it should be used to increase the size of the feature map)
     
     default stride and pooling size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2
 	  ```
