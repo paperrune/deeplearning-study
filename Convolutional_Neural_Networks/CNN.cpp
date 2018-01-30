@@ -424,7 +424,7 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 
 	for (int i = 0; i < number_layers; i++) {
 		map_area[i]		= map_height[i] * map_width[i];
-		number_nodes[i] = number_maps[i] * map_height[i] * map_width[i];
+		number_nodes[i] = number_maps[i] * map_area[i];
 
 		if (strstr(type_layer[i], "ks")) {
 			char *kernel_size = strstr(type_layer[i], "ks");
