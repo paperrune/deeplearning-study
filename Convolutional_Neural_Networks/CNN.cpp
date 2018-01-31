@@ -87,6 +87,8 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 	int j = map_index;
 
 	if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L'){
+		vector<node> *connected_neuron = &(this->connected_neuron[i][j]);
+
 		if (strstr(type_layer[i], "bn")){
 			Batch_Normalization_Adjust_Parameter(layer_index, map_index);
 		}
@@ -96,12 +98,13 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 			double *derivative = this->derivative[0][i][h];
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			for (int k = map_index, index = 0; k < map_index + map_area[i]; k++) {
-				vector<node> *connected_neuron = &(this->connected_neuron[i][k]);
+			auto connection = (*connected_neuron).begin();
 
-				for (auto connection = (*connected_neuron).begin(); connection != (*connected_neuron).end(); connection++) {
+			for (int k = map_index, index = 0; k < map_index + map_area[i]; k++, connection++) {
+				for (; connection->index != -1; connection++) {
 					(*connection->weight) -= derivative[k] * lower_neuron[connection->index];
 				}
+				(*connection->weight) -= derivative[k];
 			}
 		}
 	}
@@ -210,21 +213,23 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 	int i = layer_index;
 	int j = map_index;
 
+	vector<node> *connected_neuron = &(this->connected_neuron[i][j]);
+
 	map_index *= map_area[i];
 
 	if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L'){
 		for (int h = 0; h < batch_size; h++){
-			double *lower_neuron = this->neuron[0][i - 1][h];
+			double *lower_neuron = this->neuron[0][i - 1][h];			
 
-			for (int k = map_index; k < map_index + map_area[i]; k++) {
+			auto connection = (*connected_neuron).begin();
+
+			for (int k = map_index; k < map_index + map_area[i]; k++, connection++) {
 				double sum = 0;
 
-				vector<node> *connected_neuron = &(this->connected_neuron[i][k]);
-
-				for (auto connection = (*connected_neuron).begin(); connection != (*connected_neuron).end(); connection++) {
+				for (; connection->index != -1; connection++) {
 					sum += lower_neuron[connection->index] * (*connection->weight);
 				}
-				neuron[0][i][h][k] = sum;
+				neuron[0][i][h][k] = sum + (*connection->weight);
 			}
 		}
 	}
@@ -233,22 +238,24 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 		for (int h = 0; h < batch_size; h++){
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			for (int k = map_index; k < map_index + map_area[i]; k++) {
-				vector<node> *connected_neuron = &(this->connected_neuron[i][k]);
+			auto connection = (*connected_neuron).begin();
 
-				if (strstr(type_layer[i], "avg")) {
+			if (strstr(type_layer[i], "avg")) {
+				for (int k = map_index, l = 0; k < map_index + map_area[i]; k++, l = 0, connection++) {
 					double sum = 0;
 
-					for (auto connection = (*connected_neuron).begin(); connection != (*connected_neuron).end(); connection++) {
+					for (; connection->index != -1; connection++, l++) {
 						sum += lower_neuron[connection->index];
 					}
-					neuron[0][i][h][k] = sum / (*connected_neuron).size();
+					neuron[0][i][h][k] = sum / l;
 				}
-				else
-				if (strstr(type_layer[i], "max")) {
+			}
+			else
+			if (strstr(type_layer[i], "max")) {
+				for (int k = map_index; k < map_index + map_area[i]; k++, connection++) {
 					double max = -1;
 
-					for (auto connection = (*connected_neuron).begin(); connection != (*connected_neuron).end(); connection++) {
+					for (; connection->index != -1; connection++) {
 						if (max < lower_neuron[connection->index]) {
 							max = lower_neuron[connection->index];
 						}
@@ -424,7 +431,7 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 
 	for (int i = 0; i < number_layers; i++) {
 		map_area[i]		= map_height[i] * map_width[i];
-		number_nodes[i] = number_maps[i] * map_area[i];
+		number_nodes[i] = number_maps[i] * map_height[i] * map_width[i];
 
 		if (strstr(type_layer[i], "ks")) {
 			char *kernel_size = strstr(type_layer[i], "ks");
@@ -496,9 +503,8 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 				neuron[g][i]	 = new double*[batch_size];
 
 				for (int h = 0; h < batch_size; h++){
-					derivative[g][i][h] = new double[number_nodes[i] + 1];
-					neuron[g][i][h]		= new double[number_nodes[i] + 1];
-					neuron[g][i][h][number_nodes[i]] = 1;
+					derivative[g][i][h] = new double[number_nodes[i]];
+					neuron[g][i][h]		= new double[number_nodes[i]];
 				}
 			}
 		}
@@ -509,7 +515,7 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 	
 	for (int i = 0; i < number_layers; i++) {
 		connected_derivative[i] = new vector<node>[number_nodes[i]];
-		connected_neuron[i]		= new vector<node>[number_nodes[i]];
+		connected_neuron[i]		= new vector<node>[number_maps[i]];
 	}
 
 	for (int i = 1; i < number_layers; i++) {
@@ -536,15 +542,15 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 
 											connection.index  = index[1];
 											connection.weight = &weight[i][j][m][distance[0] * kernel_width[i] + distance[1]];
-											connected_neuron[i][index[0]].push_back(connection);
+											connected_neuron[i][j].push_back(connection);
 										}
 									}
 								}
 							}
 						}
-						connection.index  = number_nodes[i - 1];
+						connection.index  = -1;
 						connection.weight = &weight[i][j][number_maps[i - 1]][0];
-						connected_neuron[i][index[0]].push_back(connection);
+						connected_neuron[i][j].push_back(connection);
 					}
 					else
 					if (type_layer[i][0] == 'P') {
@@ -559,10 +565,12 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 									connected_derivative[i - 1][index[1]].push_back(connection);
 
 									connection.index = index[1];
-									connected_neuron[i][index[0]].push_back(connection);
+									connected_neuron[i][j].push_back(connection);
 								}
 							}
 						}
+						connection.index = -1;
+						connected_neuron[i][j].push_back(connection);
 					}
 				}
 			}
@@ -582,9 +590,8 @@ void Convolutional_Neural_Networks::Resize_Memory(int batch_size){
 					neuron[g][i]	 = (double**)realloc(neuron[g][i], sizeof(double*)* batch_size);
 
 					for (int h = 0; h < batch_size; h++){
-						derivative[g][i][h] = new double[number_nodes[i] + 1];
-						neuron[g][i][h]		= new double[number_nodes[i] + 1];
-						neuron[g][i][h][number_nodes[i]] = 1;
+						derivative[g][i][h] = new double[number_nodes[i]];
+						neuron[g][i][h]		= new double[number_nodes[i]];
 					}
 				}
 			}
