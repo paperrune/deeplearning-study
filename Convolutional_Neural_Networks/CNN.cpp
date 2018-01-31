@@ -87,7 +87,7 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 	int j = map_index;
 
 	if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L'){
-		vector<node> *connected_neuron = &(this->connected_neuron[i][j]);
+		vector<node> &connected_neuron = this->connected_neuron[i][j];
 
 		if (strstr(type_layer[i], "bn")){
 			Batch_Normalization_Adjust_Parameter(layer_index, map_index);
@@ -98,7 +98,7 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 			double *derivative = this->derivative[0][i][h];
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			auto connection = (*connected_neuron).begin();
+			auto connection = connected_neuron.begin();
 
 			for (int k = map_index, index = 0; k < map_index + map_area[i]; k++, connection++) {
 				for (; connection->index != -1; connection++) {
@@ -126,9 +126,9 @@ void Convolutional_Neural_Networks::Backpropagate(int layer_index, int map_index
 			for (int k = map_index; k < map_index + map_area[i]; k++) {
 				double sum = 0;
 
-				vector<node> *connected_derivative = &(this->connected_derivative[i][k]);
+				vector<node> &connected_derivative = this->connected_derivative[i][k];
 
-				for (auto connection = (*connected_derivative).begin(); connection != (*connected_derivative).end(); connection++) {
+				for (auto connection = connected_derivative.begin(); connection != connected_derivative.end(); connection++) {
 					sum += upper_derivative[connection->index] * (*connection->weight);
 				}
 				derivative[0][i][h][k] = sum;
@@ -213,7 +213,7 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 	int i = layer_index;
 	int j = map_index;
 
-	vector<node> *connected_neuron = &(this->connected_neuron[i][j]);
+	vector<node> &connected_neuron = this->connected_neuron[i][j];
 
 	map_index *= map_area[i];
 
@@ -221,7 +221,7 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 		for (int h = 0; h < batch_size; h++){
 			double *lower_neuron = this->neuron[0][i - 1][h];			
 
-			auto connection = (*connected_neuron).begin();
+			auto connection = connected_neuron.begin();
 
 			for (int k = map_index; k < map_index + map_area[i]; k++, connection++) {
 				double sum = 0;
@@ -238,7 +238,7 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index){
 		for (int h = 0; h < batch_size; h++){
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			auto connection = (*connected_neuron).begin();
+			auto connection = connected_neuron.begin();
 
 			if (strstr(type_layer[i], "avg")) {
 				for (int k = map_index, l = 0; k < map_index + map_area[i]; k++, l = 0, connection++) {
