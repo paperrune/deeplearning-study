@@ -66,5 +66,5 @@
 </br>
 
 ## MNIST classification result
-i7-4790K
+i7-4790K</br>
 ![result](/Convolutional_Neural_Networks/result.png)
