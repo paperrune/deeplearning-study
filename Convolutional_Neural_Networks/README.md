@@ -44,8 +44,7 @@
     "ksm,n" : set pooling width to m and height to n [default pooling size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2]
     "ksm"   = "ksm,m"
     "stm,n" : set stride width to m and height to n  [default stride size : (max(length_map[i - 1], length_map[i]) / min(length_map[i - 1], length_map[i]))^2]
-    "stm"   = "stm,m"
- 
+    "stm"   = "stm,m" 
 	  ```
    - Type start with 'L(loss)' is for output layer.
    
