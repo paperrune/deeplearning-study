@@ -26,7 +26,7 @@
     
     > Property
     "dw"     : depthwise separable convolution
-    "ksm,n"  : set kernel width to m and height to n  [default kernel size : (map_width[i - 1] - map_width[i] + 1)*(map_height[i - 1] - map_height[i] + 1)]
+    "ksm,n"  : set kernel width to m and height to n  [default kernel size : (|map_width[i - 1] - map_width[i]| + 1)*(|map_height[i - 1] - map_height[i]| + 1)]
     "ksm"    = "ksm,m"
     "stm,n"  : set stride width to m and height to n  [default stride size : 1*1]
     "stm"    = "stm,m"
