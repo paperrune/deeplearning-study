@@ -42,6 +42,7 @@ private:
 	void Batch_Normalization_Adjust_Parameter(int layer_index, int neuron_index);
 	void Batch_Normalization_Differentiate(int layer_index, int neuron_index);
 
+	void Construct_Networks();
 	void Resize_Memory(int batch_size);
 
 	bool Access_Memory(int type_index, int layer_index);
