@@ -44,4 +44,5 @@
 </br>
 
 ## MNIST classification result
+i7-4790K</br>
 ![result](/Multi-layer_Perceptron/result.png)
