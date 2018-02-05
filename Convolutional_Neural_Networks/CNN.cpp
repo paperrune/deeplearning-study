@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unordered_map>
 
 #include "CNN.h"
 
@@ -87,8 +88,6 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 	int j = map_index;
 
 	if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L') {
-		vector<node> &connected_neuron = this->connected_neuron[i][j];
-
 		if (strstr(type_layer[i], "bn")) {
 			Batch_Normalization_Adjust_Parameter(layer_index, map_index);
 		}
@@ -98,13 +97,12 @@ void Convolutional_Neural_Networks::Adjust_Parameter(int layer_index, int map_in
 			double *derivative = this->derivative[0][i][h];
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			auto connection = connected_neuron.begin();
+			for (int k = map_index; k < map_index + map_area[i]; k++) {
+				vector<connection> &connected_neuron = this->connected_neuron[i][k];
 
-			for (int k = map_index, index = 0; k < map_index + map_area[i]; k++, connection++) {
-				for (; connection->index != -1; connection++) {
-					(*connection->weight) -= derivative[k] * lower_neuron[connection->index];
+				for (auto connection = connected_neuron.begin(); connection != connected_neuron.end(); connection++) {
+					weight[i][connection->weight] -= derivative[k] * ((connection->lower_node == -1) ? (1):(lower_neuron[connection->lower_node]));
 				}
-				(*connection->weight) -= derivative[k];
 			}
 		}
 	}
@@ -126,25 +124,25 @@ void Convolutional_Neural_Networks::Backpropagate(int layer_index, int map_index
 			for (int k = map_index; k < map_index + map_area[i]; k++) {
 				double sum = 0;
 
-				vector<node> &connected_derivative = this->connected_derivative[i][k];
+				vector<connection> &connected_derivative = this->connected_derivative[i][k];
 
 				for (auto connection = connected_derivative.begin(); connection != connected_derivative.end(); connection++) {
-					sum += upper_derivative[connection->index] * (*connection->weight);
+					sum += upper_derivative[connection->upper_node] * weight[i + 1][connection->weight];
 				}
 				derivative[0][i][h][k] = sum;
 			}
 		}
 	}
 	else
-		if (type_layer[i + 1][0] == 'P') {
-			for (int h = 0; h < batch_size; h++) {
-				double *upper_derivative = this->derivative[0][i + 1][h];
+	if (type_layer[i + 1][0] == 'P') {
+		for (int h = 0; h < batch_size; h++) {
+			double *upper_derivative = this->derivative[0][i + 1][h];
 
-				for (int k = map_index; k < map_index + map_area[i]; k++) {
-					derivative[0][i][h][k] = upper_derivative[connected_derivative[i][k].begin()->index];
-				}
+			for (int k = map_index; k < map_index + map_area[i]; k++) {
+				derivative[0][i][h][k] = upper_derivative[connected_derivative[i][k].begin()->upper_node];
 			}
 		}
+	}
 }
 void Convolutional_Neural_Networks::Differentiate(int layer_index, int map_index, double learning_rate, double **target_output) {
 	int i = layer_index;
@@ -213,58 +211,54 @@ void Convolutional_Neural_Networks::Feedforward(int layer_index, int map_index) 
 	int i = layer_index;
 	int j = map_index;
 
-	vector<node> &connected_neuron = this->connected_neuron[i][j];
-
 	map_index *= map_area[i];
 
 	if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L') {
 		for (int h = 0; h < batch_size; h++) {
 			double *lower_neuron = this->neuron[0][i - 1][h];
 
-			auto connection = connected_neuron.begin();
-
-			for (int k = map_index; k < map_index + map_area[i]; k++, connection++) {
+			for (int k = map_index; k < map_index + map_area[i]; k++) {
 				double sum = 0;
 
-				for (; connection->index != -1; connection++) {
-					sum += lower_neuron[connection->index] * (*connection->weight);
+				vector<connection> &connected_neuron = this->connected_neuron[i][k];
+
+				for (auto connection = connected_neuron.begin(); connection != connected_neuron.end(); connection++) {
+					sum += ((connection->lower_node == - 1) ? (1):(lower_neuron[connection->lower_node])) * weight[i][connection->weight];
 				}
-				neuron[0][i][h][k] = sum + (*connection->weight);
+				neuron[0][i][h][k] = sum;
 			}
 		}
 	}
 	else
-		if (type_layer[i][0] == 'P') {
-			for (int h = 0; h < batch_size; h++) {
-				double *lower_neuron = this->neuron[0][i - 1][h];
+	if (type_layer[i][0] == 'P') {
+		for (int h = 0; h < batch_size; h++) {
+			double *lower_neuron = this->neuron[0][i - 1][h];
 
-				auto connection = connected_neuron.begin();
+			for (int k = map_index, l = 0; k < map_index + map_area[i]; k++, l = 0) {
+				vector<connection> &connected_neuron = this->connected_neuron[i][k];
 
 				if (strstr(type_layer[i], "avg")) {
-					for (int k = map_index, l = 0; k < map_index + map_area[i]; k++, l = 0, connection++) {
-						double sum = 0;
+					double sum = 0;
 
-						for (; connection->index != -1; connection++, l++) {
-							sum += lower_neuron[connection->index];
-						}
-						neuron[0][i][h][k] = sum / l;
+					for (auto connection = connected_neuron.begin(); connection != connected_neuron.end(); connection++, l++) {
+						sum += lower_neuron[connection->lower_node];
 					}
+					neuron[0][i][h][k] = sum / l;
 				}
 				else
-					if (strstr(type_layer[i], "max")) {
-						for (int k = map_index; k < map_index + map_area[i]; k++, connection++) {
-							double max = -1;
+				if (strstr(type_layer[i], "max")) {
+					double max = -1;
 
-							for (; connection->index != -1; connection++) {
-								if (max < lower_neuron[connection->index]) {
-									max = lower_neuron[connection->index];
-								}
-							}
-							neuron[0][i][h][k] = max;
+					for (auto connection = connected_neuron.begin(); connection != connected_neuron.end(); connection++) {
+						if (max < lower_neuron[connection->lower_node]) {
+							max = lower_neuron[connection->lower_node];
 						}
 					}
+					neuron[0][i][h][k] = max;
+				}
 			}
 		}
+	}
 }
 void Convolutional_Neural_Networks::Softmax(int layer_index) {
 	int i = layer_index;
@@ -418,19 +412,23 @@ void Convolutional_Neural_Networks::Batch_Normalization_Differentiate(int layer_
 }
 
 void Convolutional_Neural_Networks::Construct_Networks() {
+	unordered_map<int, int> weight_index;
+
 	batch_size = 1;
-	number_memory_types = 3;
+	number_node_types = 3;
 
 	kernel_width = new int[number_layers];
 	kernel_height = new int[number_layers];
 	map_area = new int[number_layers];
 	number_nodes = new int[number_layers];
+	number_weights = new int[number_layers];
 	stride_width = new int[number_layers];
 	stride_height = new int[number_layers];
 
 	for (int i = 0; i < number_layers; i++) {
 		map_area[i] = map_height[i] * map_width[i];
 		number_nodes[i] = number_maps[i] * map_height[i] * map_width[i];
+		number_weights[i] = 0;
 
 		if (strstr(type_layer[i], "ks")) {
 			char *kernel_size = strstr(type_layer[i], "ks");
@@ -463,7 +461,7 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 	variance = new double*[number_layers];
 	sum_mean = new double*[number_layers];
 	sum_variance = new double*[number_layers];
-	weight = new double***[number_layers];
+	weight = new double*[number_layers];
 
 	for (int i = 1; i < number_layers; i++) {
 		if (strstr(type_layer[i], "bn")) {
@@ -477,22 +475,24 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 		if (kernel_width[i]) {
 			bool depthwise_separable = (strstr(type_layer[i], "dw") != 0);
 
-			weight[i] = new double**[number_maps[i]];
-
-			for (int j = 0; j < number_maps[i]; j++) {
-				weight[i][j] = new double*[number_maps[i - 1] + 1];
-
+			for (int j = 0, index = 0; j < number_maps[i]; j++) {
 				for (int k = 0; k < number_maps[i - 1] + 1; k++) {
-					weight[i][j][k] = (!depthwise_separable || j == k || k == number_maps[i - 1]) ? (new double[kernel_height[i] * kernel_width[i]]) : (nullptr);
+					if (!depthwise_separable || j == k || k == number_maps[i - 1]) {
+						for (int l = 0; l < kernel_height[i] * kernel_width[i]; l++) {
+							weight_index.insert(pair<int, int>(j * (number_maps[i - 1] + 1) * kernel_height[i] * kernel_width[i] + k * kernel_height[i] * kernel_width[i] + l, index++));
+						}
+						number_weights[i] += kernel_height[i] * kernel_width[i];
+					}
 				}
 			}
+			weight[i] = new double[number_weights[i]];
 		}
 	}
 
-	derivative = new double***[number_memory_types];
-	neuron = new double***[number_memory_types];
+	derivative = new double***[number_node_types];
+	neuron = new double***[number_node_types];
 
-	for (int g = 0; g < number_memory_types; g++) {
+	for (int g = 0; g < number_node_types; g++) {
 		derivative[g] = new double**[number_layers];
 		neuron[g] = new double**[number_layers];
 
@@ -509,25 +509,27 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 		}
 	}
 
-	connected_derivative = new vector<node>*[number_layers];
-	connected_neuron = new vector<node>*[number_layers];
+	connected_derivative = new vector<connection>*[number_layers];
+	connected_neuron = new vector<connection>*[number_layers];
 
 	for (int i = 0; i < number_layers; i++) {
-		connected_derivative[i] = new vector<node>[number_nodes[i]];
-		connected_neuron[i] = new vector<node>[number_maps[i]];
+		connected_derivative[i] = new vector<connection>[number_nodes[i]];
+		connected_neuron[i] = new vector<connection>[number_nodes[i]];
 	}
 
 	for (int i = 1; i < number_layers; i++) {
+		bool depthwise_separable = (strstr(type_layer[i], "dw") != 0);
+
 		for (int j = 0; j < number_maps[i]; j++) {
 			for (int k = 0; k < map_height[i]; k++) {
 				for (int l = 0; l < map_width[i]; l++) {
 					int index[2] = { j * map_area[i] + k * map_width[i] + l, 0 };
 
-					node connection;
+					connection connection;
 
 					if (type_layer[i][0] == 'C' || type_layer[i][0] == 'L') {
 						for (int m = 0; m < number_maps[i - 1]; m++) {
-							if (weight[i][j][m]) {
+							if (!depthwise_separable || j == m) {
 								for (int n = 0; n < map_height[i - 1]; n++) {
 									for (int o = 0; o < map_width[i - 1]; o++) {
 										int distance[2] = { (map_height[i] < map_height[i - 1]) ? (n - k * stride_height[i]) : (k - n * stride_height[i]) , (map_width[i] < map_width[i - 1]) ? (o - l * stride_width[i]) : (l - o * stride_width[i]) };
@@ -535,42 +537,40 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 										if (0 <= distance[0] && distance[0] < kernel_height[i] && 0 <= distance[1] && distance[1] < kernel_width[i]) {
 											index[1] = m * map_area[i - 1] + n * map_width[i - 1] + o;
 
-											connection.index = index[0];
-											connection.weight = &weight[i][j][m][distance[0] * kernel_width[i] + distance[1]];
-											connected_derivative[i - 1][index[1]].push_back(connection);
+											connection.lower_node = index[1];
+											connection.upper_node = index[0];
+											connection.weight = weight_index.find(j * (number_maps[i - 1] + 1) * kernel_height[i] * kernel_width[i] + m * kernel_height[i] * kernel_width[i] + distance[0] * kernel_width[i] + distance[1])->second;										
 
-											connection.index = index[1];
-											connection.weight = &weight[i][j][m][distance[0] * kernel_width[i] + distance[1]];
-											connected_neuron[i][j].push_back(connection);
+											connected_derivative[i - 1][index[1]].push_back(connection);
+											connected_neuron[i][index[0]].push_back(connection);
 										}
 									}
 								}
 							}
 						}
-						connection.index = -1;
-						connection.weight = &weight[i][j][number_maps[i - 1]][0];
-						connected_neuron[i][j].push_back(connection);
+						connection.lower_node = -1;
+						connection.weight = weight_index.find(j * (number_maps[i - 1] + 1) * kernel_height[i] * kernel_width[i] + number_maps[i - 1] * kernel_height[i] * kernel_width[i])->second;
+
+						connected_neuron[i][index[0]].push_back(connection);
 					}
 					else
-						if (type_layer[i][0] == 'P') {
-							for (int n = 0; n < map_height[i - 1]; n++) {
-								for (int o = 0; o < map_width[i - 1]; o++) {
-									int distance[2] = { (map_height[i] < map_height[i - 1]) ? (n - k * stride_height[i]) : (k - n * stride_height[i]) , (map_width[i] < map_width[i - 1]) ? (o - l * stride_width[i]) : (l - o * stride_width[i]) };
+					if (type_layer[i][0] == 'P') {
+						for (int n = 0; n < map_height[i - 1]; n++) {
+							for (int o = 0; o < map_width[i - 1]; o++) {
+								int distance[2] = { (map_height[i] < map_height[i - 1]) ? (n - k * stride_height[i]) : (k - n * stride_height[i]) , (map_width[i] < map_width[i - 1]) ? (o - l * stride_width[i]) : (l - o * stride_width[i]) };
 
-									if (0 <= distance[0] && distance[0] < ((kernel_height[i]) ? (kernel_height[i]) : (stride_height[i])) && 0 <= distance[1] && distance[1] < ((kernel_width[i]) ? (kernel_width[i]) : (stride_width[i]))) {
-										index[1] = j * map_height[i - 1] * map_width[i - 1] + n * map_width[i - 1] + o;
+								if (0 <= distance[0] && distance[0] < ((kernel_height[i]) ? (kernel_height[i]) : (stride_height[i])) && 0 <= distance[1] && distance[1] < ((kernel_width[i]) ? (kernel_width[i]) : (stride_width[i]))) {
+									index[1] = j * map_height[i - 1] * map_width[i - 1] + n * map_width[i - 1] + o;
 
-										connection.index = index[0];
-										connected_derivative[i - 1][index[1]].push_back(connection);
+									connection.lower_node = index[1];
+									connection.upper_node = index[0];
 
-										connection.index = index[1];
-										connected_neuron[i][j].push_back(connection);
-									}
+									connected_derivative[i - 1][index[1]].push_back(connection);
+									connected_neuron[i][index[0]].push_back(connection);
 								}
 							}
-							connection.index = -1;
-							connected_neuron[i][j].push_back(connection);
 						}
+					}
 				}
 			}
 		}
@@ -578,7 +578,7 @@ void Convolutional_Neural_Networks::Construct_Networks() {
 }
 void Convolutional_Neural_Networks::Resize_Memory(int batch_size) {
 	if (this->batch_size != batch_size) {
-		for (int g = 0; g < number_memory_types; g++) {
+		for (int g = 0; g < number_node_types; g++) {
 			for (int i = 0; i < number_layers; i++) {
 				if (Access_Memory(g, i)) {
 					for (int h = 0; h < this->batch_size; h++) {
@@ -638,14 +638,8 @@ Convolutional_Neural_Networks::Convolutional_Neural_Networks(string path) {
 				for (int j = 0; j < number_maps[i]; j++) file >> variance[i][j];
 			}
 			if (kernel_width[i]) {
-				for (int j = 0; j < number_maps[i]; j++) {
-					for (int k = 0; k < number_maps[i - 1] + 1; k++) {
-						if (weight[i][j][k]) {
-							for (int l = 0; l < kernel_height[i] * kernel_width[i]; l++) {
-								file >> weight[i][j][k][l];
-							}
-						}
-					}
+				for (int j = 0; j < number_weights[i]; j++) {
+					file >> weight[i][j];
 				}
 			}
 		}
@@ -681,16 +675,6 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks() {
 			delete[] sum_variance[i];
 		}
 		if (kernel_width[i]) {
-			bool depthwise_separable = (strstr(type_layer[i], "dw") != 0);
-
-			for (int j = 0; j < number_maps[i]; j++) {
-				for (int k = 0; k < number_maps[i - 1] + 1; k++) {
-					if (weight[i][j][k]) {
-						delete[] weight[i][j][k];
-					}
-				}
-				delete[] weight[i][j];
-			}
 			delete[] weight[i];
 		}
 	}
@@ -702,7 +686,7 @@ Convolutional_Neural_Networks::~Convolutional_Neural_Networks() {
 	delete[] sum_variance;
 	delete[] weight;
 
-	for (int g = 0; g < number_memory_types; g++) {
+	for (int g = 0; g < number_node_types; g++) {
 		for (int i = 0; i < number_layers; i++) {
 			if (Access_Memory(g, i)) {
 				for (int h = 0; h < batch_size; h++) {
@@ -749,14 +733,8 @@ void Convolutional_Neural_Networks::Initialize_Parameter(double scale, double sh
 			}
 		}
 		if (kernel_width[i]) {
-			for (int j = 0; j < number_maps[i]; j++) {
-				for (int k = 0; k < number_maps[i - 1] + 1; k++) {
-					if (weight[i][j][k]) {
-						for (int l = 0; l < kernel_height[i] * kernel_width[i]; l++) {
-							weight[i][j][k][l] = scale * rand() / RAND_MAX + shift;
-						}
-					}
-				}
+			for (int j = 0; j < number_weights[i]; j++) {
+				weight[i][j] = scale * rand() / RAND_MAX + shift;
 			}
 		}
 	}
@@ -779,14 +757,8 @@ void Convolutional_Neural_Networks::Save_Model(string path) {
 			for (int j = 0; j < number_maps[i]; j++) file << variance[i][j] << endl;
 		}
 		if (kernel_width[i]) {
-			for (int j = 0; j < number_maps[i]; j++) {
-				for (int k = 0; k < number_maps[i - 1] + 1; k++) {
-					if (weight[i][j][k]) {
-						for (int l = 0; l < kernel_height[i] * kernel_width[i]; l++) {
-							file << weight[i][j][k][l] << endl;
-						}
-					}
-				}
+			for (int j = 0; j < number_weights[i]; j++) {
+				file << weight[i][j] << endl;
 			}
 		}
 	}

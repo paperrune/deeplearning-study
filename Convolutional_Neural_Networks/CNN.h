@@ -6,19 +6,19 @@
 
 using namespace std;
 
+typedef struct connection {
+	int lower_node;
+	int upper_node;
+	int weight;
+} connection;
+
 class Convolutional_Neural_Networks{
 private:
-	typedef struct node {
-		int index;
-
-		double *weight;
-	} node;
-
 	char **type_layer;
 
 	int batch_size;
 	int number_layers;
-	int number_memory_types;
+	int number_node_types;
 
 	int *kernel_width;
 	int *kernel_height;
@@ -27,15 +27,17 @@ private:
 	int *map_height;
 	int *number_maps;
 	int *number_nodes;
+	int *number_weights;
 	int *stride_width;
 	int *stride_height;
 
+	double **weight;
+
 	double ****neuron;
 	double ****derivative;
-	double ****weight;
 
-	vector<node> **connected_derivative;
-	vector<node> **connected_neuron;
+	vector<connection> **connected_derivative;
+	vector<connection> **connected_neuron;
 
 	// Variables for Batch Normalization
 	double epsilon;
