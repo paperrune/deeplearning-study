@@ -45,7 +45,7 @@ private:
 	void Construct_Networks();
 	void Resize_Memory(int batch_size);
 
-	bool Access_Memory(int type_index, int layer_index);
+	bool Access_Node(int type_index, int layer_index);
 public:
 	Multilayer_Perceptron(string path);
 	Multilayer_Perceptron(string type_layer[], int number_layers, int number_neurons[]);
