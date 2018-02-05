@@ -11,7 +11,7 @@ private:
 
 	int batch_size;
 	int number_layers;
-	int number_memory_types;
+	int number_node_types;
 
 	int *number_nodes;
 

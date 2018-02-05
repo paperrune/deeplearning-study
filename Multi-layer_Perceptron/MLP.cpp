@@ -310,7 +310,7 @@ void Multilayer_Perceptron::Batch_Normalization_Differentiate(int layer_index, i
 
 void Multilayer_Perceptron::Construct_Networks() {
 	batch_size = 1;
-	number_memory_types = 3;
+	number_node_types = 3;
 
 	gamma = new double*[number_layers];
 	beta = new double*[number_layers];
@@ -337,10 +337,10 @@ void Multilayer_Perceptron::Construct_Networks() {
 		}
 	}
 
-	derivative = new double***[number_memory_types];
-	neuron = new double***[number_memory_types];
+	derivative = new double***[number_node_types];
+	neuron = new double***[number_node_types];
 
-	for (int g = 0; g < number_memory_types; g++) {
+	for (int g = 0; g < number_node_types; g++) {
 		derivative[g] = new double**[number_layers];
 		neuron[g] = new double**[number_layers];
 
@@ -359,7 +359,7 @@ void Multilayer_Perceptron::Construct_Networks() {
 }
 void Multilayer_Perceptron::Resize_Memory(int batch_size) {
 	if (this->batch_size != batch_size) {
-		for (int g = 0; g < number_memory_types; g++) {
+		for (int g = 0; g < number_node_types; g++) {
 			for (int i = 0; i < number_layers; i++) {
 				if (Access_Memory(g, i)) {
 					for (int h = 0; h < this->batch_size; h++) {
@@ -463,7 +463,7 @@ Multilayer_Perceptron::~Multilayer_Perceptron() {
 	delete[] sum_variance;
 	delete[] weight;
 
-	for (int g = 0; g < number_memory_types; g++) {
+	for (int g = 0; g < number_node_types; g++) {
 		for (int i = 0; i < number_layers; i++) {
 			if (Access_Memory(g, i)) {
 				for (int h = 0; h < batch_size; h++) {
