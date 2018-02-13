@@ -117,7 +117,7 @@ int main() {
 	}
 	Read_MNIST("train-images.idx3-ubyte", "train-labels.idx1-ubyte", "t10k-images.idx3-ubyte", "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
 
-	NN.Initialize_Parameter(0, 0.01);
+	NN.Initialize_Parameter(0, 0.01, 1, 1);
 	omp_set_num_threads(number_threads);
 
 	for (int h = 0, time = clock(); h < number_iterations; h++) {
