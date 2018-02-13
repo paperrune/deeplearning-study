@@ -186,8 +186,8 @@ void Batch_Normalization::Resize_Node(int batch_size, double epsilon) {
 		neuron_backup = (double*)realloc(neuron_backup, sizeof(double) * batch_size * time_step * map_size);
 		neuron_normalized = (double*)realloc(neuron_normalized, sizeof(double) * batch_size * time_step * map_size);
 		this->batch_size = batch_size;
-		this->epsilon = epsilon;
 	}
+	this->epsilon = epsilon;
 }
 
 void Neural_Networks::Activate(char option[], int layer_index, int map_index, int time_index) {
