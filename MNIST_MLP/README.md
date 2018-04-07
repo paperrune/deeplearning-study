@@ -1,10 +1,10 @@
 ## MNIST handwritten digits classification using Multilayer Perceptron
 
 ### Compile
-Visual Studio 2015</br>
+- Visual Studio 2015</br>
 ![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br></br>
 
-g++</br>
+- GNU g++</br>
 ![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
 
 ### Result
