@@ -251,6 +251,7 @@ public:
 	void Initialize(double scale, double gamma = 1);
 	void Save(string path);
 	void Set_CTC_Loss(int number_labels, string label[]);
+	void Set_Epsilon(double epsilon);
 	void Set_Gradient_Threshold(double gradient_threshold);
 	void Set_Optimizer(Optimizer *optimizer);
 	void Test(float input[], float output[], int length_data = 0);
@@ -289,10 +290,10 @@ public:
 
 	void Resize_Memory(int number_parameters);
 
-	float Calculate_Gradient(int parameter_index, double gradient, double learning_rate);
+	double Calculate_Gradient(int parameter_index, double gradient, double learning_rate);
 
-	Optimizer* Copy();
-	Optimizer* Copy_Host();
+	Optimizer* Copy(int number_parameters = 0);
+	Optimizer* Copy_Host(int number_parameters = 0);
 };
 
 #endif
