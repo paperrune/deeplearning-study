@@ -24,4 +24,4 @@ C++ implementation of Neural Networks</br></br>
 
 ### Connection
 ```C++
-"W" : weighted
+"W" : connect with weights
