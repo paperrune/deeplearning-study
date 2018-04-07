@@ -8,4 +8,5 @@ g++</br>
 ![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
 
 ### Result
-![result](/MNIST_MLP/screenshot/result.png)</br>
+i7-4790K</br>
+![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br>
