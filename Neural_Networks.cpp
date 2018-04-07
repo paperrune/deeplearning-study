@@ -925,7 +925,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set kernel size if specified
 	if (const char *kernel_size = strstr(properties.c_str(), "kernel")) {
-		connection->kernel_width = atoi(kernel_size + 6);
+		connection->kernel_width = atoi(kernel_size + 7);
 		kernel_size = strstr(kernel_size, "x");
 
 		if (kernel_size && atoi(kernel_size + 1) > 0) {
@@ -958,7 +958,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set stride size if specified
 	if (const char *stride_size = strstr(properties.c_str(), "stride")) {
-		connection->stride_width = atoi(stride_size + 6);
+		connection->stride_width = atoi(stride_size + 7);
 		stride_size = strstr(stride_size, "x");
 
 		if (stride_size && atoi(stride_size + 1) > 0) {
