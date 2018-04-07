@@ -1,1 +1,2 @@
-# Neural-Networks
+# MNIST handwritten digits classification using Multilayer Perceptron
+
