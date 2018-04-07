@@ -141,14 +141,13 @@ int main() {
 	cin.ignore();
 
 	cout << "path where MNIST handwritten digits dataset is : ";
-	path = cin.get();
-	cin.ignore(256, '\n');
+	getline(cin, path);
 
 	for (int h = 0; h < number_training + number_test; h++) {
 		input[h] = new float[number_nodes.front()];
 		target_output[h] = new float[number_nodes.back()];
 	}
-	Read_MNIST(path + "./train-images.idx3-ubyte", path + "./train-labels.idx1-ubyte", path + "./t10k-images.idx3-ubyte", path + "./t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
+	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
 
 	omp_set_num_threads(number_threads);
 
