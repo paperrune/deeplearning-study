@@ -1,7 +1,7 @@
 ## MNIST handwritten digits classification using Multilayer Perceptron
 
 ### Compile
-![VS2015](/MNIST_MLP/screenshot/VS2015.png)</br>
+![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br>
 ![g++](/MNIST_MLP/screenshot/g++.png)</br>
 
 ### Result
