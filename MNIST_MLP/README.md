@@ -8,5 +8,5 @@
 ![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
 
 ### Result
-i7-4790K</br>
+i7-4790K (4 threads)</br>
 ![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br>
