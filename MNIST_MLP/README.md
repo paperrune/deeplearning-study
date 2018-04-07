@@ -10,7 +10,7 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 ![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br></br>
 
 - GNU g++</br>
-![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
+![g++](/MNIST_MLP/screenshot/g++.png)</br>
 
 ### Result
 i7-4790K (4 threads)</br>
