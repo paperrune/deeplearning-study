@@ -24,4 +24,9 @@ C++ implementation of Neural Networks</br></br>
 
 ### Connection
 ```C++
-"W" : connect with weights
+"kernel(mxnxo) : set kernel width to m, height to n and depth to o
+"stride(mxnxo) : set stride width to m, height to n and depth to o
+"DS"           : depthwise separable convolution
+"P,max"        : max pooling
+"P,average"    : average pooling
+"W"            : connect with weights
