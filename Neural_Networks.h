@@ -46,7 +46,7 @@ public:
 	~Batch_Normalization();
 
 	void Activate(string phase, float neuron[], int time_index);
-	void Adjust_Parameter(double learning_rate);
+	void Adjust_Parameter(double gradient_clip, double learning_rate);
 	void Calculate_Mean_Variance(int number_batches);
 	void Destroy();
 	void Differentiate(float error[], int time_index);
@@ -108,6 +108,7 @@ private:
 
 	double Backward_Algorithm(vector<string> label_sequence, int length_event, double **beta, float likelihood[]);
 	double Forward_Algorithm(vector<string> label_sequence, int length_event, double **alpha, float likelihood[]);
+	double Log_Add(double a, double b);
 public:
 	int number_labels;
 
@@ -226,7 +227,7 @@ private:
 	Connectionist_Temporal_Classification *CTC;
 
 	void Activate(Layer *layer, string phase, int time_index);
-	void Adjust_Parameter(Layer *layer, double gradient_clip);
+	void Adjust_Parameter(Layer *layer, double gradient_clip, double learning_rate);
 	void Backpropagate(Layer *layer, int time_index, bool reverse = false);
 	void Feedforward(Layer *layer, int time_index, bool reverse = false);
 
@@ -237,7 +238,7 @@ private:
 
 	double Calculate_Gradient(Layer *layer, double learning_rate, bool reverse = false);
 	double Differentiate(Layer *layer, float target_output[], int time_index);
-	double Differentiate(Layer *layer, vector<string> target_label_sequence[]);
+	double Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]);
 public:
 	int layer_depth;
 
@@ -290,10 +291,9 @@ public:
 
 	void Resize_Memory(int number_parameters);
 
-	double Calculate_Gradient(int parameter_index, double gradient, double learning_rate);
+	float Calculate_Gradient(int parameter_index, double gradient, double learning_rate, bool update = false);
 
 	Optimizer* Copy(int number_parameters = 0);
-	Optimizer* Copy_Host(int number_parameters = 0);
 };
 
 #endif
