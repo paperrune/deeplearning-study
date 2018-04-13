@@ -106,7 +106,7 @@ int main() {
 
 	string path;
 
-	vector<int> number_nodes = { 784, 10 };
+	vector<int> number_nodes = { 784, 400, 400, 10 };
 
 	vector<Layer*> layer;
 
