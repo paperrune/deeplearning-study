@@ -48,11 +48,11 @@ Batch_Normalization::~Batch_Normalization() {
 	delete[] neuron_normalized;
 }
 
-void Batch_Normalization::Activate(string phase, float _neuron[], int time_index) {	
+void Batch_Normalization::Activate(string phase, float _neuron[], int time_index) {
 	int t = time_index;
 
 	if (phase == "training") {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < number_maps; j++) {
 			float *mean = &this->mean[t * number_maps];
 			float *variance = &this->variance[t * number_maps];
@@ -98,7 +98,7 @@ void Batch_Normalization::Activate(string phase, float _neuron[], int time_index
 		}
 	}
 	else if (phase == "inference") {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < number_maps; j++) {
 			float *mean = &this->mean[t * number_maps];
 			float *neuron = &_neuron[t * number_nodes + j * map_size];
@@ -117,15 +117,15 @@ void Batch_Normalization::Activate(string phase, float _neuron[], int time_index
 		}
 	}
 }
-void Batch_Normalization::Adjust_Parameter(double gradient_clip) {
-	#pragma omp parallel for
+void Batch_Normalization::Adjust_Parameter(double gradient_clip, double learning_rate) {
+#pragma omp parallel for
 	for (int j = 0; j < number_maps; j++) {
-		gamma[j] += gradient_clip * gamma_optimizer->gradient[j];
-		beta[j] += gradient_clip * beta_optimizer->gradient[j];
+		gamma[j] += gamma_optimizer->Calculate_Gradient(j, gamma_optimizer->gradient[j], gradient_clip * learning_rate, true);
+		beta[j] += beta_optimizer->Calculate_Gradient(j, beta_optimizer->gradient[j], gradient_clip * learning_rate, true);
 	}
 }
 void Batch_Normalization::Calculate_Mean_Variance(int number_batches) {
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int j = 0; j < time_step * number_maps; j++) {
 		mean[j] = sum_mean[j] / number_batches;
 		variance[j] = batch_size / (batch_size - 1.0) * sum_variance[j] / number_batches;
@@ -137,7 +137,7 @@ void Batch_Normalization::Calculate_Mean_Variance(int number_batches) {
 void Batch_Normalization::Differentiate(float _error[], int time_index) {
 	int t = time_index;
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int j = 0; j < number_maps; j++) {
 		float *mean = &this->mean[t * number_maps];
 		float *variance = &this->variance[t * number_maps];
@@ -189,7 +189,6 @@ void Batch_Normalization::Initialize(double gamma) {
 	memset(sum_variance, 0, sizeof(float) * time_step * number_maps);
 }
 void Batch_Normalization::Load(ifstream &file) {
-	file >> epsilon;
 	for (int j = 0; j < number_maps; j++) file >> gamma[j];
 	for (int j = 0; j < number_maps; j++) file >> beta[j];
 	for (int j = 0; j < time_step * number_maps; j++) file >> mean[j];
@@ -217,7 +216,6 @@ void Batch_Normalization::Resize_Memory(int batch_size, int time_step) {
 	}
 }
 void Batch_Normalization::Save(ofstream &file) {
-	file << epsilon << endl;
 	for (int j = 0; j < number_maps; j++) file << gamma[j] << endl;
 	for (int j = 0; j < number_maps; j++) file << beta[j] << endl;
 	for (int j = 0; j < time_step * number_maps; j++) file << mean[j] << endl;
@@ -234,9 +232,9 @@ void Batch_Normalization::Set_Optimizer(Optimizer *optimizer) {
 double Batch_Normalization::Calculate_Gradient(double learning_rate) {
 	double sum_gradient = 0, *gradient = new double[number_maps];
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int j = 0; j < number_maps; j++) {
-		double sum = 0;
+		double sum = 0, g;
 
 		float *error_backup = &this->error_backup[j * map_size];
 		float *neuron_normalized = &this->neuron_normalized[j * map_size];
@@ -248,8 +246,9 @@ double Batch_Normalization::Calculate_Gradient(double learning_rate) {
 				sum += error_backup[index + k] * neuron_normalized[index + k];
 			}
 		}
-		sum = gamma_optimizer->Calculate_Gradient(j, sum, learning_rate);
-		gradient[j] = sum * sum;
+		g = gamma_optimizer->Calculate_Gradient(j, sum, learning_rate);
+		gamma_optimizer->gradient[j] = sum;
+		gradient[j] = g * g;
 
 		sum = 0;
 		for (int h = 0; h < batch_size * time_step; h++) {
@@ -259,8 +258,9 @@ double Batch_Normalization::Calculate_Gradient(double learning_rate) {
 				sum += error_backup[index + k];
 			}
 		}
-		sum = beta_optimizer->Calculate_Gradient(j, sum, learning_rate);
-		gradient[j] += sum * sum;
+		g = beta_optimizer->Calculate_Gradient(j, sum, learning_rate);
+		beta_optimizer->gradient[j] = sum;
+		gradient[j] += g * g;
 	}
 	for (int j = 0; j < number_maps; j++) {
 		sum_gradient += gradient[j];
@@ -374,7 +374,6 @@ void Connection::Set_Optimizer(Optimizer *optimizer) {
 	}
 }
 
-
 int Connectionist_Temporal_Classification::Search_Label(string label) {
 	auto l = label_index.find(label);
 
@@ -389,42 +388,37 @@ double Connectionist_Temporal_Classification::Backward_Algorithm(vector<string> 
 	double log_likelihood = 0;
 
 	for (int t = length_event - 1, number_labels = label_sequence.size(); t >= 0; t--) {
-		double scale;
-		double sum_beta = 0;
-
 		float *likelihood = &_likelihood[t * this->number_labels];
+
+		double sum = -numeric_limits<double>::infinity();
 
 		if (t == length_event - 1) {
 			for (int s = 0; s < number_labels; s++) {
-				sum_beta += (beta[t][s] = (s >= number_labels - 2) * likelihood[Search_Label(label_sequence[s])]);
+				beta[t][s] = log((s >= number_labels - 2) * likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
 		else {
 			for (int s = 0; s < number_labels; s++) {
-				double sum = 0;
+				double sum = -numeric_limits<double>::infinity();
 
 				if (s <= 2 * t + 1) {
 					if (label_sequence[s] == "" || (s <= number_labels - 3 && label_sequence[s + 2] == label_sequence[s])) {
-						sum = (s == number_labels - 1) ? (beta[t + 1][s]) : (beta[t + 1][s] + beta[t + 1][s + 1]);
+						sum = (s == number_labels - 1) ? (beta[t + 1][s]) : (Log_Add(beta[t + 1][s], beta[t + 1][s + 1]));
 					}
 					else {
-						sum = (s == number_labels - 2) ? (beta[t + 1][s] + beta[t + 1][s + 1]) : (beta[t + 1][s] + beta[t + 1][s + 1] + beta[t + 1][s + 2]);
+						sum = (s == number_labels - 2) ? (Log_Add(beta[t + 1][s], beta[t + 1][s + 1])) : (Log_Add(Log_Add(beta[t + 1][s], beta[t + 1][s + 1]), beta[t + 1][s + 2]));
 					}
 				}
-				sum_beta += (beta[t][s] = sum * likelihood[Search_Label(label_sequence[s])]);
+				beta[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
-
-		// scale
-		if (!isfinite(log(scale = 1.0 / sum_beta)) || isnan(log(scale))) {
-			cerr << "[Backward_Algorithm], scale[" << t << "]: " << scale << endl;
+		for (int s = 0; s < number_labels; s++) {
+			sum = Log_Add(sum, beta[t][s]);
 		}
-		else {
-			// log_likelihood -= log(scale);
+		for (int s = 0; s < number_labels; s++) {
+			beta[t][s] -= sum;
 		}
-		for (int i = 0; i < static_cast<int>(label_sequence.size()); i++) {
-			beta[t][i] *= scale;
-		}
+		log_likelihood += sum;
 	}
 	return log_likelihood;
 }
@@ -432,44 +426,54 @@ double Connectionist_Temporal_Classification::Forward_Algorithm(vector<string> l
 	double log_likelihood = 0;
 
 	for (int t = 0, number_labels = label_sequence.size(); t < length_event; t++) {
-		double scale;
-		double sum_alpha = 0;
-
 		float *likelihood = &_likelihood[t * this->number_labels];
+
+		double sum = -numeric_limits<double>::infinity();
 
 		if (t == 0) {
 			for (int s = 0; s < number_labels; s++) {
-				sum_alpha += (alpha[t][s] = (s <= 1) * likelihood[Search_Label(label_sequence[s])]);
+				alpha[t][s] = log((s <= 1) * likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
 		else {
 			for (int s = 0; s < number_labels; s++) {
-				double sum = 0;
+				double sum = -numeric_limits<double>::infinity();
 
 				if (s >= (number_labels - 1) - 2 * ((length_event - 1) - t) - 1) {
 					if (label_sequence[s] == "" || (s >= 2 && label_sequence[s - 2] == label_sequence[s])) {
-						sum = (s == 0) ? (alpha[t - 1][s]) : (alpha[t - 1][s] + alpha[t - 1][s - 1]);
+						sum = (s == 0) ? (alpha[t - 1][s]) : (Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1]));
 					}
 					else {
-						sum = (s == 1) ? (alpha[t - 1][s] + alpha[t - 1][s - 1]) : (alpha[t - 1][s] + alpha[t - 1][s - 1] + alpha[t - 1][s - 2]);
+						sum = (s == 1) ? (Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1])) : (Log_Add(Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1]), alpha[t - 1][s - 2]));
 					}
 				}
-				sum_alpha += (alpha[t][s] = sum * likelihood[Search_Label(label_sequence[s])]);
+				alpha[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
-
-		// scale
-		if (!isfinite(log(scale = 1.0 / sum_alpha)) || isnan(log(scale))) {
-			cerr << "[Forward_Algorithm], scale[" << t << "]: " << scale << endl;
+		for (int s = 0; s < number_labels; s++) {
+			sum = Log_Add(sum, alpha[t][s]);
 		}
-		else {
-			log_likelihood -= log(scale);
+		for (int s = 0; s < number_labels; s++) {
+			alpha[t][s] -= sum;
 		}
-		for (int i = 0; i < number_labels; i++) {
-			alpha[t][i] *= scale;
-		}
+		log_likelihood += sum;
 	}
 	return log_likelihood;
+}
+double Connectionist_Temporal_Classification::Log_Add(double a, double b) {
+	if (!isfinite(a) && !isfinite(b)) {
+		return -numeric_limits<double>::infinity();
+	}
+	if (!isfinite(a)) {
+		return b;
+	}
+	if (!isfinite(b)) {
+		return a;
+	}
+
+	double max = (a > b) ? (a) : (b);
+
+	return (max + log1p(exp(a + b - 2 * max)));
 }
 
 Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[]) {
@@ -522,19 +526,19 @@ double Connectionist_Temporal_Classification::Calculate_Error(vector<string> tar
 		int index = t * number_labels;
 
 		for (int i = 0; i < number_labels; i++) {
-			double sum[2] = { 0, };
+			double sum[2] = { -numeric_limits<double>::infinity(), -numeric_limits<double>::infinity() };
 
-			for (int j = 0; j < static_cast<int>(target_label_sequence.size()); j++) {
+			for (int j = 0; j < target_label_sequence.size(); j++) {
 				int k = Search_Label(target_label_sequence[j]);
 
 				if (i == k) {
-					sum[1] += alpha[t][j] * beta[t][j];
+					sum[1] = Log_Add(sum[1], alpha[t][j] + beta[t][j]);
 				}
-				sum[0] += (alpha[t][j] * beta[t][j] == 0) ? (0) : (alpha[t][j] * beta[t][j] / likelihood[index + k]);
+				sum[0] = Log_Add(sum[0], alpha[t][j] + beta[t][j] - log(likelihood[index + k]));
 			}
-			error[index + i] = likelihood[index + i] - sum[1] / (likelihood[index + i] * sum[0]);
+			error[index + i] = likelihood[index + i] - exp(sum[1] - log(likelihood[index + i]) - sum[0]);
 
-			if (isnan(error[index + i])) {
+			if (!isfinite(error[index + i])) {
 				error[index + i] = 0;
 			}
 		}
@@ -681,7 +685,7 @@ void Layer::Disconnect(Layer *target_layer) {
 	}
 }
 void Layer::Initialize(double scale, double gamma) {
-	for (int h = 0; h < static_cast<int>(connection.size()); h++) {
+	for (int h = 0; h < connection.size(); h++) {
 		connection[h]->Initialize(scale);
 	}
 	if (batch_normalization[0]) {
@@ -847,7 +851,7 @@ void Layer::Set_Optimizer(Optimizer *optimizer) {
 		slope_optimizer = optimizer->Copy(number_nodes);
 	}
 
-	for (int h = 0; h < static_cast<int>(connection.size()); h++) {
+	for (int h = 0; h < connection.size(); h++) {
 		connection[h]->Set_Optimizer(optimizer);
 	}
 	if (batch_normalization[0]) {
@@ -925,7 +929,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set kernel size if specified
 	if (const char *kernel_size = strstr(properties.c_str(), "kernel")) {
-		connection->kernel_width = atoi(kernel_size + 7);
+		connection->kernel_width = atoi(kernel_size + 6);
 		kernel_size = strstr(kernel_size, "x");
 
 		if (kernel_size && atoi(kernel_size + 1) > 0) {
@@ -958,7 +962,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set stride size if specified
 	if (const char *stride_size = strstr(properties.c_str(), "stride")) {
-		connection->stride_width = atoi(stride_size + 7);
+		connection->stride_width = atoi(stride_size + 6);
 		stride_size = strstr(stride_size, "x");
 
 		if (stride_size && atoi(stride_size + 1) > 0) {
@@ -1231,7 +1235,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 	if (layer->batch_normalization[0]) layer->batch_normalization[0]->Activate(phase, layer->neuron[0], time_index);
 	if (layer->batch_normalization[1]) layer->batch_normalization[1]->Activate(phase, layer->neuron[1], time_index);
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int j = 0; j < layer->number_maps; j++) {
 		for (int h = 0; h < batch_size; h++) {
 			int index = (h * time_step + t) * layer->number_nodes + j * layer->map_size;
@@ -1268,7 +1272,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			if (LSTM_node->batch_normalization[i][1]) LSTM_node->batch_normalization[i][1]->Activate(phase, LSTM_node->neuron[i][1], time_index);
 		}
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			float *previous_cell_output_neuron = (LSTM_node->batch_normalization[LSTM_node->cell_output][0]) ? (LSTM_node->batch_normalization[LSTM_node->cell_output][0]->neuron_backup) : (LSTM_node->neuron[LSTM_node->cell_output][0]);
 
@@ -1312,7 +1316,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			LSTM_node->batch_normalization[LSTM_node->cell_output][0]->Activate(phase, cell_output_neuron, time_index);
 		}
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			for (int h = 0; h < batch_size; h++) {
 				int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1322,7 +1326,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 		}
 	}
 	else if (strstr(layer->properties.c_str(), "RNN")) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			for (int h = 0; h < batch_size; h++) {
 				int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1335,7 +1339,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 		if (strstr(layer->properties.c_str(), "ELU")) {
 			double parameter = atof(strstr(layer->properties.c_str(), "ELU") + 3);
 
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1345,7 +1349,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "PReLU")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1358,7 +1362,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 		else if (strstr(layer->properties.c_str(), "ReLU")) {
 			double slope = atof(strstr(layer->properties.c_str(), "ReLU") + 4);
 
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1368,7 +1372,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "sigmoid")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1378,7 +1382,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "softmax")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int h = 0; h < batch_size; h++) {
 				double max;
 				double sum = 0;
@@ -1400,7 +1404,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "tangent")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1414,7 +1418,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 			double rate = atof(strstr(layer->properties.c_str(), "dropout") + 7);
 
 			if (phase == "training") {
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < layer->number_maps; j++) {
 					for (int h = 0; h < batch_size; h++) {
 						int index = (h * time_step + t) * layer->number_nodes + j * layer->map_size;
@@ -1428,7 +1432,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 				}
 			}
 			else if (phase == "inference") {
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < layer->number_nodes; j++) {
 					for (int h = 0; h < batch_size; h++) {
 						int index = (h * time_step + t) * layer->number_nodes + j;
@@ -1440,25 +1444,25 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 		}
 	}
 }
-void Neural_Networks::Adjust_Parameter(Layer *layer, double gradient_clip) {
-	for (int g = 0; g < static_cast<int>(layer->parent_layer.size()); g++) {
+void Neural_Networks::Adjust_Parameter(Layer *layer, double gradient_clip, double learning_rate) {
+	for (int g = 0; g < layer->parent_layer.size(); g++) {
 		if (layer->connection[g]->properties[0] == 'W') {
 			Connection *connection = layer->connection[g];
 
 			if (connection->LSTM_weight) {
 				LSTM_Weight *LSTM_weight = connection->LSTM_weight;
 
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < connection->number_weights; j++) {
 					for (int i = 0; i < LSTM_weight->number_weight_types; i++) {
-						LSTM_weight->weight[i][j] += gradient_clip * LSTM_weight->optimizer[i]->gradient[j];
+						LSTM_weight->weight[i][j] += LSTM_weight->optimizer[i]->Calculate_Gradient(j, LSTM_weight->optimizer[i]->gradient[j], gradient_clip * learning_rate, true);
 					}
 				}
 			}
 			else {
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < connection->number_weights; j++) {
-					connection->weight[j] += gradient_clip * connection->optimizer->gradient[j];
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, connection->optimizer->gradient[j], gradient_clip * learning_rate, true);
 				}
 			}
 		}
@@ -1467,43 +1471,43 @@ void Neural_Networks::Adjust_Parameter(Layer *layer, double gradient_clip) {
 	if (layer->LSTM_node) {
 		LSTM_Node *LSTM_node = layer->LSTM_node;
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_maps; j++) {
 			for (int i = 0; i < LSTM_node->number_weight_types; i++) {
-				LSTM_node->bias[i][j] += gradient_clip * LSTM_node->bias_optimizer[i]->gradient[j];
+				LSTM_node->bias[i][j] += LSTM_node->bias_optimizer[i]->Calculate_Gradient(j, LSTM_node->bias_optimizer[i]->gradient[j], gradient_clip * learning_rate, true);
 			}
 			for (int i = 0; i < LSTM_node->number_weight_types - 1; i++) {
-				LSTM_node->peephole[i][j] += gradient_clip * LSTM_node->peephole_optimizer[i]->gradient[j];
+				LSTM_node->peephole[i][j] += LSTM_node->peephole_optimizer[i]->Calculate_Gradient(j, LSTM_node->peephole_optimizer[i]->gradient[j], gradient_clip * learning_rate, true);
 			}
 		}
 		for (int i = 0; i < LSTM_node->number_node_types; i++) {
-			if (LSTM_node->batch_normalization[i][0]) LSTM_node->batch_normalization[i][0]->Adjust_Parameter(gradient_clip);
-			if (LSTM_node->batch_normalization[i][1]) LSTM_node->batch_normalization[i][1]->Adjust_Parameter(gradient_clip);
+			if (LSTM_node->batch_normalization[i][0]) LSTM_node->batch_normalization[i][0]->Adjust_Parameter(gradient_clip, learning_rate);
+			if (LSTM_node->batch_normalization[i][1]) LSTM_node->batch_normalization[i][1]->Adjust_Parameter(gradient_clip, learning_rate);
 		}
 	}
 	if (layer->bias) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_maps; j++) {
-			layer->bias[j] += gradient_clip * layer->bias_optimizer->gradient[j];
+			layer->bias[j] += layer->bias_optimizer->Calculate_Gradient(j, layer->bias_optimizer->gradient[j], gradient_clip * learning_rate, true);
 		}
 	}
 	if (layer->slope) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
-			layer->slope[j] += gradient_clip * layer->slope_optimizer->gradient[j];
+			layer->slope[j] += layer->slope_optimizer->Calculate_Gradient(j, layer->slope_optimizer->gradient[j], gradient_clip * learning_rate, true);
 		}
 	}
 	if (layer->batch_normalization[0]) {
-		layer->batch_normalization[0]->Adjust_Parameter(gradient_clip);
+		layer->batch_normalization[0]->Adjust_Parameter(gradient_clip, learning_rate);
 	}
 	if (layer->batch_normalization[1]) {
-		layer->batch_normalization[1]->Adjust_Parameter(gradient_clip);
+		layer->batch_normalization[1]->Adjust_Parameter(gradient_clip, learning_rate);
 	}
 }
 void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool reverse) {
 	int t = time_index;
 
-	for (int g = 0; g < static_cast<int>(layer->parent_layer.size()); g++) {
+	for (int g = 0; g < layer->parent_layer.size(); g++) {
 		bool recurrent = (strstr(layer->connection[g]->properties.c_str(), "recurrent") != 0);
 
 		Connection *connection = layer->connection[g];
@@ -1511,7 +1515,7 @@ void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool reverse) 
 		Layer *parent_layer = layer->parent_layer[g];
 
 		if (recurrent || parent_layer->Check_Mask(t)) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < parent_layer->number_nodes; j++) {
 				vector<Index> &from_error = connection->from_error[j];
 
@@ -1601,7 +1605,7 @@ void Neural_Networks::Feedforward(Layer *layer, int time_index, bool reverse) {
 	int t = time_index;
 
 	// zeroise neuron
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		int index = (h * time_step + t) * layer->number_nodes;
 
@@ -1621,9 +1625,9 @@ void Neural_Networks::Feedforward(Layer *layer, int time_index, bool reverse) {
 		}
 	}
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int j = 0; j < layer->number_nodes; j++) {
-		for (int g = 0; g < static_cast<int>(layer->parent_layer.size()); g++) {
+		for (int g = 0; g < layer->parent_layer.size(); g++) {
 			bool recurrent = (strstr(layer->connection[g]->properties.c_str(), "recurrent") != 0);
 
 			Connection *connection = layer->connection[g];
@@ -1736,12 +1740,12 @@ void Neural_Networks::Feedforward(Layer *layer, int time_index, bool reverse) {
 }
 
 void Neural_Networks::FloatToNode(float **memory, vector<Layer*> &layer) {
-	for (int i = 0; i < static_cast<int>(layer.size()); i++) {
+	for (int i = 0; i < layer.size(); i++) {
 		memcpy(layer[i]->neuron[0], memory[i], sizeof(float) * batch_size * time_step * layer[i]->number_nodes);
 	}
 }
 void Neural_Networks::FloatToNode(float ***memory, vector<Layer*> &layer, int **length_data) {
-	for (int i = 0; i < static_cast<int>(layer.size()); i++) {
+	for (int i = 0; i < layer.size(); i++) {
 		for (int h = 0; h < batch_size; h++) {
 			memset(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], 0, sizeof(float) * time_step * layer[i]->number_nodes);
 			memcpy(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], memory[h][i], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[i][h])) * layer[i]->number_nodes);
@@ -1749,7 +1753,7 @@ void Neural_Networks::FloatToNode(float ***memory, vector<Layer*> &layer, int **
 	}
 }
 void Neural_Networks::NodeToFloat(vector<Layer*> &layer, float ***memory) {
-	for (int i = 0; i < static_cast<int>(layer.size()); i++) {
+	for (int i = 0; i < layer.size(); i++) {
 		for (int h = 0; h < batch_size; h++) {
 			memcpy(memory[h][i], &layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], sizeof(float) * time_step * layer[i]->number_nodes);
 		}
@@ -1760,7 +1764,7 @@ void Neural_Networks::Resize_Memory(int batch_size, int time_step) {
 
 	if (this->batch_size != batch_size || this->time_step != time_step) {
 		for (int i = 0; i < layer_depth; i++) {
-			for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+			for (int j = 0; j < layer[i].size(); j++) {
 				layer[i][j]->Resize_Memory(batch_size, time_step);
 			}
 		}
@@ -1772,7 +1776,7 @@ void Neural_Networks::Resize_Memory(int batch_size, int time_step) {
 double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, bool reverse) {
 	double sum_gradient = 0;
 
-	for (int g = 0; g < static_cast<int>(layer->parent_layer.size()); g++) {
+	for (int g = 0; g < layer->parent_layer.size(); g++) {
 		if (layer->connection[g]->properties[0] == 'W') {
 			bool recurrent = (strstr(layer->connection[g]->properties.c_str(), "recurrent") != 0);
 
@@ -1789,15 +1793,15 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 
 				LSTM_Weight *LSTM_weight = connection->LSTM_weight;
 
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < connection->number_weights; j++) {
 					for (int i = 0; i < LSTM_weight->number_weight_types; i++) {
-						double sum = 0;
+						double sum = 0, g;
 
 						vector<Index> &from_weight = connection->from_weight[j];
 
 						for (int t = 0; t < time_step; t++) {
-							if (recurrent == false){
+							if (recurrent == false) {
 								if (parent_layer->Check_Mask(t)) {
 									for (int h = 0; h < batch_size; h++) {
 										float *error = &LSTM_node->error[i][0][(h * time_step + t) * layer->number_nodes];
@@ -1820,15 +1824,16 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 								}
 							}
 						}
-						sum = LSTM_weight->optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
-						gradient[j] += sum * sum;
+						g = LSTM_weight->optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
+						LSTM_weight->optimizer[i]->gradient[j] = sum;
+						gradient[j] += g * g;
 					}
 				}
 			}
 			else {
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < connection->number_weights; j++) {
-					double sum = 0;
+					double sum = 0, g;
 
 					vector<Index> &from_weight = connection->from_weight[j];
 
@@ -1856,8 +1861,9 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 							}
 						}
 					}
-					sum = connection->optimizer->Calculate_Gradient(j, sum, learning_rate);
-					gradient[j] += sum * sum;
+					g = connection->optimizer->Calculate_Gradient(j, sum, learning_rate);
+					connection->optimizer->gradient[j] = sum;
+					gradient[j] += g * g;
 				}
 			}
 			for (int j = 0; j < connection->number_weights; j++) {
@@ -1876,12 +1882,12 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 
 		memset(gradient, 0, sizeof(double) * layer->number_maps);
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_maps; j++) {
 			float *previous_cell_output_neuron = (LSTM_node->batch_normalization[LSTM_node->cell_output][0]) ? (LSTM_node->batch_normalization[LSTM_node->cell_output][0]->neuron_backup) : (LSTM_node->neuron[LSTM_node->cell_output][0]);
 
 			for (int i = 0; i < LSTM_node->number_weight_types; i++) {
-				double sum = 0;
+				double sum = 0, g;
 
 				for (int h = 0; h < batch_size * time_step; h++) {
 					int index = h * layer->number_nodes + j * layer->map_size;
@@ -1890,11 +1896,12 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 						sum += (batch_normalization) ? (LSTM_node->batch_normalization[i][0]->error_backup[index + k]) : (LSTM_node->error[i][0][index + k]);
 					}
 				}
-				sum = LSTM_node->bias_optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
-				gradient[j] += sum * sum;
+				g = LSTM_node->bias_optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
+				LSTM_node->bias_optimizer[i]->gradient[j] = sum;
+				gradient[j] += g * g;
 			}
 			for (int i = 0; i < LSTM_node->number_weight_types - 1; i++) {
-				double sum = 0;
+				double sum = 0, g;
 
 				for (int h = 0; h < batch_size * time_step; h++) {
 					int index = h * layer->number_nodes + j * layer->map_size;
@@ -1910,8 +1917,9 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 						}
 					}
 				}
-				sum = LSTM_node->peephole_optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
-				gradient[j] += sum * sum;
+				g = LSTM_node->peephole_optimizer[i]->Calculate_Gradient(j, sum, learning_rate);
+				LSTM_node->peephole_optimizer[i]->gradient[j] = sum;
+				gradient[j] += g * g;
 			}
 		}
 		for (int j = 0; j < layer->number_maps; j++) {
@@ -1929,9 +1937,9 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 
 		double *gradient = new double[layer->number_maps];
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_maps; j++) {
-			double sum = 0;
+			double sum = 0, g;
 
 			for (int h = 0; h < batch_size * time_step; h++) {
 				int index = h * layer->number_nodes + j * layer->map_size;
@@ -1940,8 +1948,9 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 					sum += (batch_normalization) ? (layer->batch_normalization[0]->error_backup[index + k]) : (layer->error[0][index + k]);
 				}
 			}
-			sum = layer->bias_optimizer->Calculate_Gradient(j, sum, learning_rate);
-			gradient[j] = sum * sum;
+			g = layer->bias_optimizer->Calculate_Gradient(j, sum, learning_rate);
+			layer->bias_optimizer->gradient[j] = sum;
+			gradient[j] = g * g;
 		}
 		for (int j = 0; j < layer->number_maps; j++) {
 			sum_gradient += gradient[j];
@@ -1951,17 +1960,18 @@ double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, b
 	if (layer->slope) {
 		double *gradient = new double[layer->number_nodes];
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
-			double sum = 0;
+			double sum = 0, g;
 
 			for (int h = 0; h < batch_size * time_step; h++) {
 				int index = h * layer->number_nodes + j;
 
 				sum += (layer->neuron[2][index] > 0) ? (0) : (layer->error[0][index] * layer->neuron[2][index]);
 			}
-			sum = layer->slope_optimizer->Calculate_Gradient(j, sum, learning_rate);
-			gradient[j] = sum * sum;
+			g = layer->slope_optimizer->Calculate_Gradient(j, sum, learning_rate);
+			layer->slope_optimizer->gradient[j] = sum;
+			gradient[j] = g * g;
 		}
 		for (int j = 0; j < layer->number_nodes; j++) {
 			sum_gradient += gradient[j];
@@ -1986,7 +1996,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 
 		double *loss = new double[layer->number_nodes];
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			double sum = 0;
 
@@ -2029,7 +2039,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 		float *cell_neuron = LSTM_node->neuron[LSTM_node->cell][0];
 		float *cell_output_neuron = LSTM_node->neuron[LSTM_node->cell_output][0];
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			for (int h = 0; h < batch_size; h++) {
 				int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2045,7 +2055,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 			LSTM_node->batch_normalization[LSTM_node->cell_output][0]->Differentiate(cell_output_error, time_index);
 		}
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			float *next_input_error = (LSTM_node->batch_normalization[LSTM_node->input][0]) ? (LSTM_node->batch_normalization[LSTM_node->input][0]->error_backup) : (input_error[0]);
 			float *next_forget_error = (LSTM_node->batch_normalization[LSTM_node->forget][0]) ? (LSTM_node->batch_normalization[LSTM_node->forget][0]->error_backup) : (forget_error[0]);
@@ -2100,7 +2110,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 		}
 	}
 	else if (strstr(layer->properties.c_str(), "RNN")) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			for (int h = 0; h < batch_size; h++) {
 				int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2113,7 +2123,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 		if (strstr(layer->properties.c_str(), "ELU")) {
 			double parameter = atof(strstr(layer->properties.c_str(), "ELU") + 3);
 
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2123,7 +2133,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "PReLU")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2135,7 +2145,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 		else if (strstr(layer->properties.c_str(), "ReLU")) {
 			double slope = atof(strstr(layer->properties.c_str(), "ReLU") + 4);
 
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2145,7 +2155,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 			}
 		}
 		else if (strstr(layer->properties.c_str(), "sigmoid") && !strstr(layer->properties.c_str(), "CE")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2158,7 +2168,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 			// error = error;
 		}
 		else if (strstr(layer->properties.c_str(), "tangent")) {
-			#pragma omp parallel for
+#pragma omp parallel for
 			for (int j = 0; j < layer->number_nodes; j++) {
 				for (int h = 0; h < batch_size; h++) {
 					int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2170,7 +2180,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 	}
 
 	if (layer->error[1]) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int j = 0; j < layer->number_nodes; j++) {
 			for (int h = 0; h < batch_size; h++) {
 				int index = (h * time_step + t) * layer->number_nodes + j;
@@ -2187,23 +2197,23 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 	}
 	return sum;
 }
-double Neural_Networks::Differentiate(Layer *layer, vector<string> target_label_sequence[]) {
+double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]) {
 	double sum = 0;
 
 	if (CTC && strstr(layer->properties.c_str(), "CTC")) {
 		double *log_likelihood = new double[batch_size];
 
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
 			vector<string> label_sequence;
 
-			for (int j = 0; j < static_cast<int>(target_label_sequence[h].size()); j++) {
+			for (int j = 0; j < target_label_sequence[h].size(); j++) {
 				label_sequence.push_back("");
 				label_sequence.push_back(target_label_sequence[h][j]);
 			}
 			label_sequence.push_back("");
 
-			log_likelihood[h] = CTC->Calculate_Error(label_sequence, time_step, &layer->error[0][h * time_step * layer->number_nodes], &layer->neuron[0][h * time_step * layer->number_nodes]);
+			log_likelihood[h] = CTC->Calculate_Error(label_sequence, (length_data) ? (length_data[h]) : (time_step), &layer->error[0][h * time_step * layer->number_nodes], &layer->neuron[0][h * time_step * layer->number_nodes]);
 		}
 		for (int h = 0; h < batch_size; h++) {
 			sum += log_likelihood[h];
@@ -2233,7 +2243,7 @@ Neural_Networks::Neural_Networks(string path) {
 
 		for (int i = 0, index, map_depth, map_height, map_width, mask, number_maps; i < number_layers; i++) {
 			string properties;
-			
+
 			file >> map_depth;
 			file >> map_height;
 			file >> map_width;
@@ -2257,7 +2267,7 @@ Neural_Networks::Neural_Networks(string path) {
 		}
 		for (int i = 0, index[4]; i < number_connections; i++) {
 			string properties;
-			
+
 			file >> index[0];
 			file >> index[1];
 			file >> index[2];
@@ -2293,7 +2303,7 @@ Neural_Networks::Neural_Networks(int time_step) {
 }
 Neural_Networks::~Neural_Networks() {
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			delete layer[i][j];
 		}
 	}
@@ -2307,7 +2317,7 @@ void Neural_Networks::Decode(int length_event, float likelihood[], vector<string
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Initialize(scale, gamma);
 		}
 	}
@@ -2319,10 +2329,10 @@ void Neural_Networks::Save(string path) {
 	ofstream file(path);
 
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			number_connections += layer[i][j]->number_connections;
 		}
-		number_layers += static_cast<int>(layer[i].size());
+		number_layers += layer[i].size();
 	}
 	file << epsilon << endl;
 	file << number_connections << endl;
@@ -2331,7 +2341,7 @@ void Neural_Networks::Save(string path) {
 
 	// layer definition
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
 			file << layer->map_depth << endl;
@@ -2356,7 +2366,7 @@ void Neural_Networks::Save(string path) {
 
 	// connection definition
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
 			for (int k = 0; k < layer->number_connections; k++) {
@@ -2368,14 +2378,14 @@ void Neural_Networks::Save(string path) {
 
 	// layer parameter
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Save(file);
 		}
 	}
 
 	// connection parameter
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			for (int k = 0; k < layer[i][j]->number_connections; k++) {
 				layer[i][j]->connection[k]->Save(file);
 			}
@@ -2385,7 +2395,7 @@ void Neural_Networks::Save(string path) {
 }
 void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			if (strstr(layer[i][j]->properties.c_str(), "CTC")) {
 				if (number_labels != layer[i][j]->number_nodes) {
 					cerr << "[Set_CTC_Loss], number_labels != number_nodes" << endl;
@@ -2403,7 +2413,7 @@ void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
 }
 void Neural_Networks::Set_Epsilon(double epsilon) {
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Set_Epsilon(epsilon);
 		}
 	}
@@ -2419,7 +2429,7 @@ void Neural_Networks::Set_Optimizer(Optimizer *optimizer) {
 	}
 
 	for (int i = 1; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Set_Optimizer(optimizer->Copy());
 		}
 	}
@@ -2456,7 +2466,7 @@ void Neural_Networks::Test(int batch_size, float ***input, float ***output, int 
 	FloatToNode(input, layer[0], length_data);
 
 	for (int i = 1; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
 			if (strstr(layer->properties.c_str(), "reverse")) {
@@ -2515,6 +2525,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 }
 double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	int *index = new int[number_training];
+	int *length_data_batch = (target_label_sequence && length_data) ? (new int[batch_size]) : (nullptr);
 
 	double sum = 0;
 
@@ -2534,27 +2545,31 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 		index[j] = k;
 	}
 
-	for (int i = 0, j = 0; j < static_cast<int>(layer[i].size()); j++) {
+	for (int i = 0, j = 0; j < layer[i].size(); j++) {
 		input_batch[j] = new float[batch_size * time_step * layer[i][j]->number_nodes];
 	}
-	for (int i = layer_depth - 1, j = 0; j < static_cast<int>(layer[i].size()) && target_output; j++) {
+	for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
 		target_output_batch[j] = new float[batch_size * time_step * layer[i][j]->number_nodes];
 	}
 	Resize_Memory(batch_size);
 	Set_Epsilon(epsilon);
 
 	for (int g = 0, h = 0; g < number_training; g++) {
-		for (int i = 0, j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int i = 0, j = 0; j < layer[i].size(); j++) {
 			memset(&input_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			memcpy(&input_batch[j][h * time_step * layer[i][j]->number_nodes], input[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes);
 		}
-		for (int i = layer_depth - 1, j = 0; j < static_cast<int>(layer[i].size()) && target_output; j++) {
+		for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
 			memset(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			memcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes);
 		}
-		if(target_label_sequence){
+		if (target_label_sequence) {
+			if (length_data) {
+				length_data_batch[h] = length_data[index[g]];
+			}
 			target_label_sequence_batch[h] = target_label_sequence[index[g]];
 		}
+
 		if (++h == batch_size) {
 			double sum_gradient = 0, gradient_clip = 1;
 
@@ -2562,15 +2577,17 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 				default_random_engine generator(rand());
 				normal_distribution<double> distribution(0, noise_standard_deviation);
 
-				for (int i = 0, j = 0; j < static_cast<int>(layer[i].size()); j++) {
-					for (int k = 0; k < batch_size * time_step * layer[i][j]->number_nodes; k++) {
-						input_batch[j][k] += distribution(generator);
+				for (int i = 0, j = 0; j < layer[i].size(); j++) {
+					for (int h = 0; h < batch_size; h++) {
+						for (int k = 0; k < ((length_data) ? (length_data_batch[h]) : (time_step)) * layer[i][j]->number_nodes; k++) {
+							input_batch[j][h * time_step * layer[i][j]->number_nodes + k] += distribution(generator);
+						}
 					}
 				}
 			}
 
 			for (int i = 0; i < layer_depth; i++) {
-				for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
 					// initialize dropout mask
@@ -2590,7 +2607,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 			// forward propagation
 			for (int i = 1; i < layer_depth; i++) {
-				for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
 					if (strstr(layer->properties.c_str(), "reverse")) {
@@ -2610,11 +2627,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 			// error backpropagation
 			for (int i = layer_depth - 1; i > 0; i--) {
-				for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
 					if (strstr(layer->properties.c_str(), "CTC")) {
-						sum += Differentiate(layer, target_label_sequence_batch);
+						sum += Differentiate(layer, length_data_batch, target_label_sequence_batch);
 
 						for (int t = 0; t < time_step; t++) {
 							Backpropagate(layer, t);
@@ -2639,7 +2656,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 			// calculate gradient
 			for (int i = layer_depth - 1; i > 0; i--) {
-				for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+				for (int j = 0; j < layer[i].size(); j++) {
 					sum_gradient += Calculate_Gradient(layer[i][j], learning_rate, strstr(layer[i][j]->properties.c_str(), "reverse") != 0);
 				}
 			}
@@ -2649,8 +2666,8 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 			// adjust parameter
 			for (int i = layer_depth - 1; i > 0; i--) {
-				for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
-					Adjust_Parameter(layer[i][j], gradient_clip);
+				for (int j = 0; j < layer[i].size(); j++) {
+					Adjust_Parameter(layer[i][j], gradient_clip, learning_rate);
 				}
 			}
 			h = 0;
@@ -2659,7 +2676,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 	// calculate batch mean and variance
 	for (int i = 0; i < layer_depth; i++) {
-		for (int j = 0; j < static_cast<int>(layer[i].size()); j++) {
+		for (int j = 0; j < layer[i].size(); j++) {
 			if (layer[i][j]->LSTM_node) {
 				LSTM_Node *LSTM_node = layer[i][j]->LSTM_node;
 
@@ -2673,16 +2690,19 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 		}
 	}
 
-	for (int i = 0, j = 0; j < static_cast<int>(layer[i].size()); j++) {
+	for (int i = 0, j = 0; j < layer[i].size(); j++) {
 		delete[] input_batch[j];
 	}
-	for (int i = layer_depth - 1, j = 0; j < static_cast<int>(static_cast<int>(layer[i].size())) && target_output; j++) {
+	for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
 		delete[] target_output_batch[j];
 	}
-	if(target_output){
+	if (target_output) {
 		delete[] target_output_batch;
 	}
 	if (target_label_sequence) {
+		if (length_data) {
+			delete[] length_data_batch;
+		}
 		delete[] target_label_sequence_batch;
 	}
 	delete[] index;
@@ -2695,7 +2715,7 @@ Layer* Neural_Networks::Add(Layer *layer, int index) {
 	if (index < 0) {
 		index = this->layer.size();
 	}
-	while (static_cast<int>(this->layer.size()) <= index) {
+	while (this->layer.size() <= index) {
 		vector<Layer*> layer_holder;
 
 		this->layer.push_back(layer_holder);
@@ -2708,7 +2728,7 @@ Layer* Neural_Networks::Add(Layer *layer, int index) {
 	return layer;
 }
 Layer* Neural_Networks::Get_Layer(int x, int y) {
-	if (y >= layer_depth || static_cast<int>(layer[x].size()) <= x) {
+	if (y >= layer_depth || layer[x].size() <= x) {
 		return nullptr;
 	}
 	return layer[x][y];
@@ -2774,7 +2794,7 @@ void Optimizer::Resize_Memory(int number_parameters) {
 	}
 }
 
-double Optimizer::Calculate_Gradient(int parameter_index, double _gradient, double learning_rate) {
+float Optimizer::Calculate_Gradient(int parameter_index, double _gradient, double learning_rate, bool update) {
 	float &gradient = this->gradient[parameter_index];
 
 	if (type == 0) {
@@ -2784,22 +2804,36 @@ double Optimizer::Calculate_Gradient(int parameter_index, double _gradient, doub
 	float &velocity = this->velocity[parameter_index];
 
 	if (type == 1) { // momentum
-		return (gradient = (velocity = factor_1 * velocity - learning_rate * _gradient));
+		double v = factor_1 * velocity - learning_rate * _gradient;
+
+		if (update) {
+			velocity = v;
+		}
+		return (gradient = v);
 	}
 	if (type == 2) { // nesterov
 		double v = factor_1 * velocity - learning_rate * _gradient;
 
-		return (gradient = (velocity = factor_1 * v - learning_rate * _gradient));
+		if (update) {
+			velocity = factor_1 * v - learning_rate * _gradient;
+		}
+		return (gradient = factor_1 * v - learning_rate * _gradient);
 	}
 	if (type == 3) { // adagrad
 		double c = velocity + _gradient * _gradient;
 
-		return (gradient = -learning_rate * _gradient / sqrt((velocity = c) + epsilon));
+		if (update) {
+			velocity = c;
+		}
+		return (gradient = -learning_rate * _gradient / sqrt(c + epsilon));
 	}
 	if (type == 4) { // rmsprop
 		double c = factor_1 * velocity + (1 - factor_1) * _gradient * _gradient;
 
-		return (gradient = -learning_rate * _gradient / sqrt((velocity = c) + epsilon));
+		if (update) {
+			velocity = c;
+		}
+		return (gradient = -learning_rate * _gradient / sqrt(c + epsilon));
 	}
 
 	float &momentum = this->momentum[parameter_index];
@@ -2807,9 +2841,12 @@ double Optimizer::Calculate_Gradient(int parameter_index, double _gradient, doub
 	if (type == 5) { // adadelta
 		double c = factor_1 * velocity + (1 - factor_1) * _gradient * _gradient;
 
-		gradient = -sqrt(momentum + epsilon) / sqrt((velocity = c) + epsilon) * _gradient;
-		momentum = factor_1 * momentum + (1 - factor_1) * gradient * gradient;
+		gradient = -sqrt(momentum + epsilon) / sqrt(c + epsilon) * _gradient;
 
+		if (update) {
+			momentum = factor_1 * momentum + (1 - factor_1) * gradient * gradient;
+			velocity = c;
+		}
 		return gradient;
 
 	}
@@ -2821,7 +2858,11 @@ double Optimizer::Calculate_Gradient(int parameter_index, double _gradient, doub
 			m = m / (1 - factor_1);
 			v = v / (1 - factor_2);
 		}
-		return (gradient = -learning_rate * (momentum = m) / sqrt((velocity = v) + epsilon));
+		if (update) {
+			momentum = m;
+			velocity = v;
+		}
+		return (gradient = -learning_rate * m / sqrt(v + epsilon));
 	}
 	return 0;
 }
