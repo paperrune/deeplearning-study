@@ -100,13 +100,12 @@ int main() {
 	float **input = new float*[number_training + number_test];
 	float **target_output = new float*[number_training + number_test];
 
-	double epsilon		 = 0.001;
 	double learning_rate = 0.005;
 	double decay_rate	 = 0.977;
 
 	string path;
 
-	vector<int> number_nodes = { 784, 400, 400, 10 };
+	vector<int> number_nodes = { 784, 10 };
 
 	vector<Layer*> layer;
 
@@ -148,7 +147,7 @@ int main() {
 
 		float **output = new float*[batch_size];
 
-		double loss = NN.Train(batch_size, number_training, input, target_output, learning_rate, epsilon);
+		double loss = NN.Train(batch_size, number_training, input, target_output, learning_rate);
 
 		for (int h = 0; h < batch_size; h++) {
 			output[h] = new float[number_nodes.back()];
