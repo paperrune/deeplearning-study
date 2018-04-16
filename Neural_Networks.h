@@ -118,6 +118,7 @@ public:
 	~Connectionist_Temporal_Classification();
 
 	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &label_sequence);
+	void Calculate_Error(vector<string> target_label_sequence[], int batch_size, int time_step, int length_event[], float error[], float likelihood[], double log_likelihood[]);
 	void Prefix_Search_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, int k);
 
 	double Calculate_Error(vector<string> target_label_sequence, int length_event, float error[], float likelihood[]);
@@ -289,6 +290,7 @@ public:
 	Optimizer(string type, double epsilon, double beta_1, double beta_2);
 	~Optimizer();
 
+	void Destroy();
 	void Resize_Memory(int number_parameters);
 
 	float Calculate_Gradient(int parameter_index, double gradient, double learning_rate, bool update = false);

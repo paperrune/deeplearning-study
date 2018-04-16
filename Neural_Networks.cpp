@@ -387,35 +387,35 @@ int Connectionist_Temporal_Classification::Search_Label(string label) {
 double Connectionist_Temporal_Classification::Backward_Algorithm(vector<string> label_sequence, int length_event, double **beta, float _likelihood[]) {
 	double log_likelihood = 0;
 
-	for (int t = length_event - 1, number_labels = label_sequence.size(); t >= 0; t--) {
-		float *likelihood = &_likelihood[t * this->number_labels];
+	for (int t = length_event - 1, length_label_sequence = label_sequence.size(); t >= 0; t--) {
+		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = -numeric_limits<double>::infinity();
 
 		if (t == length_event - 1) {
-			for (int s = 0; s < number_labels; s++) {
-				beta[t][s] = log((s >= number_labels - 2) * likelihood[Search_Label(label_sequence[s])]);
+			for (int s = 0; s < length_label_sequence; s++) {
+				beta[t][s] = log((s >= length_label_sequence - 2) * likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
 		else {
-			for (int s = 0; s < number_labels; s++) {
+			for (int s = 0; s < length_label_sequence; s++) {
 				double sum = -numeric_limits<double>::infinity();
 
 				if (s <= 2 * t + 1) {
-					if (label_sequence[s] == "" || (s <= number_labels - 3 && label_sequence[s + 2] == label_sequence[s])) {
-						sum = (s == number_labels - 1) ? (beta[t + 1][s]) : (Log_Add(beta[t + 1][s], beta[t + 1][s + 1]));
+					if (label_sequence[s] == "" || (s <= length_label_sequence - 3 && label_sequence[s + 2] == label_sequence[s])) {
+						sum = (s == length_label_sequence - 1) ? (beta[t + 1][s]) : (Log_Add(beta[t + 1][s], beta[t + 1][s + 1]));
 					}
 					else {
-						sum = (s == number_labels - 2) ? (Log_Add(beta[t + 1][s], beta[t + 1][s + 1])) : (Log_Add(Log_Add(beta[t + 1][s], beta[t + 1][s + 1]), beta[t + 1][s + 2]));
+						sum = (s == length_label_sequence - 2) ? (Log_Add(beta[t + 1][s], beta[t + 1][s + 1])) : (Log_Add(Log_Add(beta[t + 1][s], beta[t + 1][s + 1]), beta[t + 1][s + 2]));
 					}
 				}
 				beta[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
-		for (int s = 0; s < number_labels; s++) {
+		for (int s = 0; s < length_label_sequence; s++) {
 			sum = Log_Add(sum, beta[t][s]);
 		}
-		for (int s = 0; s < number_labels; s++) {
+		for (int s = 0; s < length_label_sequence; s++) {
 			beta[t][s] -= sum;
 		}
 		log_likelihood += sum;
@@ -425,21 +425,21 @@ double Connectionist_Temporal_Classification::Backward_Algorithm(vector<string> 
 double Connectionist_Temporal_Classification::Forward_Algorithm(vector<string> label_sequence, int length_event, double **alpha, float _likelihood[]) {
 	double log_likelihood = 0;
 
-	for (int t = 0, number_labels = label_sequence.size(); t < length_event; t++) {
-		float *likelihood = &_likelihood[t * this->number_labels];
+	for (int t = 0, length_label_sequence = label_sequence.size(); t < length_event; t++) {
+		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = -numeric_limits<double>::infinity();
 
 		if (t == 0) {
-			for (int s = 0; s < number_labels; s++) {
+			for (int s = 0; s < length_label_sequence; s++) {
 				alpha[t][s] = log((s <= 1) * likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
 		else {
-			for (int s = 0; s < number_labels; s++) {
+			for (int s = 0; s < length_label_sequence; s++) {
 				double sum = -numeric_limits<double>::infinity();
 
-				if (s >= (number_labels - 1) - 2 * ((length_event - 1) - t) - 1) {
+				if (s >= (length_label_sequence - 1) - 2 * ((length_event - 1) - t) - 1) {
 					if (label_sequence[s] == "" || (s >= 2 && label_sequence[s - 2] == label_sequence[s])) {
 						sum = (s == 0) ? (alpha[t - 1][s]) : (Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1]));
 					}
@@ -450,10 +450,10 @@ double Connectionist_Temporal_Classification::Forward_Algorithm(vector<string> l
 				alpha[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
 			}
 		}
-		for (int s = 0; s < number_labels; s++) {
+		for (int s = 0; s < length_label_sequence; s++) {
 			sum = Log_Add(sum, alpha[t][s]);
 		}
-		for (int s = 0; s < number_labels; s++) {
+		for (int s = 0; s < length_label_sequence; s++) {
 			alpha[t][s] -= sum;
 		}
 		log_likelihood += sum;
@@ -929,14 +929,16 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set kernel size if specified
 	if (const char *kernel_size = strstr(properties.c_str(), "kernel")) {
+		const char *end = strstr(kernel_size, ")");
+
 		connection->kernel_width = atoi(kernel_size + 7);
 		kernel_size = strstr(kernel_size, "x");
 
-		if (kernel_size && atoi(kernel_size + 1) > 0) {
+		if (kernel_size && kernel_size < end && atoi(kernel_size + 1) > 0) {
 			connection->kernel_height = atoi(kernel_size + 1);
 			kernel_size = strstr(kernel_size + 1, "x");
 
-			if (kernel_size && atoi(kernel_size + 1) > 0) {
+			if (kernel_size && kernel_size < end && atoi(kernel_size + 1) > 0) {
 				connection->kernel_depth = atoi(kernel_size + 1);
 			}
 			else {
@@ -962,14 +964,16 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 
 	// Set stride size if specified
 	if (const char *stride_size = strstr(properties.c_str(), "stride")) {
+		const char *end = strstr(stride_size, ")");
+
 		connection->stride_width = atoi(stride_size + 7);
 		stride_size = strstr(stride_size, "x");
 
-		if (stride_size && atoi(stride_size + 1) > 0) {
+		if (stride_size && stride_size < end && atoi(stride_size + 1) > 0) {
 			connection->stride_height = atoi(stride_size + 1);
 			stride_size = strstr(stride_size + 1, "x");
 
-			if (stride_size && atoi(stride_size + 1) > 0) {
+			if (stride_size && stride_size < end && atoi(stride_size + 1) > 0) {
 				connection->stride_depth = atoi(stride_size + 1);
 			}
 			else {
@@ -1037,7 +1041,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 		}
 	}
 
-	{
+	if (properties[0] == 'P' || properties[0] == 'W') {
 		bool depthwise_separable = (strstr(properties.c_str(), "DS") != 0);
 
 		connection->from_error = new vector<Index>[parent_layer->number_nodes];
