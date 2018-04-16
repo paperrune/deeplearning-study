@@ -1,5 +1,5 @@
 # Neural-Networks
-C++ implementation of Neural Networks</br></br>
+C++ / CUDA C implementation of Neural Networks</br></br>
 
 ## Property
 ### Layer
