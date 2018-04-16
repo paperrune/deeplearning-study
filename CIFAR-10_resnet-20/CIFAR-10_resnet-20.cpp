@@ -170,7 +170,7 @@ int main() {
 
 		float **output = new float*[batch_size];
 
-		double loss = 0;// NN.Train(batch_size, number_training, input, target_output, learning_rate, epsilon);
+		double loss = NN.Train(batch_size, number_training, input, target_output, learning_rate, epsilon);
 
 		for (int h = 0; h < batch_size; h++) {
 			output[h] = new float[number_nodes.back()];
