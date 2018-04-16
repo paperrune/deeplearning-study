@@ -896,7 +896,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 		cerr << "[Connect], properties is empty" << endl;
 		return nullptr;
 	}
-	if ((strstr(properties.c_str(), "add") || strstr(properties.c_str(), "copy")) && number_nodes != parent_layer->number_nodes) {
+	if (strstr(properties.c_str(), "add") && number_nodes != parent_layer->number_nodes) {
 		cerr << "[Connect], add or copy connection requires: (number_nodes = parent_layer->number_nodes)" << endl;
 		return nullptr;
 	}
@@ -1591,7 +1591,7 @@ void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool reverse) 
 						}
 					}
 				}
-				else if (strstr(connection->properties.c_str(), "add") || strstr(connection->properties.c_str(), "copy")) {
+				else if (strstr(connection->properties.c_str(), "add")) {
 					for (int h = 0; h < batch_size; h++) {
 						parent_layer->error[0][(h * time_step + t) * parent_layer->number_nodes + j] += layer->error[0][(h * time_step + t) * layer->number_nodes + j];
 					}
@@ -1726,11 +1726,6 @@ void Neural_Networks::Feedforward(Layer *layer, int time_index, bool reverse) {
 				else if (strstr(connection->properties.c_str(), "add")) {
 					for (int h = 0; h < batch_size; h++) {
 						layer->neuron[0][(h * time_step + t) * layer->number_nodes + j] += parent_layer->neuron[0][(h * time_step + t) * parent_layer->number_nodes + j];
-					}
-				}
-				else if (strstr(connection->properties.c_str(), "copy")) {
-					for (int h = 0; h < batch_size; h++) {
-						layer->neuron[0][(h * time_step + t) * layer->number_nodes + j] = parent_layer->neuron[0][(h * time_step + t) * parent_layer->number_nodes + j];
 					}
 				}
 				else if (strstr(connection->properties.c_str(), "dilate")) {

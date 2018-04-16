@@ -838,9 +838,6 @@ __global__ void Feedforward(int option, int time_index, Connection connection, L
 			layer.neuron[0][(h * layer.time_step + t) * layer.number_nodes + j] += parent_layer.neuron[0][(h * layer.time_step + t) * parent_layer.number_nodes + j];
 		}
 		else if (option == 5) {
-			layer.neuron[0][(h * layer.time_step + t) * layer.number_nodes + j] = parent_layer.neuron[0][(h * layer.time_step + t) * parent_layer.number_nodes + j];
-		}
-		else if (option == 6) {
 			layer.neuron[0][(h * layer.time_step + t) * layer.number_nodes + j] = parent_layer.neuron[0][(h * layer.time_step + t) * parent_layer.number_nodes + (&connection.from_neurons[j])->prev_node];
 		}
 	}
@@ -1780,7 +1777,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 		cerr << "[Connect], properties is empty" << endl;
 		return nullptr;
 	}
-	if ((strstr(properties.c_str(), "add") || strstr(properties.c_str(), "copy")) && number_nodes != parent_layer->number_nodes) {
+	if (strstr(properties.c_str(), "add") && number_nodes != parent_layer->number_nodes) {
 		cerr << "[Connect], add or copy connection requires: (number_nodes = parent_layer->number_nodes)" << endl;
 		return nullptr;
 	}
@@ -2315,7 +2312,7 @@ void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool reverse) 
 					}
 				}
 			}
-			else if (strstr(connection->properties.c_str(), "add") || strstr(connection->properties.c_str(), "copy")) {
+			else if (strstr(connection->properties.c_str(), "add")) {
 				::Backpropagate << <batch_size * parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (3, time_index, *connection, *layer, *parent_layer, reverse);
 			}
 			else if (strstr(connection->properties.c_str(), "dilate")) {
@@ -2384,11 +2381,8 @@ void Neural_Networks::Feedforward(Layer *layer, int time_index, bool reverse) {
 			else if (strstr(connection->properties.c_str(), "add")) {
 				::Feedforward << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (4, time_index, *connection, *layer, *parent_layer, reverse);
 			}
-			else if (strstr(connection->properties.c_str(), "copy")) {
-				::Feedforward << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (5, time_index, *connection, *layer, *parent_layer, reverse);
-			}
 			else if (strstr(connection->properties.c_str(), "dilate")) {
-				::Feedforward << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (6, time_index, *connection, *layer, *parent_layer, reverse);
+				::Feedforward << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (5, time_index, *connection, *layer, *parent_layer, reverse);
 			}
 		}
 	}

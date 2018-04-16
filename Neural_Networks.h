@@ -1,5 +1,6 @@
 #ifndef Neural_Networks_H
 #define Neural_Networks_H
+#define Neural_Networks_CUDA_H
 
 #include <string>
 #include <unordered_map>
