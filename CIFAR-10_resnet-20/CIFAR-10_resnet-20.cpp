@@ -115,29 +115,29 @@ int main() {
 	layer[2]->Connect(layer[1], "W,kernel(3x3)");				// 3x3 convolution
 	layer[3]->Connect(layer[2], "W,kernel(3x3)");				// 3x3 convolution
 	layer[4]->Connect(layer[1], "add");							// shortcut
-	layer[4]->Connect(layer[3], "add");							// shortcut
+	layer[4]->Connect(layer[3], "add");
 	layer[5]->Connect(layer[4], "W,kernel(3x3)");				// 3x3 convolution
 	layer[6]->Connect(layer[5], "W,kernel(3x3)");				// 3x3 convolution
 	layer[7]->Connect(layer[4], "add");							// shortcut
-	layer[7]->Connect(layer[6], "add");							// shortcut
+	layer[7]->Connect(layer[6], "add");
 
 	layer[8]->Connect(layer[7],   "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
 	layer[9]->Connect(layer[8],   "W,kernel(3x3)");				// 3x3 convolution
 	layer[10]->Connect(layer[7],  "W,kernel(1x1),stride(2x2)");	// projection shortcut
-	layer[10]->Connect(layer[9],  "add");						// shortcut
+	layer[10]->Connect(layer[9],  "add");
 	layer[11]->Connect(layer[10], "W,kernel(3x3)");				// 3x3 convolution
 	layer[12]->Connect(layer[11], "W,kernel(3x3)");				// 3x3 convolution
 	layer[13]->Connect(layer[10], "add");						// shortcut
-	layer[13]->Connect(layer[12], "add");						// shortcut
+	layer[13]->Connect(layer[12], "add");
 
 	layer[14]->Connect(layer[13], "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
 	layer[15]->Connect(layer[14], "W,kernel(3x3)");				// 3x3 convolution
 	layer[16]->Connect(layer[13], "W,kernel(1x1),stride(2x2)"); // projection shortcut
-	layer[16]->Connect(layer[15], "add");						// shortcut
+	layer[16]->Connect(layer[15], "add");
 	layer[17]->Connect(layer[16], "W,kernel(3x3)");				// 3x3 convolution
 	layer[18]->Connect(layer[17], "W,kernel(3x3)");				// 3x3 convolution
 	layer[19]->Connect(layer[16], "add");						// shortcut
-	layer[19]->Connect(layer[18], "add");						// shortcut
+	layer[19]->Connect(layer[18], "add");
 
 	layer[20]->Connect(layer[19], "P,average");					// global average pooling
 	layer[21]->Connect(layer[20], "W");							// fully connected
