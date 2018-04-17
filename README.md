@@ -3,7 +3,7 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 
 ## Property
 ### Layer
-```C++
+```
 > Activation Function
 "ELUf"    : exponential linear unit with hyperparameter f
 "PReLU.f" : parametric ReLU with initial negative slope 0.f
@@ -20,10 +20,16 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 > Regularization
 "BN"        : batch normalization
 "dropout.f" : dropout with rate 0.f, each neuron is set to zero with a probability of (1 - 0.f)
+
+> Type
+"LSTM"          : long short-term memory
+"LSTM,backward" : LSTM for backward direction
+"RNN"           : vanilla recurrent layer
+"RNN,backward"  : RNN for backward direction
 ```
 
 ### Connection
-```C++
+```
 "kernel(mxnxo) : set kernel width to m, height to n and depth to o
 "stride(mxnxo) : set stride width to m, height to n and depth to o
 "DS"           : depthwise separable convolution
