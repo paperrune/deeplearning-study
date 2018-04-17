@@ -83,7 +83,7 @@ int main() {
 
 	// layer[0] ~ layer[10]
 	layer.push_back(NN.Add(new Layer("CIFAR-10", 3, 32, 32)));
-	layer.push_back(NN.Add(new Layer("BN,ReLU", 16, 32, 32)));	// batch normalization, ReLU activation	
+	layer.push_back(NN.Add(new Layer("BN,ReLU", 16, 32, 32)));	// batch normalization, ReLU activation
 	layer.push_back(NN.Add(new Layer("BN,ReLU", 16, 32, 32)));	// batch normalization, ReLU activation
 	layer.push_back(NN.Add(new Layer("BN",		16, 32, 32)));	// batch normalization
 	layer.push_back(NN.Add(new Layer("ReLU",	16, 32, 32)));	// ReLU activation
