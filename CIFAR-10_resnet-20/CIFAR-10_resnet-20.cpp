@@ -119,48 +119,54 @@ int main() {
 	layer.push_back(NN.Add(new Layer("", 64, 1, 1)));
 	layer.push_back(NN.Add(new Layer("CE,softmax", 10)));		// cross-entropy loss, softmax activation
 
-	layer[1]->Connect(layer[0], "W,kernel(3x3)");				// 3x3 convolution
-	layer[2]->Connect(layer[1], "W,kernel(3x3)");				// 3x3 convolution
-	layer[3]->Connect(layer[2], "W,kernel(3x3)");				// 3x3 convolution
-	layer[4]->Connect(layer[1], "add");							// shortcut
-	layer[4]->Connect(layer[3], "add");
-	layer[5]->Connect(layer[4], "W,kernel(3x3)");				// 3x3 convolution
-	layer[6]->Connect(layer[5], "W,kernel(3x3)");				// 3x3 convolution
-	layer[7]->Connect(layer[4], "add");							// shortcut
-	layer[7]->Connect(layer[6], "add");
-	layer[8]->Connect(layer[7], "W,kernel(3x3)");				// 3x3 convolution
-	layer[9]->Connect(layer[8], "W,kernel(3x3)");				// 3x3 convolution
-	layer[10]->Connect(layer[7], "add");						// shortcut
-	layer[10]->Connect(layer[9], "add");
+	int l = 0;
 
-	layer[11]->Connect(layer[10], "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
-	layer[12]->Connect(layer[11], "W,kernel(3x3)");				// 3x3 convolution
-	layer[13]->Connect(layer[10], "W,kernel(1x1),stride(2x2)");	// projection shortcut
-	layer[13]->Connect(layer[12], "add");
-	layer[14]->Connect(layer[13], "W,kernel(3x3)");				// 3x3 convolution
-	layer[15]->Connect(layer[14], "W,kernel(3x3)");				// 3x3 convolution
-	layer[16]->Connect(layer[13], "add");						// shortcut
-	layer[16]->Connect(layer[15], "add");
-	layer[17]->Connect(layer[16], "W,kernel(3x3)");				// 3x3 convolution
-	layer[18]->Connect(layer[17], "W,kernel(3x3)");				// 3x3 convolution
-	layer[19]->Connect(layer[16], "add");						// shortcut
-	layer[19]->Connect(layer[18], "add");
+	// layer[1] ~ layer[10]
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
 
-	layer[20]->Connect(layer[19], "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
-	layer[21]->Connect(layer[20], "W,kernel(3x3)");				// 3x3 convolution
-	layer[22]->Connect(layer[19], "W,kernel(1x1),stride(2x2)"); // projection shortcut
-	layer[22]->Connect(layer[21], "add");
-	layer[23]->Connect(layer[22], "W,kernel(3x3)");				// 3x3 convolution
-	layer[24]->Connect(layer[23], "W,kernel(3x3)");				// 3x3 convolution
-	layer[25]->Connect(layer[22], "add");						// shortcut
-	layer[25]->Connect(layer[24], "add");
-	layer[26]->Connect(layer[25], "W,kernel(3x3)");				// 3x3 convolution
-	layer[27]->Connect(layer[26], "W,kernel(3x3)");				// 3x3 convolution
-	layer[28]->Connect(layer[25], "add");						// shortcut
-	layer[28]->Connect(layer[27], "add");
+	// layer[11] ~ layer[19]
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "W,kernel(1x1),stride(2x2)");	// projection shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
 
-	layer[29]->Connect(layer[28], "P,average");					// global average pooling
-	layer[30]->Connect(layer[29], "W");							// fully connected
+	// layer[20] ~ layer[28]
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3),stride(2x2)");	// 3x3 convolution with 2x2 stride
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "W,kernel(1x1),stride(2x2)");	// projection shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-1], "W,kernel(3x3)");				// 3x3 convolution
+	layer[++l]->Connect(layer[l-3], "add");							// shortcut
+	layer[l]->Connect(layer[l-1], "add");
+
+	// layer[29] ~ layer[30]
+	layer[++l]->Connect(layer[l-1], "P,average");					// global average pooling
+	layer[++l]->Connect(layer[l-1], "W");							// fully connected
 
 	srand(0); NN.Initialize(0.01);
 	// ************************************
@@ -170,7 +176,7 @@ int main() {
 
 #ifndef Neural_Networks_CUDA_H
 	int number_threads;
-	
+
 	cout << "The number of threads : ";
 	cin >> number_threads;
 	cin.ignore();
