@@ -61,7 +61,6 @@ void Read_CIFAR_10(string path, int number_training, int number_test, float **in
 int main() {
 	int batch_size = 100;
 	int number_iterations = 100;
-	int number_threads;
 	int number_training = 50000;
 	int number_test = 10000;
 
@@ -170,6 +169,8 @@ int main() {
 	// Neural_Networks NN = Neural_Networks("CIFAR-10_resnet-20.txt");
 
 #ifndef Neural_Networks_CUDA_H
+	int number_threads;
+	
 	cout << "The number of threads : ";
 	cin >> number_threads;
 	cin.ignore();
