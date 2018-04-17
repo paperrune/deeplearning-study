@@ -131,6 +131,8 @@ int main() {
 	cout << "The number of threads : ";
 	cin >> number_threads;
 	cin.ignore();
+	
+	omp_set_num_threads(number_threads);
 
 	cout << "path where MNIST handwritten digits dataset is : ";
 	getline(cin, path);
@@ -140,8 +142,6 @@ int main() {
 		target_output[h] = new float[number_nodes.back()];
 	}
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, input, target_output);
-
-	omp_set_num_threads(number_threads);
 
 	for (int g = 0, time = clock(); g < number_iterations; g++) {
 		int score[2] = { 0, };
