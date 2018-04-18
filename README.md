@@ -23,9 +23,9 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 
 > Type
 "LSTM"          : long short-term memory
-"LSTM,backward" : LSTM for backward direction
+"LSTM,backward" : LSTM backward direction
 "RNN"           : vanilla recurrent layer
-"RNN,backward"  : RNN for backward direction
+"RNN,backward"  : RNN backward direction
 ```
 
 ### Connection
