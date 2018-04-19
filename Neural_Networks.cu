@@ -2339,7 +2339,7 @@ void Neural_Networks::Activate(Layer *layer, string phase, int time_index) {
 		if (LSTM_node->batch_normalization[LSTM_node->cell_output][0]) {
 			LSTM_node->batch_normalization[LSTM_node->cell_output][0]->Activate(phase, LSTM_node->neuron[LSTM_node->cell_output][0], time_index);
 		}
-		::Activate << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (6, time_index, nullptr, *layer, *LSTM_node, backward);
+		::Activate << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (1, time_index, nullptr, *layer, *LSTM_node, backward);
 	}
 	else if (strstr(layer->properties.c_str(), "RNN")) {
 		::Activate << <batch_size * layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (6, time_index, *layer);
@@ -2759,7 +2759,7 @@ double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<st
 		delete[] log_likelihood;
 	}
 	for (int t = time_step - 1; t >= 0; t--) {
-		Differentiate(layer, nullptr, t);
+		// Differentiate(layer, nullptr, t);
 	}
 	return sum;
 }
@@ -3127,7 +3127,6 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 				}
 			}
 
-			// zeroise error
 			for (int i = 0; i < layer_depth; i++) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
@@ -3145,6 +3144,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 						delete[] mask;
 					}
 
+					// zeroise error
 					cudaMemset(layer->error[0], 0, sizeof(float) * batch_size * time_step * layer->number_nodes);
 				}
 			}
