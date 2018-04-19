@@ -1,4 +1,4 @@
-## CIFAR-10 classification using resnet-20
+## CIFAR-10 classification using resnet-32
 Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
   - data_batch_1.bin
   - data_batch_2.bin
@@ -9,8 +9,8 @@ Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
 
 ### Compile
 - Visual Studio 2015 + CUDA 9.1</br>
-![VS_2015](/CIFAR-10_resnet-20/screenshot/VS_2015.png)</br></br>
+![VS_2015](/CIFAR-10_resnet-32/screenshot/VS_2015.png)</br></br>
 
 ### Result
 GeForce GTX 1060 6GB</br>
-![result](/CIFAR-10_resnet-20/screenshot/CIFAR-10_resnet-20.png)</br>
+![result](/CIFAR-10_resnet-32/screenshot/CIFAR-10_resnet-32.png)</br>
