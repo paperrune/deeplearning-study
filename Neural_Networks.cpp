@@ -919,7 +919,7 @@ Connection* Layer::Connect(Layer *parent_layer, string properties) {
 		return nullptr;
 	}
 	if (strstr(properties.c_str(), "add") && number_nodes != parent_layer->number_nodes) {
-		cerr << "[Connect], add or copy connection requires: (number_nodes = parent_layer->number_nodes)" << endl;
+		cerr << "[Connect], add connection requires: (number_nodes = parent_layer->number_nodes)" << endl;
 		return nullptr;
 	}
 	if (strstr(properties.c_str(), "dilate")) {
