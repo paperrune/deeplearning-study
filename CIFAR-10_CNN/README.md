@@ -1,4 +1,4 @@
-## CIFAR-10 classification using small VGG-like CNN
+## CIFAR-10 classification using small VGG-like Convolutional Neural Networks
 Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
   - data_batch_1.bin
   - data_batch_2.bin
