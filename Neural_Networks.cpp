@@ -2467,35 +2467,22 @@ void Neural_Networks::Test(int batch_size, float **_input, float **_output, int 
 	delete[] output;
 }
 void Neural_Networks::Test(int batch_size, float ***input, float ***output, int length_data[]) {
-	int maximum_length_data = 0;
-
 	Resize_Memory(batch_size);
 	FloatToNode(input, layer[0], length_data);
 	Zero_Memory();
-
-	if (length_data) {
-		for (int h = 0; h < batch_size; h++) {
-			if (maximum_length_data < length_data[h]) {
-				maximum_length_data = length_data[h];
-			}
-		}
-	}
-	else {
-		maximum_length_data = time_step;
-	}
 
 	for (int i = 1; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
 			if (strstr(layer->properties.c_str(), "backward")) {
-				for (int t = maximum_length_data - 1; t >= 0; t--) {
+				for (int t = time_step - 1; t >= 0; t--) {
 					Feedforward(layer, t, true);
 					Activate(layer, "inference", t);
 				}
 			}
 			else {
-				for (int t = 0; t < maximum_length_data; t++) {
+				for (int t = 0; t < time_step; t++) {
 					Feedforward(layer, t);
 					Activate(layer, "inference", t);
 				}
