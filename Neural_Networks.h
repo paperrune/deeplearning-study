@@ -221,7 +221,6 @@ public:
 class Neural_Networks {
 private:
 	int batch_size;
-	int time_step;
 
 	double epsilon;
 	double gradient_threshold;
@@ -234,15 +233,17 @@ private:
 	void Feedforward(Layer *layer, int time_index, bool reverse = false);
 
 	void FloatToNode(float **memory, vector<Layer*> &layer);
-	void FloatToNode(float ***memory, vector<Layer*> &layer, int **length_data = nullptr);
+	void FloatToNode(float ***memory, vector<Layer*> &layer, int length_data[] = nullptr);
 	void NodeToFloat(vector<Layer*> &layer, float ***memory);
 	void Resize_Memory(int batch_size, int time_step = 0);
+	void Zero_Memory();
 
 	double Calculate_Gradient(Layer *layer, double learning_rate, bool reverse = false);
 	double Differentiate(Layer *layer, float target_output[], int time_index);
 	double Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]);
 public:
-	int layer_depth;
+	int layer_height;
+	int time_step;
 
 	vector<vector<Layer*>> layer;
 
@@ -259,7 +260,7 @@ public:
 	void Set_Optimizer(Optimizer *optimizer);
 	void Test(float input[], float output[], int length_data = 0);
 	void Test(int batch_size, float **input, float **output, int length_data[] = nullptr);
-	void Test(int batch_size, float ***input, float ***output, int **length_data = nullptr);
+	void Test(int batch_size, float ***input, float ***output, int length_data[] = nullptr);
 
 	double Train(int batch_size, int number_training, float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 	double Train(int batch_size, int number_training, int length_data[], float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
@@ -268,7 +269,7 @@ public:
 	double Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> target_label_sequence[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 
 	Layer* Add(Layer *layer, int index = -1);
-	Layer* Get_Layer(int x, int y);
+	Layer* Get_Layer(int y = 0, int x = 0);
 };
 
 class Optimizer {

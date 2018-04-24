@@ -2460,26 +2460,6 @@ void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool backward)
 void Neural_Networks::Feedforward(Layer *layer, int time_index, bool backward) {
 	int t = time_index;
 
-	// zeroise neuron
-	for (int h = 0; h < batch_size; h++) {
-		int index = (h * time_step + t) * layer->number_nodes;
-
-		if (layer->neuron[0]) {
-			cudaMemset(&layer->neuron[0][index], 0, sizeof(float) * layer->number_nodes);
-		}
-		if (layer->neuron[1]) {
-			cudaMemset(&layer->neuron[1][index], 0, sizeof(float) * layer->number_nodes);
-		}
-		if (layer->LSTM_node) {
-			LSTM_Node *LSTM_node = layer->LSTM_node;
-
-			for (int i = 0; i < LSTM_node->number_weight_types; i++) {
-				cudaMemset(&LSTM_node->neuron[i][0][index], 0, sizeof(float) * layer->number_nodes);
-				cudaMemset(&LSTM_node->neuron[i][1][index], 0, sizeof(float) * layer->number_nodes);
-			}
-		}
-	}
-
 	for (int g = 0; g < layer->parent_layer.size(); g++) {
 		bool recurrent = (strstr(layer->connection[g]->properties.c_str(), "recurrent") != 0);
 
@@ -2529,11 +2509,11 @@ void Neural_Networks::FloatToNode(float **memory, vector<Layer*> &layer) {
 		cudaMemcpy(layer[i]->neuron[0], memory[i], sizeof(float) * batch_size * time_step * layer[i]->number_nodes, cudaMemcpyDeviceToDevice);
 	}
 }
-void Neural_Networks::FloatToNode(float ***memory, vector<Layer*> &layer, int **length_data) {
+void Neural_Networks::FloatToNode(float ***memory, vector<Layer*> &layer, int length_data[]) {
 	for (int i = 0; i < layer.size(); i++) {
 		for (int h = 0; h < batch_size; h++) {
 			cudaMemset(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], 0, sizeof(float) * time_step * layer[i]->number_nodes);
-			cudaMemcpy(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], memory[h][i], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[i][h])) *layer[i]->number_nodes, cudaMemcpyHostToDevice);
+			cudaMemcpy(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], memory[h][i], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[h])) *layer[i]->number_nodes, cudaMemcpyHostToDevice);
 		}
 	}
 }
@@ -2548,7 +2528,7 @@ void Neural_Networks::Resize_Memory(int batch_size, int time_step) {
 	if (time_step == 0) time_step = this->time_step;
 
 	if (this->batch_size != batch_size || this->time_step != time_step) {
-		for (int i = 0; i < layer_depth; i++) {
+		for (int i = 0; i < layer_height; i++) {
 			for (int j = 0; j < layer[i].size(); j++) {
 				layer[i][j]->Resize_Memory(batch_size, time_step);
 			}
@@ -2556,6 +2536,31 @@ void Neural_Networks::Resize_Memory(int batch_size, int time_step) {
 		this->batch_size = batch_size;
 		this->time_step = time_step;
 	}
+}
+void Neural_Networks::Zero_Memory(){
+	for (int i = 1; i < layer_height; i++) {
+		for (int j = 0; j < layer[i].size(); j++) {
+			int memory_size = sizeof(float) * batch_size * time_step * layer[i][j]->number_nodes;
+
+			Layer *layer = this->layer[i][j];
+
+			if (layer->neuron[0]) {
+				cudaMemset(layer->neuron[0], 0, memory_size);
+			}
+			if (layer->neuron[1]) {
+				cudaMemset(layer->neuron[1], 0, memory_size);
+			}
+			if (layer->LSTM_node) {
+				LSTM_Node *LSTM_node = layer->LSTM_node;
+
+				for (int i = 0; i < LSTM_node->number_weight_types; i++) {
+					cudaMemset(LSTM_node->neuron[i][0], 0, memory_size);
+					cudaMemset(LSTM_node->neuron[i][1], 0, memory_size);
+				}
+			}
+			cudaMemset(layer->error[0], 0, memory_size);
+		}
+	}	
 }
 
 double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, bool backward) {
@@ -2815,7 +2820,7 @@ Neural_Networks::Neural_Networks(string path) {
 
 			connection.push_back(this->layer[index[0]][index[1]]->Connect(this->layer[index[2]][index[3]], properties));
 		}
-		layer_depth = static_cast<int>(this->layer.size());
+		layer_height = static_cast<int>(this->layer.size());
 		Resize_Memory(1);
 
 		for (int i = 0; i < number_layers; i++) {
@@ -2836,11 +2841,11 @@ Neural_Networks::Neural_Networks(int time_step) {
 
 	batch_size = 0;
 	gradient_threshold = 0;
-	layer_depth = 0;
+	layer_height = 0;
 	CTC = nullptr;
 }
 Neural_Networks::~Neural_Networks() {
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Destroy();
 			delete layer[i][j];
@@ -2855,7 +2860,7 @@ void Neural_Networks::Decode(int length_event, float likelihood[], vector<string
 	CTC->Best_Path_Decoding(length_event, likelihood, label_sequence);
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Initialize(scale, gamma);
 		}
@@ -2867,7 +2872,7 @@ void Neural_Networks::Save(string path) {
 
 	ofstream file(path);
 
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			number_connections += layer[i][j]->number_connections;
 		}
@@ -2879,7 +2884,7 @@ void Neural_Networks::Save(string path) {
 	file << time_step << endl;
 
 	// layer definition
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
@@ -2904,7 +2909,7 @@ void Neural_Networks::Save(string path) {
 	}
 
 	// connection definition
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
@@ -2916,14 +2921,14 @@ void Neural_Networks::Save(string path) {
 	}
 
 	// layer parameter
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Save(file);
 		}
 	}
 
 	// connection parameter
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			for (int k = 0; k < layer[i][j]->number_connections; k++) {
 				layer[i][j]->connection[k]->Save(file);
@@ -2933,7 +2938,7 @@ void Neural_Networks::Save(string path) {
 	file.close();
 }
 void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			if (strstr(layer[i][j]->properties.c_str(), "CTC")) {
 				if (number_labels != layer[i][j]->number_nodes) {
@@ -2951,7 +2956,7 @@ void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
 	cerr << "[Set_CTC_Loss], there is no layer with CTC loss" << endl;
 }
 void Neural_Networks::Set_Epsilon(double epsilon) {
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Set_Epsilon(epsilon);
 		}
@@ -2967,7 +2972,7 @@ void Neural_Networks::Set_Optimizer(Optimizer *optimizer) {
 		return;
 	}
 
-	for (int i = 1; i < layer_depth; i++) {
+	for (int i = 1; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			layer[i][j]->Set_Optimizer(optimizer->Copy());
 		}
@@ -2979,50 +2984,56 @@ void Neural_Networks::Test(float input[], float output[], int _length_data) {
 
 	Test(1, &input, &output, length_data);
 }
-void Neural_Networks::Test(int batch_size, float **_input, float **_output, int _length_data[]) {
-	int **length_data = (_length_data) ? (new int*[batch_size]) : (nullptr);
-	
+void Neural_Networks::Test(int batch_size, float **_input, float **_output, int length_data[]) {	
 	float ***input = new float**[batch_size];
 	float ***output = new float**[batch_size];
 
 	for (int h = 0; h < batch_size; h++) {
-		if (length_data) {
-			length_data[h] = &_length_data[h];
-		}
 		input[h] = &_input[h];
 		output[h] = &_output[h];
 	}
 	Test(batch_size, input, output, length_data);
 
-	if (length_data) {
-		delete[] length_data;
-	}
 	delete[] input;
 	delete[] output;
 }
-void Neural_Networks::Test(int batch_size, float ***input, float ***output, int **length_data) {
+void Neural_Networks::Test(int batch_size, float ***input, float ***output, int length_data[]) {
+	int maximum_length_data = 0;
+	
 	Resize_Memory(batch_size);
 	FloatToNode(input, layer[0], length_data);
+	Zero_Memory();
 
-	for (int i = 1; i < layer_depth; i++) {
+	if (length_data) {
+		for (int h = 0; h < batch_size; h++) {
+			if (maximum_length_data < length_data[h]) {
+				maximum_length_data = length_data[h];
+			}
+		}
+	}
+	else {
+		maximum_length_data = time_step;
+	}
+
+	for (int i = 1; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			Layer *layer = this->layer[i][j];
 
 			if (strstr(layer->properties.c_str(), "backward")) {
-				for (int t = time_step - 1; t >= 0; t--) {
+				for (int t = maximum_length_data - 1; t >= 0; t--) {
 					Feedforward(layer, t, true);
 					Activate(layer, "inference", t);
 				}
 			}
 			else {
-				for (int t = 0; t < time_step; t++) {
+				for (int t = 0; t < maximum_length_data; t++) {
 					Feedforward(layer, t);
 					Activate(layer, "inference", t);
 				}
 			}
 		}
 	}
-	NodeToFloat(layer[layer_depth - 1], output);
+	NodeToFloat(layer[layer_height - 1], output);
 }
 
 double Neural_Networks::Train(int batch_size, int number_training, float **input, float **target_output, double epsilon, double learning_rate, double noise_standard_deviation) {
@@ -3067,7 +3078,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	int *length_data_batch = (target_label_sequence && length_data) ? (new int[batch_size]) : (nullptr);
 
 	float **input_batch = new float*[layer[0].size()];
-	float **target_output_batch = (target_output) ? (new float*[layer[layer_depth - 1].size()]) : (nullptr);
+	float **target_output_batch = (target_output) ? (new float*[layer[layer_height - 1].size()]) : (nullptr);
 
 	double sum = 0;
 
@@ -3087,7 +3098,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	for (int i = 0, j = 0; j < layer[i].size(); j++) {
 		cudaMalloc(&input_batch[j], sizeof(float) * batch_size * time_step * layer[i][j]->number_nodes);
 	}
-	for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
+	for (int i = layer_height - 1, j = 0; j < layer[i].size() && target_output; j++) {
 		cudaMalloc(&target_output_batch[j], sizeof(float) * batch_size * time_step * layer[i][j]->number_nodes);
 	}
 	Resize_Memory(batch_size);
@@ -3098,7 +3109,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			cudaMemset(&input_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			cudaMemcpy(&input_batch[j][h * time_step * layer[i][j]->number_nodes], input[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
-		for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
+		for (int i = layer_height - 1, j = 0; j < layer[i].size() && target_output; j++) {
 			cudaMemset(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			cudaMemcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
@@ -3127,7 +3138,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 				}
 			}
 
-			for (int i = 0; i < layer_depth; i++) {
+			for (int i = 1; i < layer_height; i++) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
@@ -3143,15 +3154,13 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 						cudaMemcpy(layer->dropout_mask, mask, batch_size * layer->number_maps, cudaMemcpyHostToDevice);
 						delete[] mask;
 					}
-
-					// zeroise error
-					cudaMemset(layer->error[0], 0, sizeof(float) * batch_size * time_step * layer->number_nodes);
 				}
 			}
 			FloatToNode(input_batch, layer[0]);
+			Zero_Memory();
 
 			// forward propagation
-			for (int i = 1; i < layer_depth; i++) {
+			for (int i = 1; i < layer_height; i++) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
@@ -3171,7 +3180,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			}
 
 			// error backpropagation
-			for (int i = layer_depth - 1; i > 0; i--) {
+			for (int i = layer_height - 1; i > 0; i--) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Layer *layer = this->layer[i][j];
 
@@ -3185,13 +3194,13 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 					else {
 						if (strstr(layer->properties.c_str(), "backward")) {
 							for (int t = 0; t < time_step; t++) {
-								sum += Differentiate(layer, (i == layer_depth - 1) ? (target_output_batch[j]) : (nullptr), t);
+								sum += Differentiate(layer, (i == layer_height - 1) ? (target_output_batch[j]) : (nullptr), t);
 								Backpropagate(layer, t, true);
 							}
 						}
 						else {
 							for (int t = time_step - 1; t >= 0; t--) {
-								sum += Differentiate(layer, (i == layer_depth - 1) ? (target_output_batch[j]) : (nullptr), t);
+								sum += Differentiate(layer, (i == layer_height - 1) ? (target_output_batch[j]) : (nullptr), t);
 								Backpropagate(layer, t);
 							}
 						}
@@ -3200,7 +3209,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			}
 
 			// calculate gradient
-			for (int i = layer_depth - 1; i > 0; i--) {
+			for (int i = layer_height - 1; i > 0; i--) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					sum_gradient += Calculate_Gradient(layer[i][j], learning_rate, strstr(layer[i][j]->properties.c_str(), "backward") != 0);
 				}
@@ -3210,7 +3219,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			}
 
 			// adjust parameter
-			for (int i = layer_depth - 1;  i > 0; i--) {
+			for (int i = layer_height - 1;  i > 0; i--) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Adjust_Parameter(layer[i][j], gradient_clip, learning_rate);
 				}
@@ -3220,7 +3229,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	}
 
 	// calculate batch mean and variance
-	for (int i = 0; i < layer_depth; i++) {
+	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			if (layer[i][j]->LSTM_node) {
 				LSTM_Node *LSTM_node = layer[i][j]->LSTM_node;
@@ -3239,7 +3248,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 		cudaFree(input_batch[j]);
 	}
 	if (target_output) {
-		for (int i = layer_depth - 1, j = 0; j < layer[i].size() && target_output; j++) {
+		for (int i = layer_height - 1, j = 0; j < layer[i].size() && target_output; j++) {
 			cudaFree(target_output_batch[j]);
 		}
 		delete[] target_output_batch;
@@ -3264,7 +3273,7 @@ Layer* Neural_Networks::Add(Layer *layer, int index) {
 		vector<Layer*> layer_holder;
 
 		this->layer.push_back(layer_holder);
-		layer_depth++;
+		layer_height++;
 	}
 	layer->index[0] = index;
 	layer->index[1] = static_cast<int>(this->layer[index].size());
@@ -3272,11 +3281,11 @@ Layer* Neural_Networks::Add(Layer *layer, int index) {
 
 	return layer;
 }
-Layer* Neural_Networks::Get_Layer(int x, int y) {
-	if (y >= layer_depth || layer[x].size() <= x) {
+Layer* Neural_Networks::Get_Layer(int y, int x) {
+	if (y >= layer_height || layer[y].size() <= x) {
 		return nullptr;
 	}
-	return layer[x][y];
+	return layer[y][x];
 }
 
 
