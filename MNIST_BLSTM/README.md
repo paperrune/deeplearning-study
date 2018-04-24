@@ -10,5 +10,5 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 ![VS_2015](/MNIST_BLSTM/screenshot/VS_2015.png)</br></br>
 
 ### Result
-i7-4790K (4 threads)</br>
+i7-4790K</br>
 ![result](/MNIST_BLSTM/screenshot/MNIST_BLSTM.png)</br>
