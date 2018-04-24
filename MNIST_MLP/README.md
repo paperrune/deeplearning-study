@@ -13,5 +13,5 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 ![g++](/MNIST_MLP/screenshot/g++.png)</br>
 
 ### Result
-i7-4790K (4 threads)</br>
+i7-4790K</br>
 ![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br>
