@@ -135,7 +135,7 @@ int main() {
 		for (int t = 0; t < time_step; t++) {
 			time_mask[t] = (t == 0 || t == time_step - 1);
 		}
-		layer[3]->Set_Time_Mask(time_mask);
+		layer.back()->Set_Time_Mask(time_mask);
 	}
 	// *********************************************
 
