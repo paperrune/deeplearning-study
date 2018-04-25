@@ -136,7 +136,7 @@ int main() {
 			time_mask[t] = (t == 0 || t == time_step - 1);
 		}
 		layer[3]->Set_Time_Mask(time_mask);
-	}*/
+	}
 	// *********************************************
 
 	// load pretrained model
