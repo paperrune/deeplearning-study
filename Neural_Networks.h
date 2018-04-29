@@ -110,6 +110,8 @@ private:
 	double Backward_Algorithm(vector<string> label_sequence, int length_event, double **beta, float likelihood[]);
 	double Forward_Algorithm(vector<string> label_sequence, int length_event, double **alpha, float likelihood[]);
 	double Log_Add(double a, double b);
+
+	double *Get_Probability(string label, unordered_map<string, double> &probability);
 public:
 	int number_labels;
 
@@ -118,9 +120,9 @@ public:
 	Connectionist_Temporal_Classification(int number_labels, string label[]);
 	~Connectionist_Temporal_Classification();
 
-	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &label_sequence);
+	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels = false);
 	void Calculate_Error(vector<string> target_label_sequence[], int batch_size, int time_step, int length_event[], float error[], float likelihood[], double log_likelihood[]);
-	void Prefix_Search_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, int k);
+	void Prefix_Beam_Search_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels = false);
 
 	double Calculate_Error(vector<string> target_label_sequence, int length_event, float error[], float likelihood[]);
 };
@@ -251,7 +253,8 @@ public:
 	Neural_Networks(int time_step = 1);
 	~Neural_Networks();
 
-	void Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k = 0);
+	void Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels = false);
+	void Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k = 0, bool space_between_labels = false);
 	void Initialize(double scale, double gamma = 1);
 	void Save(string path);
 	void Set_CTC_Loss(int number_labels, string label[]);

@@ -2,9 +2,12 @@
 #include "curand_kernel.h"
 #include "device_launch_parameters.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <math.h>
+#include <set>
+#include <sstream>
 #include <unordered_map>
 
 #include "Neural_Networks.h"
@@ -1400,22 +1403,6 @@ void Connection::Set_Optimizer(Optimizer *optimizer) {
 	}
 }
 
-double log_add(double a, double b) {
-	if (!isfinite(a) && !isfinite(b)) {
-		return -numeric_limits<double>::infinity();
-	}
-	if (!isfinite(a)) {
-		return b;
-	}
-	if (!isfinite(b)) {
-		return a;
-	}
-
-	double max = (a > b) ? (a) : (b);
-
-	return (max + log1p(exp(a + b - 2 * max)));
-}
-
 int Connectionist_Temporal_Classification::Search_Label(string label) {
 	auto l = label_index.find(label);
 
@@ -1424,6 +1411,16 @@ int Connectionist_Temporal_Classification::Search_Label(string label) {
 	}
 	cerr << "[Search_Label], label '" + label + "' not found" << endl;
 	return -1;
+}
+
+double *Connectionist_Temporal_Classification::Get_Probability(string label, unordered_map<string, double> &probability) {
+	auto p = probability.find(label);
+
+	if (p == probability.end()) {
+		probability.insert(pair<string, double>(label, 0));
+		p = probability.find(label);
+	}
+	return &p->second;
 }
 
 Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[]) {
@@ -1438,7 +1435,9 @@ Connectionist_Temporal_Classification::~Connectionist_Temporal_Classification() 
 	delete[] label;
 }
 
-void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence) {
+void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+	string token;
+	
 	for (int t = 0, argmax, previous_state = number_labels - 1; t < length_event; t++) {
 		float max;
 
@@ -1450,8 +1449,11 @@ void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event,
 			}
 		}
 		if (previous_state != argmax) {
-			if (label[argmax].size()) {
-				label_sequence.push_back(label[argmax]);
+			token += label[argmax];
+
+			if ((space_between_labels && !token.empty()) || label[argmax] == " ") {
+				label_sequence.push_back(token);
+				token.clear();
 			}
 			previous_state = argmax;
 		}
@@ -1460,9 +1462,9 @@ void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event,
 void Connectionist_Temporal_Classification::Calculate_Error(vector<string> target_label_sequence[], int batch_size, int time_step, int _length_event[], float error[], float likelihood[], double _log_likelihood[]) {
 	int maximum_length_label_sequence = 0;
 
+	int *label_sequence;
 	int *length_event;
 	int *length_label_sequence;
-	int *label_index_sequence;
 
 	double *alpha;
 	double *beta;
@@ -1473,7 +1475,7 @@ void Connectionist_Temporal_Classification::Calculate_Error(vector<string> targe
 			maximum_length_label_sequence = static_cast<int>(target_label_sequence[h].size());
 		}
 	}
-	cudaMalloc(&label_index_sequence, sizeof(int) * batch_size * maximum_length_label_sequence);
+	cudaMalloc(&label_sequence, sizeof(int) * batch_size * maximum_length_label_sequence);
 	cudaMalloc(&length_event, sizeof(int) * batch_size);
 	cudaMemcpy(length_event, _length_event, sizeof(int) * batch_size, cudaMemcpyHostToDevice);
 	cudaMalloc(&length_label_sequence, sizeof(int) * batch_size);
@@ -1484,7 +1486,7 @@ void Connectionist_Temporal_Classification::Calculate_Error(vector<string> targe
 		for (int t = 0; t < target_label_sequence[h].size(); t++) {
 			label_index[t] = Search_Label(target_label_sequence[h][t]);
 		}
-		cudaMemcpy(&label_index_sequence[h * maximum_length_label_sequence], label_index, sizeof(int) * target_label_sequence[h].size(), cudaMemcpyHostToDevice);
+		cudaMemcpy(&label_sequence[h * maximum_length_label_sequence], label_index, sizeof(int) * target_label_sequence[h].size(), cudaMemcpyHostToDevice);
 		cudaMemcpy(&length_label_sequence[h], &length_label, sizeof(int), cudaMemcpyHostToDevice);
 
 		delete[] label_index;
@@ -1493,18 +1495,86 @@ void Connectionist_Temporal_Classification::Calculate_Error(vector<string> targe
 	cudaMalloc(&beta, sizeof(double) * batch_size * time_step * maximum_length_label_sequence);
 	cudaMalloc(&log_likelihood, sizeof(double) * batch_size);
 
-	::Calculate_Error << <batch_size, NUMBER_THREADS >> > (maximum_length_label_sequence, number_labels, time_step, length_event, length_label_sequence, label_index_sequence, error, likelihood, alpha, beta, log_likelihood);
+	::Calculate_Error << <batch_size, NUMBER_THREADS >> > (maximum_length_label_sequence, number_labels, time_step, length_event, length_label_sequence, label_sequence, error, likelihood, alpha, beta, log_likelihood);
 
 	cudaMemcpy(_log_likelihood, log_likelihood, sizeof(double) * batch_size, cudaMemcpyDeviceToHost);
 
 	cudaFree(alpha);
 	cudaFree(beta);
-	cudaFree(label_index_sequence);
+	cudaFree(label_sequence);
 	cudaFree(length_event);
 	cudaFree(length_label_sequence);
 	cudaFree(log_likelihood);
 }
 
+bool comparator(const pair<double, string> &a, const pair<double, string> &b) {
+	return a.first > b.first;
+}
+
+void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+	set<string> A_prev = { "" };
+
+	unordered_map<string, double> *Pb = new unordered_map<string, double>[length_event + 1];
+	unordered_map<string, double> *Pnb = new unordered_map<string, double>[length_event + 1];
+
+	Pb[0].insert(pair<string, double>("", 1));
+	Pnb[0].insert(pair<string, double>("", 0));
+
+	for (int t = 1; t <= length_event; t++) {
+		float *likelihood = &_likelihood[(t - 1) * number_labels];
+
+		set<string> A_next;
+
+		vector<pair<double, string>> v;
+
+		for (auto l = A_prev.begin(); l != A_prev.end(); l++) {
+			for (int c = 0; c < number_labels; c++) {
+				if (likelihood[c] > 0.00000001) {
+					if (label[c] == "") {
+						*Get_Probability(*l, Pb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
+						A_next.insert(*l);
+					}
+					else {
+						int index = static_cast<int>((*l).size() - label[c].size());
+
+						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + " " + label[c]) : (*l + label[c]));
+
+						if (index >= 0 && &(*l)[index] == label[c]) {
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pb[t - 1]);
+							*Get_Probability(*l, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pnb[t - 1]);
+						}
+						else {
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
+						}
+						if (A_prev.find(l_plus) == A_prev.end()) {
+							*Get_Probability(l_plus, Pb[t]) += likelihood[number_labels - 1] * (*Get_Probability(l_plus, Pb[t - 1]) + *Get_Probability(l_plus, Pnb[t - 1]));
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(l_plus, Pnb[t - 1]);
+						}
+						A_next.insert(l_plus);
+					}
+				}
+			}
+		}
+		A_prev.clear();
+
+		for (auto a = A_next.begin(); a != A_next.end(); a++) {
+			v.push_back(pair<double, string>(*Get_Probability(*a, Pb[t]) + *Get_Probability(*a, Pnb[t]), *a));
+		}
+		sort(v.begin(), v.end(), comparator);
+
+		for (int i = 0; i < k && i < static_cast<int>(v.size()); i++) {
+			A_prev.insert(v[i].second);
+		}
+	}
+	delete[] Pb;
+	delete[] Pnb;
+
+	istringstream iss(*A_prev.begin());
+
+	for (string s; getline(iss, s, ' ');) {
+		label_sequence.push_back(s);
+	}
+}
 
 Layer::Layer(string properties, int number_maps, int map_width, int map_height, int map_depth) {
 	this->map_width = map_width;
@@ -2856,8 +2926,16 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k) {
-	CTC->Best_Path_Decoding(length_event, likelihood, label_sequence);
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+	Decode(length_event, likelihood, label_sequence, 0, space_between_labels);
+}
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+	if (k == 0) {
+		CTC->Best_Path_Decoding(length_event, likelihood, label_sequence, space_between_labels);
+	}
+	else {
+		CTC->Prefix_Beam_Search_Decoding(length_event, likelihood, label_sequence, k, space_between_labels);
+	}
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
 	for (int i = 0; i < layer_height; i++) {
@@ -3277,7 +3355,7 @@ Layer* Neural_Networks::Get_Layer(int y, int x) {
 
 
 void Optimizer::Initialize(string type, double epsilon, double factor_1, double factor_2) {
-	string name[] = { "momentum", "nesterov", "adagrad", "rmsprop", "adadelta", "adam" };
+	string name[] = { "", "momentum", "nesterov", "adagrad", "rmsprop", "adadelta", "adam" };
 
 	this->epsilon = epsilon;
 	this->factor_1 = factor_1;
@@ -3288,12 +3366,13 @@ void Optimizer::Initialize(string type, double epsilon, double factor_1, double 
 	this->momentum = nullptr;
 	this->velocity = nullptr;
 
-	for (int i = 0; i < 6; i++) {
+	for (int i = 0; i < 7; i++) {
 		if (type == name[i]) {
-			this->type = i + 1;
-			break;
+			this->type = i;
+			return;
 		}
 	}
+	cerr << "[Initialize], unexpected type: " << type << endl;
 }
 
 Optimizer::Optimizer() {

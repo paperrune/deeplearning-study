@@ -1,8 +1,11 @@
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <math.h>
 #include <memory.h>
 #include <random>
+#include <set>
+#include <sstream>
 #include <unordered_map>
 
 #include "Neural_Networks.h"
@@ -476,6 +479,16 @@ double Connectionist_Temporal_Classification::Log_Add(double a, double b) {
 	return (max + log1p(exp(a + b - 2 * max)));
 }
 
+double *Connectionist_Temporal_Classification::Get_Probability(string label, unordered_map<string, double> &probability) {
+	auto p = probability.find(label);
+
+	if (p == probability.end()) {
+		probability.insert(pair<string, double>(label, 0));
+		p = probability.find(label);
+	}
+	return &p->second;
+}
+
 Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[]) {
 	this->number_labels = number_labels;
 	this->label = new string[number_labels];
@@ -488,7 +501,13 @@ Connectionist_Temporal_Classification::~Connectionist_Temporal_Classification() 
 	delete[] label;
 }
 
-void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence) {
+bool comparator(const pair<double, string> &a, const pair<double, string> &b) {
+	return a.first > b.first;
+}
+
+void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+	string token;
+
 	for (int t = 0, argmax, previous_state = number_labels - 1; t < length_event; t++) {
 		float max;
 
@@ -500,11 +519,78 @@ void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event,
 			}
 		}
 		if (previous_state != argmax) {
-			if (label[argmax].size()) {
-				label_sequence.push_back(label[argmax]);
+			token += label[argmax];
+
+			if ((space_between_labels && !token.empty()) || label[argmax] == " ") {
+				label_sequence.push_back(token);
+				token.clear();
 			}
 			previous_state = argmax;
 		}
+	}
+}
+void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+	set<string> A_prev = { "" };
+
+	unordered_map<string, double> *Pb = new unordered_map<string, double>[length_event + 1];
+	unordered_map<string, double> *Pnb = new unordered_map<string, double>[length_event + 1];
+
+	Pb[0].insert(pair<string, double>("", 1));
+	Pnb[0].insert(pair<string, double>("", 0));
+
+	for (int t = 1; t <= length_event; t++) {
+		float *likelihood = &_likelihood[(t - 1) * number_labels];
+
+		set<string> A_next;
+
+		vector<pair<double, string>> v;
+
+		for (auto l = A_prev.begin(); l != A_prev.end(); l++) {
+			for (int c = 0; c < number_labels; c++) {
+				if (likelihood[c] > 0.00000001) {
+					if (label[c] == "") {
+						*Get_Probability(*l, Pb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
+						A_next.insert(*l);
+					}
+					else {
+						int index = static_cast<int>((*l).size() - label[c].size());
+
+						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + " " + label[c]) : (*l + label[c]));
+
+						if (index >= 0 && &(*l)[index] == label[c]) {
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pb[t - 1]);
+							*Get_Probability(*l, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pnb[t - 1]);
+						}
+						else {
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
+						}
+						if (A_prev.find(l_plus) == A_prev.end()) {
+							*Get_Probability(l_plus, Pb[t]) += likelihood[number_labels - 1] * (*Get_Probability(l_plus, Pb[t - 1]) + *Get_Probability(l_plus, Pnb[t - 1]));
+							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(l_plus, Pnb[t - 1]);
+						}
+						A_next.insert(l_plus);
+					}
+				}
+			}
+		}
+		A_prev.clear();
+
+		for (auto a = A_next.begin(); a != A_next.end(); a++) {
+			v.push_back(pair<double, string>(*Get_Probability(*a, Pb[t]) + *Get_Probability(*a, Pnb[t]), *a));
+		}
+		sort(v.begin(), v.end(), comparator);
+
+		for (int i = 0; i < k && i < static_cast<int>(v.size()); i++) {
+			A_prev.insert(v[i].second);
+		}
+	}
+	delete[] Pb;
+	delete[] Pnb;
+
+	istringstream iss(*A_prev.begin());
+
+	for (string s; getline(iss, s, ' ');) {
+		label_sequence.push_back(s);
 	}
 }
 
@@ -2325,8 +2411,16 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k) {
-	CTC->Best_Path_Decoding(length_event, likelihood, label_sequence);
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+	Decode(length_event, likelihood, label_sequence, 0, space_between_labels);
+}
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+	if (k == 0) {
+		CTC->Best_Path_Decoding(length_event, likelihood, label_sequence, space_between_labels);
+	}
+	else {
+		CTC->Prefix_Beam_Search_Decoding(length_event, likelihood, label_sequence, k, space_between_labels);
+	}
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
 	for (int i = 0; i < layer_height; i++) {
