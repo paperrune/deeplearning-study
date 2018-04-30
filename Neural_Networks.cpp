@@ -2339,6 +2339,8 @@ Neural_Networks::Neural_Networks(string path) {
 		file >> number_connections;
 		file >> number_layers;
 		file >> time_step;
+		gradient_threshold = 0;
+		CTC = nullptr;
 
 		for (int i = 0, index, map_depth, map_height, map_width, mask, number_maps; i < number_layers; i++) {
 			string properties;
@@ -2377,11 +2379,11 @@ Neural_Networks::Neural_Networks(string path) {
 			connection.push_back(this->layer[index[0]][index[1]]->Connect(this->layer[index[2]][index[3]], properties));
 		}
 		layer_height = static_cast<int>(this->layer.size());
-		Resize_Memory(1);
+		Resize_Memory(1, time_step);
+		Set_Epsilon(epsilon);
 
 		for (int i = 0; i < number_layers; i++) {
 			layer[i]->Load(file);
-			layer[i]->Set_Epsilon(epsilon);
 		}
 		for (int i = 0; i < number_connections; i++) {
 			connection[i]->Load(file);
@@ -2456,7 +2458,7 @@ void Neural_Networks::Save(string path) {
 			file << layer->map_width << endl;
 			file << layer->number_maps << endl;
 			file << layer->properties << endl;
-			file << i << endl << endl;
+			file << i << endl;
 
 			if (layer->time_mask) {
 				file << 1 << endl;
@@ -2468,6 +2470,7 @@ void Neural_Networks::Save(string path) {
 			else {
 				file << 0 << endl;
 			}
+			file << endl;
 		}
 	}
 

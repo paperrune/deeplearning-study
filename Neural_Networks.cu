@@ -943,7 +943,7 @@ __global__ void Add(int memory_size, float input[], float operand[], float outpu
 __global__ void Random_Normal(int memory_size, float memory[], double scale, int seed = 0) {
 	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < memory_size; j += gridDim.x * blockDim.x) {
 		curandState s[NUMBER_THREADS];
-		
+
 		curand_init(seed + j, 0, 0, &s[threadIdx.x]);
 		memory[j] = scale * curand_normal(&s[threadIdx.x]);
 	}
@@ -1270,7 +1270,7 @@ void Batch_Normalization::Set_Optimizer(Optimizer *optimizer) {
 
 double Batch_Normalization::Calculate_Gradient(double learning_rate) {
 	float sum_gradient = 0, *gradient;
-	
+
 	cudaMalloc(&gradient, sizeof(float) * number_maps);
 
 	::Calculate_Gradient << <number_maps, NUMBER_THREADS >> > (gradient, learning_rate, *this, *gamma_optimizer, *beta_optimizer);
@@ -1437,7 +1437,7 @@ Connectionist_Temporal_Classification::~Connectionist_Temporal_Classification() 
 
 void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, bool space_between_labels) {
 	string token;
-	
+
 	for (int t = 0, argmax, previous_state = number_labels - 1; t < length_event; t++) {
 		float max;
 
@@ -2607,7 +2607,7 @@ void Neural_Networks::Resize_Memory(int batch_size, int time_step) {
 		this->time_step = time_step;
 	}
 }
-void Neural_Networks::Zero_Memory(){
+void Neural_Networks::Zero_Memory() {
 	for (int i = 1; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			int memory_size = sizeof(float) * batch_size * time_step * layer[i][j]->number_nodes;
@@ -2630,7 +2630,7 @@ void Neural_Networks::Zero_Memory(){
 			}
 			cudaMemset(layer->error[0], 0, memory_size);
 		}
-	}	
+	}
 }
 
 double Neural_Networks::Calculate_Gradient(Layer *layer, double learning_rate, bool backward) {
@@ -2853,6 +2853,8 @@ Neural_Networks::Neural_Networks(string path) {
 		file >> number_connections;
 		file >> number_layers;
 		file >> time_step;
+		gradient_threshold = 0;
+		CTC = nullptr;
 
 		for (int i = 0, index, map_depth, map_height, map_width, mask, number_maps; i < number_layers; i++) {
 			string properties;
@@ -2891,11 +2893,11 @@ Neural_Networks::Neural_Networks(string path) {
 			connection.push_back(this->layer[index[0]][index[1]]->Connect(this->layer[index[2]][index[3]], properties));
 		}
 		layer_height = static_cast<int>(this->layer.size());
-		Resize_Memory(1);
+		Resize_Memory(1, time_step);
+		Set_Epsilon(epsilon);
 
 		for (int i = 0; i < number_layers; i++) {
 			layer[i]->Load(file);
-			layer[i]->Set_Epsilon(epsilon);
 		}
 		for (int i = 0; i < number_connections; i++) {
 			connection[i]->Load(file);
@@ -2971,7 +2973,7 @@ void Neural_Networks::Save(string path) {
 			file << layer->map_width << endl;
 			file << layer->number_maps << endl;
 			file << layer->properties << endl;
-			file << i << endl << endl;
+			file << i << endl;
 
 			if (layer->time_mask) {
 				file << 1 << endl;
@@ -2983,6 +2985,7 @@ void Neural_Networks::Save(string path) {
 			else {
 				file << 0 << endl;
 			}
+			file << endl;
 		}
 	}
 
@@ -3062,7 +3065,7 @@ void Neural_Networks::Test(float input[], float output[], int _length_data) {
 
 	Test(1, &input, &output, length_data);
 }
-void Neural_Networks::Test(int batch_size, float **_input, float **_output, int length_data[]) {	
+void Neural_Networks::Test(int batch_size, float **_input, float **_output, int length_data[]) {
 	float ***input = new float**[batch_size];
 	float ***output = new float**[batch_size];
 
@@ -3075,7 +3078,7 @@ void Neural_Networks::Test(int batch_size, float **_input, float **_output, int 
 	delete[] input;
 	delete[] output;
 }
-void Neural_Networks::Test(int batch_size, float ***input, float ***output, int length_data[]) {	
+void Neural_Networks::Test(int batch_size, float ***input, float ***output, int length_data[]) {
 	Resize_Memory(batch_size);
 	FloatToNode(input, layer[0], length_data);
 	Zero_Memory();
@@ -3284,7 +3287,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			}
 
 			// adjust parameter
-			for (int i = layer_height - 1;  i > 0; i--) {
+			for (int i = layer_height - 1; i > 0; i--) {
 				for (int j = 0; j < layer[i].size(); j++) {
 					Adjust_Parameter(layer[i][j], gradient_clip, learning_rate);
 				}
@@ -3347,7 +3350,7 @@ Layer* Neural_Networks::Add(Layer *layer, int index) {
 	return layer;
 }
 Layer* Neural_Networks::Get_Layer(int y, int x) {
-	if (y >= layer_height || layer[y].size() <= x) {
+	if (y >= layer_height || static_cast<int>(layer[y].size()) <= x) {
 		return nullptr;
 	}
 	return layer[y][x];
