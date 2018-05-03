@@ -107,24 +107,26 @@ private:
 
 	int Search_Label(string label);
 
-	double Backward_Algorithm(vector<string> label_sequence, int length_event, double **beta, float likelihood[]);
-	double Forward_Algorithm(vector<string> label_sequence, int length_event, double **alpha, float likelihood[]);
+	double Backward_Algorithm(vector<string> &reference, int length_event, double **beta, float likelihood[]);
+	double Forward_Algorithm(vector<string> &reference, int length_event, double **alpha, float likelihood[]);
 	double Log_Add(double a, double b);
 
 	double *Get_Probability(string label, unordered_map<string, double> &probability);
 public:
 	int number_labels;
 
+	string blank;
+	string space;
 	string *label;
 
-	Connectionist_Temporal_Classification(int number_labels, string label[]);
+	Connectionist_Temporal_Classification(int number_labels, string label[], string blank = "", string space = " ");
 	~Connectionist_Temporal_Classification();
 
-	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels = false);
-	void Calculate_Error(vector<string> target_label_sequence[], int batch_size, int time_step, int length_event[], float error[], float likelihood[], double log_likelihood[]);
-	void Prefix_Beam_Search_Decoding(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels = false);
+	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels = false);
+	void Calculate_Error(vector<string> reference[], int batch_size, int time_step, int length_event[], float error[], float likelihood[], double log_likelihood[]);
+	void Prefix_Search_Decoding(int length_event, float likelihood[], vector<string> &hypothesis, int k, bool space_between_labels = false);
 
-	double Calculate_Error(vector<string> target_label_sequence, int length_event, float error[], float likelihood[]);
+	double Calculate_Error(vector<string> &reference, int length_event, float error[], float likelihood[]);
 };
 
 class Layer {
@@ -242,7 +244,7 @@ private:
 
 	double Calculate_Gradient(Layer *layer, double learning_rate, bool reverse = false);
 	double Differentiate(Layer *layer, float target_output[], int time_index);
-	double Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]);
+	double Differentiate(Layer *layer, int length_data[], vector<string> reference[]);
 public:
 	int layer_height;
 	int time_step;
@@ -253,11 +255,11 @@ public:
 	Neural_Networks(int time_step = 1);
 	~Neural_Networks();
 
-	void Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels = false);
-	void Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k = 0, bool space_between_labels = false);
+	void Decode(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels = false);
+	void Decode(int length_event, float likelihood[], vector<string> &hypothesis, int k = 0, bool space_between_labels = false);
 	void Initialize(double scale, double gamma = 1);
 	void Save(string path);
-	void Set_CTC_Loss(int number_labels, string label[]);
+	void Set_CTC_Loss(int number_labels, string label[], string blank = "", string space = " ");
 	void Set_Epsilon(double epsilon);
 	void Set_Gradient_Threshold(double gradient_threshold);
 	void Set_Optimizer(Optimizer *optimizer);
@@ -267,9 +269,9 @@ public:
 
 	double Train(int batch_size, int number_training, float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 	double Train(int batch_size, int number_training, int length_data[], float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, float **input, vector<string> target_label_sequence[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, int length_data[], float **input, vector<string> target_label_sequence[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> target_label_sequence[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
+	double Train(int batch_size, int number_training, float **input, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
+	double Train(int batch_size, int number_training, int length_data[], float **input, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
+	double Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 
 	Layer* Add(Layer *layer, int index = -1);
 	Layer* Get_Layer(int y = 0, int x = 0);

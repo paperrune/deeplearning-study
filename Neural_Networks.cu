@@ -1000,33 +1000,33 @@ __device__ double Log_Add(double a, double b) {
 
 	return (max + log1p(exp(a + b - 2 * max)));
 }
-__device__ void Backward_Algorithm(int number_labels, int length_event, int length_label_sequence, int maximum_length_label_sequence, int label_sequence[], float _likelihood[], double &log_likelihood, double beta[]) {
+__device__ void Backward_Algorithm(int number_labels, int length_event, int length_reference, int maximum_length_reference, int label_sequence[], float _likelihood[], double &log_likelihood, double beta[]) {
 	// if (threadIdx.x == 0) log_likelihood = 0;
 
 	for (int t = length_event - 1; t >= 0; t--) {
-		int index = t * maximum_length_label_sequence;
+		int index = t * maximum_length_reference;
 
 		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = __longlong_as_double(0xfff0000000000000ULL);
 
 		if (t == length_event - 1) {
-			for (int s = threadIdx.x; s < length_label_sequence; s += blockDim.x) {
-				beta[index + s] = log((s >= length_label_sequence - 2) * likelihood[label_sequence[s]]);
+			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
+				beta[index + s] = log((s >= length_reference - 2) * likelihood[label_sequence[s]]);
 			}
 		}
 		else {
-			int next_index = (t + 1) * maximum_length_label_sequence;
+			int next_index = (t + 1) * maximum_length_reference;
 
-			for (int s = threadIdx.x; s < length_label_sequence; s += blockDim.x) {
+			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
 				double sum = __longlong_as_double(0xfff0000000000000ULL);
 
 				if (s <= 2 * t + 1) {
-					if (label_sequence[s] == number_labels - 1 || (s <= length_label_sequence - 3 && label_sequence[s + 2] == label_sequence[s])) {
-						sum = (s == length_label_sequence - 1) ? (beta[next_index + s]) : (Log_Add(beta[next_index + s], beta[next_index + s + 1]));
+					if (label_sequence[s] == number_labels - 1 || (s <= length_reference - 3 && label_sequence[s + 2] == label_sequence[s])) {
+						sum = (s == length_reference - 1) ? (beta[next_index + s]) : (Log_Add(beta[next_index + s], beta[next_index + s + 1]));
 					}
 					else {
-						sum = (s == length_label_sequence - 2) ? (Log_Add(beta[next_index + s], beta[next_index + s + 1])) : (Log_Add(Log_Add(beta[next_index + s], beta[next_index + s + 1]), beta[next_index + s + 2]));
+						sum = (s == length_reference - 2) ? (Log_Add(beta[next_index + s], beta[next_index + s + 1])) : (Log_Add(Log_Add(beta[next_index + s], beta[next_index + s + 1]), beta[next_index + s + 2]));
 					}
 				}
 				beta[index + s] = sum + log(likelihood[label_sequence[s]]);
@@ -1035,10 +1035,10 @@ __device__ void Backward_Algorithm(int number_labels, int length_event, int leng
 		__syncthreads();
 
 		if (threadIdx.x == 0) {
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				sum = Log_Add(sum, beta[index + s]);
 			}
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				beta[index + s] -= sum;
 			}
 			// log_likelihood += sum;
@@ -1046,28 +1046,28 @@ __device__ void Backward_Algorithm(int number_labels, int length_event, int leng
 		__syncthreads();
 	}
 }
-__device__ void Forward_Algorithm(int number_labels, int length_event, int length_label_sequence, int maximum_length_label_sequence, int label_sequence[], float _likelihood[], double &log_likelihood, double alpha[]) {
+__device__ void Forward_Algorithm(int number_labels, int length_event, int length_reference, int maximum_length_reference, int label_sequence[], float _likelihood[], double &log_likelihood, double alpha[]) {
 	if (threadIdx.x == 0) log_likelihood = 0;
 
 	for (int t = 0; t < length_event; t++) {
-		int index = t * maximum_length_label_sequence;
+		int index = t * maximum_length_reference;
 
 		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = __longlong_as_double(0xfff0000000000000ULL);
 
 		if (t == 0) {
-			for (int s = threadIdx.x; s < length_label_sequence; s += blockDim.x) {
+			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
 				alpha[index + s] = log((s <= 1) * likelihood[label_sequence[s]]);
 			}
 		}
 		else {
-			int previous_index = (t - 1) * maximum_length_label_sequence;
+			int previous_index = (t - 1) * maximum_length_reference;
 
-			for (int s = threadIdx.x; s < length_label_sequence; s += blockDim.x) {
+			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
 				double sum = __longlong_as_double(0xfff0000000000000ULL);
 
-				if (s >= (length_label_sequence - 1) - 2 * ((length_event - 1) - t) - 1) {
+				if (s >= (length_reference - 1) - 2 * ((length_event - 1) - t) - 1) {
 					if (label_sequence[s] == number_labels - 1 || (s >= 2 && label_sequence[s - 2] == label_sequence[s])) {
 						sum = (s == 0) ? (alpha[previous_index + s]) : (Log_Add(alpha[previous_index + s], alpha[previous_index + s - 1]));
 					}
@@ -1081,10 +1081,10 @@ __device__ void Forward_Algorithm(int number_labels, int length_event, int lengt
 		__syncthreads();
 
 		if (threadIdx.x == 0) {
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				sum = Log_Add(sum, alpha[index + s]);
 			}
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				alpha[index + s] -= sum;
 			}
 			log_likelihood += sum;
@@ -1093,29 +1093,29 @@ __device__ void Forward_Algorithm(int number_labels, int length_event, int lengt
 	}
 }
 
-__global__ void Calculate_Error(int maximum_length_label_sequence, int number_labels, int time_step, int length_event[], int length_label_sequence[], int _label_sequence[], float _error[], float _likelihood[], double _alpha[], double _beta[], double log_likelihood[]) {
+__global__ void Calculate_Error(int maximum_length_reference, int number_labels, int time_step, int length_event[], int length_reference[], int _label_sequence[], float _error[], float _likelihood[], double _alpha[], double _beta[], double log_likelihood[]) {
 	int h = blockIdx.x;
 
-	int *label_sequence = &_label_sequence[h * maximum_length_label_sequence];
+	int *label_sequence = &_label_sequence[h * maximum_length_reference];
 
 	float *error = &_error[h * time_step * number_labels];
 	float *likelihood = &_likelihood[h * time_step * number_labels];
 
-	double *alpha = &_alpha[h * time_step * maximum_length_label_sequence];
-	double *beta = &_beta[h * time_step * maximum_length_label_sequence];
+	double *alpha = &_alpha[h * time_step * maximum_length_reference];
+	double *beta = &_beta[h * time_step * maximum_length_reference];
 
-	Forward_Algorithm(number_labels, length_event[h], length_label_sequence[h], maximum_length_label_sequence, label_sequence, likelihood, log_likelihood[h], alpha);
-	Backward_Algorithm(number_labels, length_event[h], length_label_sequence[h], maximum_length_label_sequence, label_sequence, likelihood, log_likelihood[h], beta);
+	Forward_Algorithm(number_labels, length_event[h], length_reference[h], maximum_length_reference, label_sequence, likelihood, log_likelihood[h], alpha);
+	Backward_Algorithm(number_labels, length_event[h], length_reference[h], maximum_length_reference, label_sequence, likelihood, log_likelihood[h], beta);
 
 	for (int s = threadIdx.x; s < length_event[h] * number_labels; s += blockDim.x) {
 		int t = s / number_labels;
 		int i = s % number_labels;
 
-		int index[2] = { t * number_labels, t * maximum_length_label_sequence };
+		int index[2] = { t * number_labels, t * maximum_length_reference };
 
 		double sum[2] = { __longlong_as_double(0xfff0000000000000ULL), __longlong_as_double(0xfff0000000000000ULL) };
 
-		for (int j = 0; j < length_label_sequence[h]; j++) {
+		for (int j = 0; j < length_reference[h]; j++) {
 			int k = label_sequence[j];
 
 			if (i == k) {
@@ -1144,7 +1144,9 @@ Batch_Normalization::Batch_Normalization(int number_maps, int map_size) {
 	beta_optimizer->Resize_Memory(number_maps);
 
 	cudaMalloc(&mean, sizeof(float) * number_maps);
+	cudaMemset(mean, 0, sizeof(float) * number_maps);
 	cudaMalloc(&variance, sizeof(float) * number_maps);
+	cudaMemset(variance, 0, sizeof(float) * number_maps);
 	cudaMalloc(&sum_mean, sizeof(float) * number_maps);
 	cudaMemset(sum_mean, 0, sizeof(float) * number_maps);
 	cudaMalloc(&sum_variance, sizeof(float) * number_maps);
@@ -1165,8 +1167,12 @@ void Batch_Normalization::Adjust_Parameter(double gradient_clip, double learning
 	::Adjust_Parameter << < number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (number_maps, beta, gradient_clip, learning_rate, *beta_optimizer);
 }
 void Batch_Normalization::Calculate_Mean_Variance(int number_batches) {
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, 1.0 / number_batches, mean);
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, batch_size / ((batch_size - 1.0) * number_batches), variance);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, mean, 0.5, mean);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, variance, 0.5, variance);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, 0.5 * 1.0 / number_batches, sum_mean);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, 0.5 * batch_size / ((batch_size - 1.0) * number_batches), sum_variance);
+	Add << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, mean, mean);
+	Add << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, variance, variance);
 	cudaMemset(sum_mean, 0, sizeof(float) * time_step * number_maps);
 	cudaMemset(sum_variance, 0, sizeof(float) * time_step * number_maps);
 }
@@ -1194,6 +1200,8 @@ void Batch_Normalization::Differentiate(float error[], int time_index) {
 void Batch_Normalization::Initialize(double gamma) {
 	Set << <number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (number_maps, this->gamma, gamma);
 	cudaMemset(beta, 0, sizeof(float) * number_maps);
+	cudaMemset(mean, 0, sizeof(float) * number_maps);
+	cudaMemset(variance, 0, sizeof(float) * number_maps);
 	cudaMemset(sum_mean, 0, sizeof(float) * time_step * number_maps);
 	cudaMemset(sum_variance, 0, sizeof(float) * time_step * number_maps);
 }
@@ -1224,7 +1232,9 @@ void Batch_Normalization::Resize_Memory(int batch_size, int time_step) {
 			cudaFree(sum_variance);
 
 			cudaMalloc(&mean, memory_size);
+			cudaMemset(mean, 0, memory_size);
 			cudaMalloc(&variance, memory_size);
+			cudaMemset(variance, 0, memory_size);
 			cudaMalloc(&sum_mean, memory_size);
 			cudaMemset(sum_mean, 0, memory_size);
 			cudaMalloc(&sum_variance, memory_size);
@@ -1423,9 +1433,11 @@ double *Connectionist_Temporal_Classification::Get_Probability(string label, uno
 	return &p->second;
 }
 
-Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[]) {
+Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[], string blank, string space) {
 	this->number_labels = number_labels;
+	this->blank = blank;
 	this->label = new string[number_labels];
+	this->space = space;
 
 	for (int i = 0; i < number_labels; i++) {
 		label_index.insert(pair<string, int>(this->label[i] = label[i], i));
@@ -1435,7 +1447,7 @@ Connectionist_Temporal_Classification::~Connectionist_Temporal_Classification() 
 	delete[] label;
 }
 
-void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &hypothesis, bool space_between_labels) {
 	string token;
 
 	for (int t = 0, argmax, previous_state = number_labels - 1; t < length_event; t++) {
@@ -1451,51 +1463,51 @@ void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event,
 		if (previous_state != argmax) {
 			token += label[argmax];
 
-			if ((space_between_labels && !token.empty()) || label[argmax] == " ") {
-				label_sequence.push_back(token);
+			if ((space_between_labels && !token.empty()) || label[argmax] == space) {
+				hypothesis.push_back(token);
 				token.clear();
 			}
 			previous_state = argmax;
 		}
 	}
 }
-void Connectionist_Temporal_Classification::Calculate_Error(vector<string> target_label_sequence[], int batch_size, int time_step, int _length_event[], float error[], float likelihood[], double _log_likelihood[]) {
-	int maximum_length_label_sequence = 0;
+void Connectionist_Temporal_Classification::Calculate_Error(vector<string> reference[], int batch_size, int time_step, int _length_event[], float error[], float likelihood[], double _log_likelihood[]) {
+	int maximum_length_refernece = 0;
 
 	int *label_sequence;
 	int *length_event;
-	int *length_label_sequence;
+	int *length_reference;
 
 	double *alpha;
 	double *beta;
 	double *log_likelihood;
 
 	for (int h = 0; h < batch_size; h++) {
-		if (maximum_length_label_sequence < static_cast<int>(target_label_sequence[h].size())) {
-			maximum_length_label_sequence = static_cast<int>(target_label_sequence[h].size());
+		if (maximum_length_refernece < static_cast<int>(reference[h].size())) {
+			maximum_length_refernece = static_cast<int>(reference[h].size());
 		}
 	}
-	cudaMalloc(&label_sequence, sizeof(int) * batch_size * maximum_length_label_sequence);
+	cudaMalloc(&label_sequence, sizeof(int) * batch_size * maximum_length_refernece);
 	cudaMalloc(&length_event, sizeof(int) * batch_size);
 	cudaMemcpy(length_event, _length_event, sizeof(int) * batch_size, cudaMemcpyHostToDevice);
-	cudaMalloc(&length_label_sequence, sizeof(int) * batch_size);
+	cudaMalloc(&length_reference, sizeof(int) * batch_size);
 
 	for (int h = 0; h < batch_size; h++) {
-		int *label_index = new int[target_label_sequence[h].size()], length_label = static_cast<int>(target_label_sequence[h].size());
+		int *label_index = new int[reference[h].size()], length_label = static_cast<int>(reference[h].size());
 
-		for (int t = 0; t < target_label_sequence[h].size(); t++) {
-			label_index[t] = Search_Label(target_label_sequence[h][t]);
+		for (int t = 0; t < reference[h].size(); t++) {
+			label_index[t] = Search_Label(reference[h][t]);
 		}
-		cudaMemcpy(&label_sequence[h * maximum_length_label_sequence], label_index, sizeof(int) * target_label_sequence[h].size(), cudaMemcpyHostToDevice);
-		cudaMemcpy(&length_label_sequence[h], &length_label, sizeof(int), cudaMemcpyHostToDevice);
+		cudaMemcpy(&label_sequence[h * maximum_length_refernece], label_index, sizeof(int) * reference[h].size(), cudaMemcpyHostToDevice);
+		cudaMemcpy(&length_reference[h], &length_label, sizeof(int), cudaMemcpyHostToDevice);
 
 		delete[] label_index;
 	}
-	cudaMalloc(&alpha, sizeof(double) * batch_size * time_step * maximum_length_label_sequence);
-	cudaMalloc(&beta, sizeof(double) * batch_size * time_step * maximum_length_label_sequence);
+	cudaMalloc(&alpha, sizeof(double) * batch_size * time_step * maximum_length_refernece);
+	cudaMalloc(&beta, sizeof(double) * batch_size * time_step * maximum_length_refernece);
 	cudaMalloc(&log_likelihood, sizeof(double) * batch_size);
 
-	::Calculate_Error << <batch_size, NUMBER_THREADS >> > (maximum_length_label_sequence, number_labels, time_step, length_event, length_label_sequence, label_sequence, error, likelihood, alpha, beta, log_likelihood);
+	::Calculate_Error << <batch_size, NUMBER_THREADS >> > (maximum_length_refernece, number_labels, time_step, length_event, length_reference, label_sequence, error, likelihood, alpha, beta, log_likelihood);
 
 	cudaMemcpy(_log_likelihood, log_likelihood, sizeof(double) * batch_size, cudaMemcpyDeviceToHost);
 
@@ -1503,7 +1515,7 @@ void Connectionist_Temporal_Classification::Calculate_Error(vector<string> targe
 	cudaFree(beta);
 	cudaFree(label_sequence);
 	cudaFree(length_event);
-	cudaFree(length_label_sequence);
+	cudaFree(length_reference);
 	cudaFree(log_likelihood);
 }
 
@@ -1511,7 +1523,7 @@ bool comparator(const pair<double, string> &a, const pair<double, string> &b) {
 	return a.first > b.first;
 }
 
-void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+void Connectionist_Temporal_Classification::Prefix_Search_Decoding(int length_event, float _likelihood[], vector<string> &hypothesis, int k, bool space_between_labels) {
 	set<string> A_prev = { "" };
 
 	unordered_map<string, double> *Pb = new unordered_map<string, double>[length_event + 1];
@@ -1530,14 +1542,14 @@ void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int leng
 		for (auto l = A_prev.begin(); l != A_prev.end(); l++) {
 			for (int c = 0; c < number_labels; c++) {
 				if (likelihood[c] > 0.00000001) {
-					if (label[c] == "") {
+					if (label[c] == blank) {
 						*Get_Probability(*l, Pb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
 						A_next.insert(*l);
 					}
 					else {
 						int index = static_cast<int>((*l).size() - label[c].size());
 
-						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + " " + label[c]) : (*l + label[c]));
+						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + space + label[c]) : (*l + label[c]));
 
 						if (index >= 0 && &(*l)[index] == label[c]) {
 							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pb[t - 1]);
@@ -1572,7 +1584,7 @@ void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int leng
 	istringstream iss(*A_prev.begin());
 
 	for (string s; getline(iss, s, ' ');) {
-		label_sequence.push_back(s);
+		hypothesis.push_back(s);
 	}
 }
 
@@ -2810,31 +2822,28 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 	}
 	return sum;
 }
-double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]) {
+double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<string> _reference[]) {
 	double sum = 0;
 
 	if (CTC && strstr(layer->properties.c_str(), "CTC")) {
 		double *log_likelihood = new double[batch_size];
 
-		vector<string> *label_sequence = new vector<string>[batch_size];
+		vector<string> *reference = new vector<string>[batch_size];
 
 		for (int h = 0; h < batch_size; h++) {
-			for (int j = 0; j < target_label_sequence[h].size(); j++) {
-				label_sequence[h].push_back("");
-				label_sequence[h].push_back(target_label_sequence[h][j]);
+			for (int j = 0; j < _reference[h].size(); j++) {
+				reference[h].push_back(CTC->blank);
+				reference[h].push_back(_reference[h][j]);
 			}
-			label_sequence[h].push_back("");
+			reference[h].push_back(CTC->blank);
 		}
-		CTC->Calculate_Error(label_sequence, batch_size, time_step, length_data, layer->error[0], layer->neuron[0], log_likelihood);
+		CTC->Calculate_Error(reference, batch_size, time_step, length_data, layer->error[0], layer->neuron[0], log_likelihood);
 
 		for (int h = 0; h < batch_size; h++) {
 			sum += log_likelihood[h];
 		}
-		delete[] label_sequence;
 		delete[] log_likelihood;
-	}
-	for (int t = time_step - 1; t >= 0; t--) {
-		// Differentiate(layer, nullptr, t);
+		delete[] reference;
 	}
 	return sum;
 }
@@ -2928,15 +2937,15 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels) {
-	Decode(length_event, likelihood, label_sequence, 0, space_between_labels);
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels) {
+	Decode(length_event, likelihood, hypothesis, 0, space_between_labels);
 }
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, int k, bool space_between_labels) {
 	if (k == 0) {
-		CTC->Best_Path_Decoding(length_event, likelihood, label_sequence, space_between_labels);
+		CTC->Best_Path_Decoding(length_event, likelihood, hypothesis, space_between_labels);
 	}
 	else {
-		CTC->Prefix_Beam_Search_Decoding(length_event, likelihood, label_sequence, k, space_between_labels);
+		CTC->Prefix_Search_Decoding(length_event, likelihood, hypothesis, k, space_between_labels);
 	}
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
@@ -3018,7 +3027,7 @@ void Neural_Networks::Save(string path) {
 	}
 	file.close();
 }
-void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
+void Neural_Networks::Set_CTC_Loss(int number_labels, string label[], string blank, string space) {
 	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			if (strstr(layer[i][j]->properties.c_str(), "CTC")) {
@@ -3029,7 +3038,7 @@ void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
 				if (CTC) {
 					delete CTC;
 				}
-				CTC = new Connectionist_Temporal_Classification(number_labels, label);
+				CTC = new Connectionist_Temporal_Classification(number_labels, label, blank, space);
 				return;
 			}
 		}
@@ -3124,10 +3133,10 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 	return loss;
 }
-double Neural_Networks::Train(int batch_size, int number_training, float **input, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
-	return Train(batch_size, number_training, nullptr, input, target_label_sequence, learning_rate, epsilon, noise_standard_deviation);
+double Neural_Networks::Train(int batch_size, int number_training, float **input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
+	return Train(batch_size, number_training, nullptr, input, reference, learning_rate, epsilon, noise_standard_deviation);
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	double loss;
 
 	float ***input = new float**[number_training];
@@ -3135,22 +3144,22 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	for (int h = 0; h < number_training; h++) {
 		input[h] = &_input[h];
 	}
-	loss = Train(batch_size, number_training, length_data, input, nullptr, target_label_sequence, learning_rate, epsilon, noise_standard_deviation);
+	loss = Train(batch_size, number_training, length_data, input, nullptr, reference, learning_rate, epsilon, noise_standard_deviation);
 
 	delete[] input;
 
 	return loss;
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	int *index = new int[number_training];
-	int *length_data_batch = (target_label_sequence && length_data) ? (new int[batch_size]) : (nullptr);
+	int *length_data_batch = (reference && length_data) ? (new int[batch_size]) : (nullptr);
 
 	float **input_batch = new float*[layer[0].size()];
 	float **target_output_batch = (target_output) ? (new float*[layer[layer_height - 1].size()]) : (nullptr);
 
 	double sum = 0;
 
-	vector<string> *target_label_sequence_batch = (target_label_sequence) ? (new vector<string>[batch_size]) : (nullptr);
+	vector<string> *reference_batch = (reference) ? (new vector<string>[batch_size]) : (nullptr);
 
 	for (int i = 0; i < number_training; i++) {
 		index[i] = i;
@@ -3181,11 +3190,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			cudaMemset(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			cudaMemcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
-		if (target_label_sequence) {
+		if (reference) {
 			if (length_data) {
 				length_data_batch[h] = length_data[index[g]];
 			}
-			target_label_sequence_batch[h] = target_label_sequence[index[g]];
+			reference_batch[h] = reference[index[g]];
 		}
 
 		if (++h == batch_size) {
@@ -3253,7 +3262,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 					Layer *layer = this->layer[i][j];
 
 					if (strstr(layer->properties.c_str(), "CTC")) {
-						sum += Differentiate(layer, length_data_batch, target_label_sequence_batch);
+						sum += Differentiate(layer, length_data_batch, reference_batch);
 
 						for (int t = 0; t < time_step; t++) {
 							Backpropagate(layer, t);
@@ -3321,11 +3330,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 		}
 		delete[] target_output_batch;
 	}
-	if (target_label_sequence) {
+	if (reference) {
 		if (length_data) {
 			delete[] length_data_batch;
 		}
-		delete[] target_label_sequence_batch;
+		delete[] reference_batch;
 	}
 	delete[] index;
 	delete[] input_batch;

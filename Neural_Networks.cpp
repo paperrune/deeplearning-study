@@ -387,76 +387,76 @@ int Connectionist_Temporal_Classification::Search_Label(string label) {
 	return -1;
 }
 
-double Connectionist_Temporal_Classification::Backward_Algorithm(vector<string> label_sequence, int length_event, double **beta, float _likelihood[]) {
+double Connectionist_Temporal_Classification::Backward_Algorithm(vector<string> &reference, int length_event, double **beta, float _likelihood[]) {
 	double log_likelihood = 0;
 
-	for (int t = length_event - 1, length_label_sequence = static_cast<int>(label_sequence.size()); t >= 0; t--) {
+	for (int t = length_event - 1, length_reference = static_cast<int>(reference.size()); t >= 0; t--) {
 		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = -numeric_limits<double>::infinity();
 
 		if (t == length_event - 1) {
-			for (int s = 0; s < length_label_sequence; s++) {
-				beta[t][s] = log((s >= length_label_sequence - 2) * likelihood[Search_Label(label_sequence[s])]);
+			for (int s = 0; s < length_reference; s++) {
+				beta[t][s] = log((s >= length_reference - 2) * likelihood[Search_Label(reference[s])]);
 			}
 		}
 		else {
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				double sum = -numeric_limits<double>::infinity();
 
 				if (s <= 2 * t + 1) {
-					if (label_sequence[s] == "" || (s <= length_label_sequence - 3 && label_sequence[s + 2] == label_sequence[s])) {
-						sum = (s == length_label_sequence - 1) ? (beta[t + 1][s]) : (Log_Add(beta[t + 1][s], beta[t + 1][s + 1]));
+					if (reference[s] == blank || (s <= length_reference - 3 && reference[s + 2] == reference[s])) {
+						sum = (s == length_reference - 1) ? (beta[t + 1][s]) : (Log_Add(beta[t + 1][s], beta[t + 1][s + 1]));
 					}
 					else {
-						sum = (s == length_label_sequence - 2) ? (Log_Add(beta[t + 1][s], beta[t + 1][s + 1])) : (Log_Add(Log_Add(beta[t + 1][s], beta[t + 1][s + 1]), beta[t + 1][s + 2]));
+						sum = (s == length_reference - 2) ? (Log_Add(beta[t + 1][s], beta[t + 1][s + 1])) : (Log_Add(Log_Add(beta[t + 1][s], beta[t + 1][s + 1]), beta[t + 1][s + 2]));
 					}
 				}
-				beta[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
+				beta[t][s] = sum + log(likelihood[Search_Label(reference[s])]);
 			}
 		}
-		for (int s = 0; s < length_label_sequence; s++) {
+		for (int s = 0; s < length_reference; s++) {
 			sum = Log_Add(sum, beta[t][s]);
 		}
-		for (int s = 0; s < length_label_sequence; s++) {
+		for (int s = 0; s < length_reference; s++) {
 			beta[t][s] -= sum;
 		}
 		log_likelihood += sum;
 	}
 	return log_likelihood;
 }
-double Connectionist_Temporal_Classification::Forward_Algorithm(vector<string> label_sequence, int length_event, double **alpha, float _likelihood[]) {
+double Connectionist_Temporal_Classification::Forward_Algorithm(vector<string> &reference, int length_event, double **alpha, float _likelihood[]) {
 	double log_likelihood = 0;
 
-	for (int t = 0, length_label_sequence = static_cast<int>(label_sequence.size()); t < length_event; t++) {
+	for (int t = 0, length_reference = static_cast<int>(reference.size()); t < length_event; t++) {
 		float *likelihood = &_likelihood[t * number_labels];
 
 		double sum = -numeric_limits<double>::infinity();
 
 		if (t == 0) {
-			for (int s = 0; s < length_label_sequence; s++) {
-				alpha[t][s] = log((s <= 1) * likelihood[Search_Label(label_sequence[s])]);
+			for (int s = 0; s < length_reference; s++) {
+				alpha[t][s] = log((s <= 1) * likelihood[Search_Label(reference[s])]);
 			}
 		}
 		else {
-			for (int s = 0; s < length_label_sequence; s++) {
+			for (int s = 0; s < length_reference; s++) {
 				double sum = -numeric_limits<double>::infinity();
 
-				if (s >= (length_label_sequence - 1) - 2 * ((length_event - 1) - t) - 1) {
-					if (label_sequence[s] == "" || (s >= 2 && label_sequence[s - 2] == label_sequence[s])) {
+				if (s >= (length_reference - 1) - 2 * ((length_event - 1) - t) - 1) {
+					if (reference[s] == blank || (s >= 2 && reference[s - 2] == reference[s])) {
 						sum = (s == 0) ? (alpha[t - 1][s]) : (Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1]));
 					}
 					else {
 						sum = (s == 1) ? (Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1])) : (Log_Add(Log_Add(alpha[t - 1][s], alpha[t - 1][s - 1]), alpha[t - 1][s - 2]));
 					}
 				}
-				alpha[t][s] = sum + log(likelihood[Search_Label(label_sequence[s])]);
+				alpha[t][s] = sum + log(likelihood[Search_Label(reference[s])]);
 			}
 		}
-		for (int s = 0; s < length_label_sequence; s++) {
+		for (int s = 0; s < length_reference; s++) {
 			sum = Log_Add(sum, alpha[t][s]);
 		}
-		for (int s = 0; s < length_label_sequence; s++) {
+		for (int s = 0; s < length_reference; s++) {
 			alpha[t][s] -= sum;
 		}
 		log_likelihood += sum;
@@ -489,9 +489,11 @@ double *Connectionist_Temporal_Classification::Get_Probability(string label, uno
 	return &p->second;
 }
 
-Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[]) {
+Connectionist_Temporal_Classification::Connectionist_Temporal_Classification(int number_labels, string label[], string blank, string space) {
 	this->number_labels = number_labels;
+	this->blank = blank;
 	this->label = new string[number_labels];
+	this->space = space;
 
 	for (int i = 0; i < number_labels; i++) {
 		label_index.insert(pair<string, int>(this->label[i] = label[i], i));
@@ -505,7 +507,7 @@ bool comparator(const pair<double, string> &a, const pair<double, string> &b) {
 	return a.first > b.first;
 }
 
-void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, bool space_between_labels) {
+void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event, float _likelihood[], vector<string> &hypothesis, bool space_between_labels) {
 	string token;
 
 	for (int t = 0, argmax, previous_state = number_labels - 1; t < length_event; t++) {
@@ -521,15 +523,15 @@ void Connectionist_Temporal_Classification::Best_Path_Decoding(int length_event,
 		if (previous_state != argmax) {
 			token += label[argmax];
 
-			if ((space_between_labels && !token.empty()) || label[argmax] == " ") {
-				label_sequence.push_back(token);
+			if ((space_between_labels && !token.empty()) || label[argmax] == space) {
+				hypothesis.push_back(token);
 				token.clear();
 			}
 			previous_state = argmax;
 		}
 	}
 }
-void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int length_event, float _likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+void Connectionist_Temporal_Classification::Prefix_Search_Decoding(int length_event, float _likelihood[], vector<string> &hypothesis, int k, bool space_between_labels) {
 	set<string> A_prev = { "" };
 
 	unordered_map<string, double> *Pb = new unordered_map<string, double>[length_event + 1];
@@ -548,14 +550,14 @@ void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int leng
 		for (auto l = A_prev.begin(); l != A_prev.end(); l++) {
 			for (int c = 0; c < number_labels; c++) {
 				if (likelihood[c] > 0.00000001) {
-					if (label[c] == "") {
+					if (label[c] == blank) {
 						*Get_Probability(*l, Pb[t]) += likelihood[c] * (*Get_Probability(*l, Pb[t - 1]) + *Get_Probability(*l, Pnb[t - 1]));
 						A_next.insert(*l);
 					}
 					else {
 						int index = static_cast<int>((*l).size() - label[c].size());
 
-						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + " " + label[c]) : (*l + label[c]));
+						string l_plus = ((*l).empty()) ? (label[c]) : ((space_between_labels) ? (*l + space + label[c]) : (*l + label[c]));
 
 						if (index >= 0 && &(*l)[index] == label[c]) {
 							*Get_Probability(l_plus, Pnb[t]) += likelihood[c] * *Get_Probability(*l, Pb[t - 1]);
@@ -590,23 +592,23 @@ void Connectionist_Temporal_Classification::Prefix_Beam_Search_Decoding(int leng
 	istringstream iss(*A_prev.begin());
 
 	for (string s; getline(iss, s, ' ');) {
-		label_sequence.push_back(s);
+		hypothesis.push_back(s);
 	}
 }
 
-double Connectionist_Temporal_Classification::Calculate_Error(vector<string> target_label_sequence, int length_event, float error[], float likelihood[]) {
+double Connectionist_Temporal_Classification::Calculate_Error(vector<string> &reference, int length_event, float error[], float likelihood[]) {
 	double log_likelihood;
 
 	double **alpha = new double*[length_event];
 	double **beta = new double*[length_event];
 
 	for (int t = 0; t < length_event; t++) {
-		alpha[t] = new double[target_label_sequence.size()];
-		beta[t] = new double[target_label_sequence.size()];
+		alpha[t] = new double[reference.size()];
+		beta[t] = new double[reference.size()];
 	}
 
-	log_likelihood = Forward_Algorithm(target_label_sequence, length_event, alpha, likelihood);
-	Backward_Algorithm(target_label_sequence, length_event, beta, likelihood);
+	log_likelihood = Forward_Algorithm(reference, length_event, alpha, likelihood);
+	Backward_Algorithm(reference, length_event, beta, likelihood);
 
 	for (int t = 0; t < length_event; t++) {
 		int index = t * number_labels;
@@ -614,8 +616,8 @@ double Connectionist_Temporal_Classification::Calculate_Error(vector<string> tar
 		for (int i = 0; i < number_labels; i++) {
 			double sum[2] = { -numeric_limits<double>::infinity(), -numeric_limits<double>::infinity() };
 
-			for (int j = 0; j < target_label_sequence.size(); j++) {
-				int k = Search_Label(target_label_sequence[j]);
+			for (int j = 0; j < reference.size(); j++) {
+				int k = Search_Label(reference[j]);
 
 				if (i == k) {
 					sum[1] = Log_Add(sum[1], alpha[t][j] + beta[t][j]);
@@ -709,6 +711,7 @@ void Layer::Construct() {
 	error[1] = nullptr;
 	neuron[0] = nullptr;
 	neuron[1] = nullptr;
+	neuron[2] = nullptr;
 
 	bias = nullptr;
 	bias_optimizer = nullptr;
@@ -2296,7 +2299,7 @@ double Neural_Networks::Differentiate(Layer *layer, float target_output[], int t
 	}
 	return sum;
 }
-double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<string> target_label_sequence[]) {
+double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<string> _reference[]) {
 	double sum = 0;
 
 	if (CTC && strstr(layer->properties.c_str(), "CTC")) {
@@ -2304,23 +2307,20 @@ double Neural_Networks::Differentiate(Layer *layer, int length_data[], vector<st
 
 #pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
-			vector<string> label_sequence;
+			vector<string> reference;
 
-			for (int j = 0; j < target_label_sequence[h].size(); j++) {
-				label_sequence.push_back("");
-				label_sequence.push_back(target_label_sequence[h][j]);
+			for (int j = 0; j < _reference[h].size(); j++) {
+				reference.push_back(CTC->blank);
+				reference.push_back(_reference[h][j]);
 			}
-			label_sequence.push_back("");
+			reference.push_back(CTC->blank);
 
-			log_likelihood[h] = CTC->Calculate_Error(label_sequence, (length_data) ? (length_data[h]) : (time_step), &layer->error[0][h * time_step * layer->number_nodes], &layer->neuron[0][h * time_step * layer->number_nodes]);
+			log_likelihood[h] = CTC->Calculate_Error(reference, (length_data) ? (length_data[h]) : (time_step), &layer->error[0][h * time_step * layer->number_nodes], &layer->neuron[0][h * time_step * layer->number_nodes]);
 		}
 		for (int h = 0; h < batch_size; h++) {
 			sum += log_likelihood[h];
 		}
 		delete[] log_likelihood;
-	}
-	for (int t = time_step - 1; t >= 0; t--) {
-		Differentiate(layer, nullptr, t);
 	}
 	return sum;
 }
@@ -2413,15 +2413,15 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, bool space_between_labels) {
-	Decode(length_event, likelihood, label_sequence, 0, space_between_labels);
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels) {
+	Decode(length_event, likelihood, hypothesis, 0, space_between_labels);
 }
-void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &label_sequence, int k, bool space_between_labels) {
+void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, int k, bool space_between_labels) {
 	if (k == 0) {
-		CTC->Best_Path_Decoding(length_event, likelihood, label_sequence, space_between_labels);
+		CTC->Best_Path_Decoding(length_event, likelihood, hypothesis, space_between_labels);
 	}
 	else {
-		CTC->Prefix_Beam_Search_Decoding(length_event, likelihood, label_sequence, k, space_between_labels);
+		CTC->Prefix_Search_Decoding(length_event, likelihood, hypothesis, k, space_between_labels);
 	}
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
@@ -2503,7 +2503,7 @@ void Neural_Networks::Save(string path) {
 	}
 	file.close();
 }
-void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
+void Neural_Networks::Set_CTC_Loss(int number_labels, string label[], string blank, string space) {
 	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
 			if (strstr(layer[i][j]->properties.c_str(), "CTC")) {
@@ -2514,7 +2514,7 @@ void Neural_Networks::Set_CTC_Loss(int number_labels, string label[]) {
 				if (CTC) {
 					delete CTC;
 				}
-				CTC = new Connectionist_Temporal_Classification(number_labels, label);
+				CTC = new Connectionist_Temporal_Classification(number_labels, label, blank, space);
 				return;
 			}
 		}
@@ -2609,10 +2609,10 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 
 	return loss;
 }
-double Neural_Networks::Train(int batch_size, int number_training, float **input, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
-	return Train(batch_size, number_training, nullptr, input, target_label_sequence, learning_rate, epsilon, noise_standard_deviation);
+double Neural_Networks::Train(int batch_size, int number_training, float **input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
+	return Train(batch_size, number_training, nullptr, input, reference, learning_rate, epsilon, noise_standard_deviation);
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	double loss;
 
 	float ***input = new float**[number_training];
@@ -2620,22 +2620,22 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	for (int h = 0; h < number_training; h++) {
 		input[h] = &_input[h];
 	}
-	loss = Train(batch_size, number_training, length_data, input, nullptr, target_label_sequence, learning_rate, epsilon, noise_standard_deviation);
+	loss = Train(batch_size, number_training, length_data, input, nullptr, reference, learning_rate, epsilon, noise_standard_deviation);
 
 	delete[] input;
 
 	return loss;
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> target_label_sequence[], double learning_rate, double epsilon, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	int *index = new int[number_training];
-	int *length_data_batch = (target_label_sequence && length_data) ? (new int[batch_size]) : (nullptr);
+	int *length_data_batch = (reference && length_data) ? (new int[batch_size]) : (nullptr);
 
 	double sum = 0;
 
 	float **input_batch = new float*[layer[0].size()];
 	float **target_output_batch = (target_output) ? (new float*[layer[layer_height - 1].size()]) : (nullptr);
 
-	vector<string> *target_label_sequence_batch = (target_label_sequence) ? (new vector<string>[batch_size]) : (nullptr);
+	vector<string> *reference_batch = (reference) ? (new vector<string>[batch_size]) : (nullptr);
 
 	for (int i = 0; i < number_training; i++) {
 		index[i] = i;
@@ -2666,11 +2666,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			memset(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
 			memcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes);
 		}
-		if (target_label_sequence) {
+		if (reference) {
 			if (length_data) {
 				length_data_batch[h] = length_data[index[g]];
 			}
-			target_label_sequence_batch[h] = target_label_sequence[index[g]];
+			reference_batch[h] = reference[index[g]];
 		}
 
 		if (++h == batch_size) {
@@ -2730,7 +2730,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 					Layer *layer = this->layer[i][j];
 
 					if (strstr(layer->properties.c_str(), "CTC")) {
-						sum += Differentiate(layer, length_data_batch, target_label_sequence_batch);
+						sum += Differentiate(layer, length_data_batch, reference_batch);
 
 						for (int t = 0; t < time_step; t++) {
 							Backpropagate(layer, t);
@@ -2798,11 +2798,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	if (target_output) {
 		delete[] target_output_batch;
 	}
-	if (target_label_sequence) {
+	if (reference) {
 		if (length_data) {
 			delete[] length_data_batch;
 		}
-		delete[] target_label_sequence_batch;
+		delete[] reference_batch;
 	}
 	delete[] index;
 	delete[] input_batch;
