@@ -45,6 +45,6 @@ Optimizer("momentum", factor)                  : momentum
 Optimizer("nesterov", factor)                  : nesterov accelerated gradient
 Optimizer("adagrad", epsilon)                  : Adagrad
 Optimizer("rmsprop", epsilon, factor)          : RMSprop
-Optimizer("adadelta", epsilon, factor)          : AdaDelta
+Optimizer("adadelta", epsilon, factor)         : AdaDelta
 Optimizer("adam", epsilon, factor_1, factor_2) : Adam
 ```
