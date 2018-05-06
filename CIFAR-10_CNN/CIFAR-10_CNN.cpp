@@ -101,7 +101,7 @@ int main() {
 	float **target_output = new float*[number_training + number_test];
 
 	double epsilon = 0.001;
-	double decay_rate = 0.993;
+	double decay_rate = 0.993; // 0.977
 	double learning_rate = 0.001;
 
 	string path;
