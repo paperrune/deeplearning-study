@@ -11,6 +11,10 @@ Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
 - Visual Studio 2015 + CUDA 9.1</br>
 ![VS_2015](/CIFAR-10_CNN/screenshot/VS_2015.png)</br></br>
 
-### Result
+### Results
 GeForce GTX 1060 6GB</br>
+without data augmentation</br>
 ![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN.png)</br>
+
+with data augmentation</br>
+![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN-2.png)</br>
