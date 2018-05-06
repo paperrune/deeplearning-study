@@ -1,4 +1,4 @@
-## Phoneme recognition in TIMIT with BLSTM + CTC
+## TIMIT phoneme recognition using Bidirectional LSTM + CTC Loss
 
 sph2pipe.exe</br>
 https://github.com/foundintranslation/Kaldi/tree/master/tools/sph2pipe_v2.5
