@@ -1,7 +1,6 @@
 ## TIMIT phoneme recognition using Bidirectional LSTM + CTC Loss
 
-sph2pipe.exe</br>
-https://github.com/foundintranslation/Kaldi/tree/master/tools/sph2pipe_v2.5
+[sph2pipe.exe](https://github.com/foundintranslation/Kaldi/tree/master/tools/sph2pipe_v2.5)
 
 ### Compile
 - Visual Studio 2015 + CUDA 9.1</br>
