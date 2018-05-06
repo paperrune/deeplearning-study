@@ -2330,6 +2330,7 @@ Neural_Networks::Neural_Networks(string path) {
 
 	if (file.is_open()) {
 		int number_connections;
+		int number_labels;
 		int number_layers;
 
 		vector<Connection*> connection;
@@ -2382,6 +2383,21 @@ Neural_Networks::Neural_Networks(string path) {
 		Resize_Memory(1, time_step);
 		Set_Epsilon(epsilon);
 
+		file >> number_labels;
+
+		if (number_labels) {
+			string blank, space, *label = new string[number_labels];
+
+			getline(file, label[0]);
+			for (int i = 0; i < number_labels; i++) {
+				getline(file, label[i]);
+			}
+			getline(file, blank);
+			getline(file, space);
+			Set_CTC_Loss(number_labels, label, blank, space);
+
+			delete[] label;
+		}
 		for (int i = 0; i < number_layers; i++) {
 			layer[i]->Load(file);
 		}
@@ -2485,6 +2501,20 @@ void Neural_Networks::Save(string path) {
 			}
 		}
 	}
+
+	if (CTC) {
+		file << CTC->number_labels << endl;
+
+		for (int i = 0; i < CTC->number_labels; i++) {
+			file << CTC->label[i] << endl;
+		}
+		file << CTC->blank << endl;
+		file << CTC->space << endl;
+	}
+	else {
+		file << 0 << endl;
+	}
+	file << endl;
 
 	// layer parameter
 	for (int i = 0; i < layer_height; i++) {

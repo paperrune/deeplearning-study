@@ -3034,6 +3034,7 @@ void Neural_Networks::Save(string path) {
 	else {
 		file << 0 << endl;
 	}
+	file << endl;
 
 	// layer parameter
 	for (int i = 0; i < layer_height; i++) {
