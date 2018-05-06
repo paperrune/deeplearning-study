@@ -1012,7 +1012,7 @@ __device__ void Backward_Algorithm(int number_labels, int length_event, int leng
 
 		if (t == length_event - 1) {
 			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
-				beta[index + s] = log((s >= length_reference - 2) * likelihood[label_sequence[s]]);
+				beta[index + s] = log(static_cast<double>((s >= length_reference - 2) * likelihood[label_sequence[s]]));
 			}
 		}
 		else {
@@ -1029,7 +1029,7 @@ __device__ void Backward_Algorithm(int number_labels, int length_event, int leng
 						sum = (s == length_reference - 2) ? (Log_Add(beta[next_index + s], beta[next_index + s + 1])) : (Log_Add(Log_Add(beta[next_index + s], beta[next_index + s + 1]), beta[next_index + s + 2]));
 					}
 				}
-				beta[index + s] = sum + log(likelihood[label_sequence[s]]);
+				beta[index + s] = sum + log(static_cast<double>(likelihood[label_sequence[s]]));
 			}
 		}
 		__syncthreads();
@@ -1058,7 +1058,7 @@ __device__ void Forward_Algorithm(int number_labels, int length_event, int lengt
 
 		if (t == 0) {
 			for (int s = threadIdx.x; s < length_reference; s += blockDim.x) {
-				alpha[index + s] = log((s <= 1) * likelihood[label_sequence[s]]);
+				alpha[index + s] = log(static_cast<double>((s <= 1) * likelihood[label_sequence[s]]));
 			}
 		}
 		else {
@@ -1075,7 +1075,7 @@ __device__ void Forward_Algorithm(int number_labels, int length_event, int lengt
 						sum = (s == 1) ? (Log_Add(alpha[previous_index + s], alpha[previous_index + s - 1])) : (Log_Add(Log_Add(alpha[previous_index + s], alpha[previous_index + s - 1]), alpha[previous_index + s - 2]));
 					}
 				}
-				alpha[index + s] = sum + log(likelihood[label_sequence[s]]);
+				alpha[index + s] = sum + log(static_cast<double>(likelihood[label_sequence[s]]));
 			}
 		}
 		__syncthreads();
@@ -1121,9 +1121,9 @@ __global__ void Calculate_Error(int maximum_length_reference, int number_labels,
 			if (i == k) {
 				sum[1] = Log_Add(sum[1], alpha[index[1] + j] + beta[index[1] + j]);
 			}
-			sum[0] = Log_Add(sum[0], alpha[index[1] + j] + beta[index[1] + j] - log(likelihood[index[0] + k]));
+			sum[0] = Log_Add(sum[0], alpha[index[1] + j] + beta[index[1] + j] - log(static_cast<double>(likelihood[index[0] + k])));
 		}
-		error[index[0] + i] = likelihood[index[0] + i] - exp(sum[1] - log(likelihood[index[0] + i]) - sum[0]);
+		error[index[0] + i] = likelihood[index[0] + i] - exp(sum[1] - log(static_cast<double>(likelihood[index[0] + i])) - sum[0]);
 	}
 }
 
@@ -1167,12 +1167,8 @@ void Batch_Normalization::Adjust_Parameter(double gradient_clip, double learning
 	::Adjust_Parameter << < number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (number_maps, beta, gradient_clip, learning_rate, *beta_optimizer);
 }
 void Batch_Normalization::Calculate_Mean_Variance(int number_batches) {
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, mean, 0.5, mean);
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, variance, 0.5, variance);
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, 0.5 * 1.0 / number_batches, sum_mean);
-	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, 0.5 * batch_size / ((batch_size - 1.0) * number_batches), sum_variance);
-	Add << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, mean, mean);
-	Add << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, variance, variance);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_mean, 1.0 / number_batches, mean);
+	Multiply << <time_step * number_maps / NUMBER_THREADS + 1, NUMBER_THREADS >> > (time_step * number_maps, sum_variance, batch_size / ((batch_size - 1.0) * number_batches), variance);
 	cudaMemset(sum_mean, 0, sizeof(float) * time_step * number_maps);
 	cudaMemset(sum_variance, 0, sizeof(float) * time_step * number_maps);
 }
@@ -2518,7 +2514,7 @@ void Neural_Networks::Backpropagate(Layer *layer, int time_index, bool backward)
 						::Backpropagate << <batch_size * parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (0, time_index, *connection, *layer, *parent_layer, *layer->LSTM_node, *connection->LSTM_weight, backward);
 					}
 					else {
-						::Backpropagate << <batch_size * parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (1, time_index, *connection, *layer, *parent_layer, backward);
+						::Backpropagate << <batch_size * parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (1, time_index,  *connection, *layer, *parent_layer, backward);
 					}
 				}
 				else if ((backward == false && t) || (backward == true && t + 1 < time_step)) {
@@ -2853,6 +2849,7 @@ Neural_Networks::Neural_Networks(string path) {
 
 	if (file.is_open()) {
 		int number_connections;
+		int number_labels;
 		int number_layers;
 
 		vector<Connection*> connection;
@@ -2905,6 +2902,21 @@ Neural_Networks::Neural_Networks(string path) {
 		Resize_Memory(1, time_step);
 		Set_Epsilon(epsilon);
 
+		file >> number_labels;
+
+		if (number_labels) {
+			string blank, space, *label = new string[number_labels];
+
+			getline(file, label[0]);
+			for (int i = 0; i < number_labels; i++) {
+				getline(file, label[i]);
+			}
+			getline(file, blank);
+			getline(file, space);
+			Set_CTC_Loss(number_labels, label, blank, space);
+
+			delete[] label;
+		}
 		for (int i = 0; i < number_layers; i++) {
 			layer[i]->Load(file);
 		}
@@ -3010,6 +3022,19 @@ void Neural_Networks::Save(string path) {
 		}
 	}
 
+	if (CTC) {
+		file << CTC->number_labels << endl;
+
+		for (int i = 0; i < CTC->number_labels; i++) {
+			file << CTC->label[i] << endl;
+		}
+		file << CTC->blank << endl;
+		file << CTC->space << endl;
+	}
+	else {
+		file << 0 << endl;
+	}
+
 	// layer parameter
 	for (int i = 0; i < layer_height; i++) {
 		for (int j = 0; j < layer[i].size(); j++) {
@@ -3087,9 +3112,9 @@ void Neural_Networks::Test(int batch_size, float **_input, float **_output, int 
 	delete[] input;
 	delete[] output;
 }
-void Neural_Networks::Test(int batch_size, float ***input, float ***output, int length_data[]) {
+void Neural_Networks::Test(int batch_size, float ***input, float ***output, int _length_data[]) {
 	Resize_Memory(batch_size);
-	FloatToNode(input, layer[0], length_data);
+	FloatToNode(input, layer[0], _length_data);
 	Zero_Memory();
 
 	for (int i = 1; i < layer_height; i++) {
@@ -3191,7 +3216,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 			cudaMemcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
 		if (reference) {
-			if (length_data) {
+			if (length_data_batch) {
 				length_data_batch[h] = length_data[index[g]];
 			}
 			reference_batch[h] = reference[index[g]];
@@ -3331,7 +3356,7 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 		delete[] target_output_batch;
 	}
 	if (reference) {
-		if (length_data) {
+		if (length_data_batch) {
 			delete[] length_data_batch;
 		}
 		delete[] reference_batch;
