@@ -36,3 +36,15 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 "P,max"        : max pooling
 "P,average"    : average pooling
 "W"            : connect with weights
+```
+
+### Optimizer
+```
+Optimizer("")                                  : gradient descent
+Optimizer("momentum", factor)                  : momentum
+Optimizer("nesterov", factor)                  : nesterov accelerated gradient
+Optimizer("adagrad", epsilon)                  : Adagrad
+Optimizer("rmsprop", epsilon, factor)          : RMSprop
+Optimizer("adadelt", epsilon, factor)          : AdaDelta
+Optimizer("adam", epsilon, factor_1, factor_2) : Adam
+```
