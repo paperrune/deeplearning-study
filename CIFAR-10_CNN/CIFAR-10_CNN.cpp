@@ -58,9 +58,42 @@ void Read_CIFAR_10(string path, int number_training, int number_test, float **in
 	file.close();
 }
 
+float** Augment(int number_data, float **input, int padding = 2) {
+	float **output = new float*[number_data];
+
+	for (int h = 0; h < number_data; h++) {
+		int offset[2] = { rand() % (2 * padding + 1) - padding, rand() % (2 * padding + 1) - padding };
+
+		output[h] = new float[3 * 32 * 32];
+
+		if (rand() % 2) {
+			// horizontal flipping
+			for (int c = 0; c < 3; c++) {
+				for (int j = 0; j < 32 * 32; j++) {
+					int y = j / 32;
+					int x = j % 32;
+
+					output[h][c * 32 * 32 + j] = (0 <= y + offset[1] && y + offset[1] < 32 && 0 <= 31 - x + offset[0] && 31 - x + offset[0] < 32) ? (input[h][c * 32 * 32 + (y + offset[1]) * 32 + (31 - x + offset[0])]) : (0);
+				}
+			}
+		}
+		else {
+			for (int c = 0; c < 3; c++) {
+				for (int j = 0; j < 32 * 32; j++) {
+					int y = j / 32;
+					int x = j % 32;
+
+					output[h][c * 32 * 32 + j] = (0 <= y + offset[1] && y + offset[1] < 32 && 0 <= x + offset[0] && x + offset[0] < 32) ? (input[h][c * 32 * 32 + (y + offset[1]) * 32 + (x + offset[0])]) : (0);
+				}
+			}
+		}
+	}
+	return output;
+}
+
 int main() {
 	int batch_size = 100;
-	int number_iterations = 100;
+	int number_iterations = 1000;
 	int number_training = 50000;
 	int number_test = 10000;
 
@@ -68,7 +101,7 @@ int main() {
 	float **target_output = new float*[number_training + number_test];
 
 	double epsilon = 0.001;
-	double decay_rate = 0.977;
+	double decay_rate = 0.993;
 	double learning_rate = 0.001;
 
 	string path;
@@ -131,9 +164,10 @@ int main() {
 	for (int g = 0, time = clock(); g < number_iterations; g++) {
 		int score[2] = { 0, };
 
+		float **_input = Augment(number_training, input);
 		float **output = new float*[batch_size];
 
-		double loss = NN.Train(batch_size, number_training, input, target_output, learning_rate, epsilon);
+		double loss = NN.Train(batch_size, number_training, _input, target_output, learning_rate, epsilon);
 
 		for (int h = 0; h < batch_size; h++) {
 			output[h] = new float[number_nodes.back()];
@@ -160,9 +194,13 @@ int main() {
 		printf("score: %d / %d, %d / %d  loss: %lf  step %d  %.2lf sec\n", score[0], number_training, score[1], number_test, loss, g + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
 		learning_rate *= decay_rate;
 
+		for (int h = 0; h < number_training; h++) {
+			delete[] _input[h];
+		}
 		for (int h = 0; h < batch_size; h++) {
 			delete[] output[h];
 		}
+		delete[] _input;
 		delete[] output;
 	}
 
