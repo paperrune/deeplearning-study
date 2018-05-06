@@ -216,15 +216,13 @@ int main() {
 	// or load pretrained model
 	// Neural_Networks NN = Neural_Networks("CIFAR-10_resnet-32.txt");
 
-#ifndef Neural_Networks_CUDA_H
-	int number_threads;
+	/*int number_threads;
 
 	cout << "The number of threads : ";
 	cin >> number_threads;
 	cin.ignore();
 
-	omp_set_num_threads(number_threads);
-#endif
+	omp_set_num_threads(number_threads);*/
 
 	cout << "path where CIFAR-10 dataset is : ";
 	getline(cin, path);
