@@ -14,12 +14,12 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 "tangent" : hyperbolic tangent
 
 > Loss
-"CE"  : cross-entopy
-"MSE" : mean squared error
+"CE"      : cross-entopy
+"MSE"     : mean squared error
 
 > Regularization
-"BN"        : batch normalization
-"dropout.f" : dropout with rate 0.f, each neuron is set to zero with a probability of (1 - 0.f)
+"BN"            : batch normalization
+"dropout.f"     : dropout with rate 0.f, each neuron is set to zero with a probability of (1 - 0.f)
 
 > Type
 "LSTM"          : long short-term memory
