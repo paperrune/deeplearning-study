@@ -17,4 +17,4 @@ without data augmentation</br>
 ![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN.png)</br>
 
 with data augmentation</br>
-![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN-2.png)</br>
+![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN+.png)</br>
