@@ -2950,15 +2950,10 @@ Neural_Networks::~Neural_Networks() {
 }
 
 void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels) {
-	Decode(length_event, likelihood, hypothesis, 0, space_between_labels);
+	CTC->Best_Path_Decoding(length_event, likelihood, hypothesis, space_between_labels);
 }
 void Neural_Networks::Decode(int length_event, float likelihood[], vector<string> &hypothesis, int k, bool space_between_labels) {
-	if (k == 0) {
-		CTC->Best_Path_Decoding(length_event, likelihood, hypothesis, space_between_labels);
-	}
-	else {
-		CTC->Prefix_Search_Decoding(length_event, likelihood, hypothesis, k, space_between_labels);
-	}
+	CTC->Prefix_Search_Decoding(length_event, likelihood, hypothesis, k, space_between_labels);
 }
 void Neural_Networks::Initialize(double scale, double gamma) {
 	for (int i = 0; i < layer_height; i++) {
@@ -3139,10 +3134,10 @@ void Neural_Networks::Test(int batch_size, float ***input, float ***output, int 
 	NodeToFloat(layer[layer_height - 1], output);
 }
 
-double Neural_Networks::Train(int batch_size, int number_training, float **input, float **target_output, double epsilon, double learning_rate, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, float **input, float **target_output, double learning_rate, double epsilon, double noise_standard_deviation) {
 	return Train(batch_size, number_training, nullptr, input, target_output, learning_rate, epsilon, noise_standard_deviation);
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, float **_target_output, double epsilon, double learning_rate, double noise_standard_deviation) {
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, float **_target_output, double learning_rate, double epsilon, double noise_standard_deviation) {
 	double loss;
 
 	float ***input = new float**[number_training];
@@ -3368,27 +3363,27 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	return sum / number_training;
 }
 
-Layer* Neural_Networks::Add(Layer *layer, int index) {
-	if (index < 0) {
-		index = static_cast<int>(this->layer.size());
+Layer* Neural_Networks::Add(Layer *layer, int coordinate_y) {
+	if (coordinate_y < 0) {
+		coordinate_y = static_cast<int>(this->layer.size());
 	}
-	while (this->layer.size() <= index) {
+	while (this->layer.size() <= coordinate_y) {
 		vector<Layer*> layer_holder;
 
 		this->layer.push_back(layer_holder);
 		layer_height++;
 	}
-	layer->index[0] = index;
-	layer->index[1] = static_cast<int>(this->layer[index].size());
-	this->layer[index].push_back(layer);
+	layer->index[0] = coordinate_y;
+	layer->index[1] = static_cast<int>(this->layer[coordinate_y].size());
+	this->layer[coordinate_y].push_back(layer);
 
 	return layer;
 }
-Layer* Neural_Networks::Get_Layer(int y, int x) {
-	if (y >= layer_height || static_cast<int>(layer[y].size()) <= x) {
+Layer* Neural_Networks::Get_Layer(int coordinate_y, int coordinate_x) {
+	if (coordinate_y >= layer_height || static_cast<int>(layer[coordinate_y].size()) <= coordinate_x) {
 		return nullptr;
 	}
-	return layer[y][x];
+	return layer[coordinate_y][coordinate_x];
 }
 
 
@@ -3416,14 +3411,11 @@ void Optimizer::Initialize(string type, double epsilon, double factor_1, double 
 Optimizer::Optimizer() {
 	Initialize("", 0, 0, 0);
 }
-Optimizer::Optimizer(string type, double momentum_epsilon) {
-	Initialize(type, momentum_epsilon, momentum_epsilon, 0);
+Optimizer::Optimizer(string type, double factor) {
+	Initialize(type, factor, factor, 0);
 }
-Optimizer::Optimizer(string type, double decay_rate, double epsilon) {
-	Initialize(type, epsilon, decay_rate, 0);
-}
-Optimizer::Optimizer(string type, double epsilon, double beta_1, double beta_2) {
-	Initialize(type, epsilon, beta_1, beta_2);
+Optimizer::Optimizer(string type, double epsilon, double factor_1, double factor_2) {
+	Initialize(type, epsilon, factor_1, factor_2);
 }
 Optimizer::~Optimizer() {}
 

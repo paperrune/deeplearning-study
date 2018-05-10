@@ -272,8 +272,8 @@ public:
 	double Train(int batch_size, int number_training, int length_data[], float **input, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 	double Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
 
-	Layer* Add(Layer *layer, int index = -1);
-	Layer* Get_Layer(int y = 0, int x = 0);
+	Layer* Add(Layer *layer, int coordinate_y = -1);
+	Layer* Get_Layer(int coordinate_y = 0, int coordinate_x = 0);
 };
 
 class Optimizer {
@@ -291,9 +291,8 @@ public:
 	void Initialize(string type, double epsilon, double factor_1, double factor_2);
 
 	Optimizer();
-	Optimizer(string type, double momentum_epsilon);
-	Optimizer(string type, double decay_rate, double epsilon);
-	Optimizer(string type, double epsilon, double beta_1, double beta_2);
+	Optimizer(string type, double factor);
+	Optimizer(string type, double epsilon, double factor_1, double factor_2 = 0.999);
 	~Optimizer();
 
 	void Destroy();
