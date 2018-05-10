@@ -142,7 +142,7 @@ int main() {
 	// ************************************
 
 	// or load pretrained model
-	// Neural_Networks NN = Neural_Networks("CIFAR-10_CNN.txt");
+	// Neural_Networks NN = Neural_Networks("CIFAR-10_CNN+.txt");
 
 	/*int number_threads;
 
