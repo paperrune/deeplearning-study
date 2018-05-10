@@ -13,4 +13,8 @@ Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
 
 ### Result
 GeForce GTX 1060 6GB</br>
+without data augmentation</br>
 ![result](/CIFAR-10_resnet-20/screenshot/CIFAR-10_resnet-20.png)</br>
+
+with data augmentation</br>
+![result](/CIFAR-10_resnet-20/screenshot/CIFAR-10_resnet-20+.png)</br>
