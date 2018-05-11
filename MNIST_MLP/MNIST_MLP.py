@@ -78,7 +78,6 @@ NN.Connect(3, 2, "W")
 
 NN.Initialize(0, 0.01)
 
-
 # or load pretrained model
 # NN = Neural_Networks("NN.txt")
 
