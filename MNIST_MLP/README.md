@@ -10,7 +10,10 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 ![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br></br>
 
 - GNU g++</br>
-![g++](/MNIST_MLP/screenshot/g++.png)</br>
+![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
+
+- Python</br>
+[Neural_Networks.pyd](https://github.com/paperrune/Neural-Networks/tree/master/Python)</br>
 
 ### Result
 i7-4790K</br>
