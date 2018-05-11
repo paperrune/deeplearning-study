@@ -1,125 +1,10 @@
 #define BOOST_PYTHON_STATIC_LIB
 #include <boost/python.hpp>
+#include <boost/python/numpy.hpp>
 #include <iostream>
 #include <omp.h>
 
 #include "../Neural_Networks.h"
-
-class Float {
-private:
-	int depth;
-	int height;
-	int width;
-public:
-	float ***memory;
-
-	Float() {
-		memory = nullptr;
-	}
-	Float(boost::python::list &list) {
-		int dimension = (static_cast<string>(boost::python::extract<string>(list[0].attr("__class__").attr("__name__"))) != "list") ? (1) : ((static_cast<string>(boost::python::extract<string>(list[0][0].attr("__class__").attr("__name__"))) != "list") ? (2) : (3));
-
-		switch (dimension) {
-		case 1:
-			depth = 1;
-			height = 1;
-			width = len(list);
-			break;
-		case 2:
-			depth = 1;
-			height = len(list);
-			width = len(list[0]);
-			break;
-		case 3:
-			depth = len(list);
-			height = len(list[0]);
-			width = len(list[0][0]);
-		}
-
-		memory = new float**[depth];
-
-		for (int z = 0; z < depth; z++) {
-			memory[z] = new float*[height];
-
-			for (int y = 0; y < height; y++) {
-				memory[z][y] = new float[width];
-			}
-		}
-
-		switch (dimension) {
-		case 1:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						memory[z][y][x] = boost::python::extract<float>(list[x]);
-					}
-				}
-			}
-			break;
-		case 2:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						memory[z][y][x] = boost::python::extract<float>(list[y][x]);
-					}
-				}
-			}
-			break;
-		case 3:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						memory[z][y][x] = boost::python::extract<float>(list[z][y][x]);
-					}
-				}
-			}
-		}
-	}
-	~Float() {
-		if (memory) {
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					delete[] memory[z][y];
-				}
-				delete[] memory[z];
-			}
-			delete[] memory;
-		}
-	}
-
-	void ToList(boost::python::list &list) {
-		int dimension = (static_cast<string>(boost::python::extract<string>(list[0].attr("__class__").attr("__name__"))) != "list") ? (1) : ((static_cast<string>(boost::python::extract<string>(list[0][0].attr("__class__").attr("__name__"))) != "list") ? (2) : (3));
-
-		switch (dimension) {
-		case 1:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						list[x] = memory[z][y][x];
-					}
-				}
-			}
-			break;
-		case 2:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						list[y][x] = memory[z][y][x];
-					}
-				}
-			}
-			break;
-		case 3:
-			for (int z = 0; z < depth; z++) {
-				for (int y = 0; y < height; y++) {
-					for (int x = 0; x < width; x++) {
-						list[z][y][x] = memory[z][y][x];
-					}
-				}
-			}
-		}
-	}
-};
 
 class Neural_Networks_Wrapper {
 private:
@@ -159,7 +44,7 @@ public:
 	void Set_Number_Threads(int number_threads) {
 		omp_set_num_threads(number_threads);
 	}
-	void Test(Float &input, boost::python::list &output, int _length_data = 0) {
+	void Test(boost::python::object input, boost::python::object output, int _length_data = 0) {
 		boost::python::list length_data;
 
 		if (_length_data) {
@@ -167,58 +52,95 @@ public:
 		}
 		Test(1, input, output, length_data);
 	}
-	void Test(int batch_size, Float &input, boost::python::list &output) {
+	void Test(int batch_size, boost::python::object input, boost::python::object output) {
 		boost::python::list length_data;
 
 		Test(batch_size, input, output, length_data);
 	}
-	void Test(int batch_size, Float &input, boost::python::list &_output, boost::python::list &_length_data) {
+	void Test(int batch_size, boost::python::object input, boost::python::object output, boost::python::list &_length_data) {
 		int *length_data = (len(_length_data)) ? (new int[batch_size]) : (nullptr);
 
-		Float output = Float(_output);
+		Py_buffer input_buffer;
+		Py_buffer output_buffer;
 
 		if (length_data) {
 			for (int h = 0; h < batch_size; h++) {
 				length_data[h] = boost::python::extract<int>(_length_data[h]);
 			}
 		}
-		NN->Test(batch_size, input.memory, output.memory, length_data);
-		output.ToList(_output);
+		if (PyObject_GetBuffer(input.ptr(), &input_buffer, PyBUF_SIMPLE) != -1 && PyObject_GetBuffer(output.ptr(), &output_buffer, PyBUF_SIMPLE) != -1) {
+			float ***input = new float**[NN->layer.front().size()];
+			float ***output = new float**[NN->layer.back().size()];
 
+			for (int i = 0, j = 0, index = 0; j < NN->layer[i].size(); j++) {
+				input[j] = new float*[batch_size];
+
+				for (int h = 0; h < batch_size; h++, index += NN->layer[i][j]->number_nodes) {
+					float *p = (float*)input_buffer.buf;
+
+					input[j][h] = &p[index];
+				}
+			}
+			for (int i = NN->layer_height - 1, j = 0, index = 0; j < NN->layer[i].size(); j++) {
+				output[j] = new float*[batch_size];
+
+				for (int h = 0; h < batch_size; h++, index += NN->layer[i][j]->number_nodes) {
+					float *p = (float*)output_buffer.buf;
+
+					output[j][h] = &p[index];
+				}
+			}
+			NN->Test(batch_size, input, output, length_data);
+
+			for (int i = 0, j = 0; j < NN->layer[i].size(); j++) {
+				delete[] input[j];
+			}
+			for (int i = NN->layer_height - 1, j = 0; j < NN->layer[i].size(); j++) {
+				delete[] output[j];
+			}
+			delete[] input;
+			delete[] output;
+
+			PyBuffer_Release(&input_buffer);
+			PyBuffer_Release(&output_buffer);
+		}
 		if (length_data) {
 			delete[] length_data;
 		}
 	}
 
-	double Train_CTC(int batch_size, int number_training, Float &input, boost::python::list &reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
+	double Train_CTC(int batch_size, int number_training, boost::python::object input, boost::python::list &reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
 		boost::python::list length_data;
 
-		Float target_output;
+		boost::python::object target_output;
 
 		return Train(batch_size, number_training, length_data, input, target_output, reference, learning_rate, epsilon, noise_standard_deviation);
 	}
-	double Train_CTC(int batch_size, int number_training, boost::python::list &length_data, Float &input, boost::python::list &reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
-		Float target_output;
+	double Train_CTC(int batch_size, int number_training, boost::python::list &length_data, boost::python::object input, boost::python::list &reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
+		boost::python::object target_output;
 
 		return Train(batch_size, number_training, length_data, input, target_output, reference, learning_rate, epsilon, noise_standard_deviation);
 	}
-	double Train(int batch_size, int number_training, Float &input, Float &target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
+	double Train(int batch_size, int number_training, boost::python::object input, boost::python::object target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
 		boost::python::list length_data;
 		boost::python::list reference;
 
 		return Train(batch_size, number_training, length_data, input, target_output, reference, learning_rate, epsilon, noise_standard_deviation);
 	}
-	double Train(int batch_size, int number_training, boost::python::list &length_data, Float &input, Float &target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
+	double Train(int batch_size, int number_training, boost::python::list &length_data, boost::python::object input, boost::python::object target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
 		boost::python::list reference;
 
 		return Train(batch_size, number_training, length_data, input, target_output, reference, learning_rate, epsilon, noise_standard_deviation);
 	}
-	double Train(int batch_size, int number_training, boost::python::list &_length_data, Float &input, Float &target_output, boost::python::list &_reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
+	double Train(int batch_size, int number_training, boost::python::list &_length_data, boost::python::object input, boost::python::object target_output, boost::python::list &_reference, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0) {
 		int *length_data = (len(_length_data)) ? (new int[number_training]) : (nullptr);
 
 		double loss;
 
 		vector<string> *reference = (len(_reference)) ? (new vector<string>[number_training]) : (nullptr);
+
+		Py_buffer input_buffer;
+		Py_buffer target_output_buffer;
 
 		if (length_data) {
 			for (int h = 0; h < number_training; h++) {
@@ -232,8 +154,42 @@ public:
 				}
 			}
 		}
-		loss = NN->Train(batch_size, number_training, length_data, input.memory, target_output.memory, reference, learning_rate, epsilon, noise_standard_deviation);
+		if (PyObject_GetBuffer(input.ptr(), &input_buffer, PyBUF_SIMPLE) != -1 && PyObject_GetBuffer(target_output.ptr(), &target_output_buffer, PyBUF_SIMPLE) != -1) {
+			float ***input = new float**[NN->layer.front().size()];
+			float ***target_output = new float**[NN->layer.back().size()];
 
+			for (int i = 0, j = 0, index = 0; j < NN->layer[i].size(); j++) {
+				input[j] = new float*[number_training];
+
+				for (int h = 0; h < number_training; h++, index += NN->layer[i][j]->number_nodes) {
+					float *p = (float*)input_buffer.buf;
+
+					input[j][h] = &p[index];
+				}
+			}
+			for (int i = NN->layer_height - 1, j = 0, index = 0; j < NN->layer[i].size(); j++) {
+				target_output[j] = new float*[number_training];
+
+				for (int h = 0; h < number_training; h++, index += NN->layer[i][j]->number_nodes) {
+					float *p = (float*)target_output_buffer.buf;
+
+					target_output[j][h] = &p[index];
+				}
+			}
+			loss = NN->Train(batch_size, number_training, length_data, input, target_output, reference, learning_rate, epsilon, noise_standard_deviation);
+
+			for (int i = 0, j = 0; j < NN->layer[i].size(); j++) {
+				delete[] input[j];
+			}
+			for (int i = NN->layer_height - 1, j = 0; j < NN->layer[i].size(); j++) {
+				delete[] target_output[j];
+			}
+			delete[] input;
+			delete[] target_output;
+
+			PyBuffer_Release(&input_buffer);
+			PyBuffer_Release(&target_output_buffer);
+		}
 		if (length_data) {
 			delete[] length_data;
 		}
@@ -257,10 +213,6 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(Train3, Neural_Networks_Wrapper::Train, 7
 BOOST_PYTHON_MODULE(Neural_Networks) {
 	using namespace boost::python;
 
-	class_<Float>("Float", init<>())
-		.def(init<boost::python::list&>())
-		;
-
 	class_<Neural_Networks_Wrapper>("Neural_Networks", init<>())
 		.def(init<int>())
 		.def(init<string>())
@@ -270,13 +222,13 @@ BOOST_PYTHON_MODULE(Neural_Networks) {
 		.def("Initialize", static_cast<void(Neural_Networks_Wrapper::*)(int, double, double)>(&Neural_Networks_Wrapper::Initialize), Initialize2())
 		.def("Save", &Neural_Networks_Wrapper::Save)
 		.def("Set_Number_Threads", &Neural_Networks_Wrapper::Set_Number_Threads)
-		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(Float&, boost::python::list&, int)>(&Neural_Networks_Wrapper::Test), Test())
-		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, Float&, boost::python::list&)>(&Neural_Networks_Wrapper::Test))
-		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, Float&, boost::python::list&, boost::python::list&)>(&Neural_Networks_Wrapper::Test))
-		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, Float&, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train_CTC), Train_CTC1())
-		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, Float&, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train_CTC), Train_CTC2())
-		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, Float&, Float&, double, double, double)>(&Neural_Networks_Wrapper::Train), Train1())
-		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, Float&, Float&, double, double, double)>(&Neural_Networks_Wrapper::Train), Train2())
-		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, Float&, Float&, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train), Train3())
+		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(boost::python::object, boost::python::object, int)>(&Neural_Networks_Wrapper::Test), Test())
+		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, boost::python::object, boost::python::object)>(&Neural_Networks_Wrapper::Test))
+		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, boost::python::object, boost::python::object, boost::python::list&)>(&Neural_Networks_Wrapper::Test))
+		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::object, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train_CTC), Train_CTC1())
+		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, boost::python::object, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train_CTC), Train_CTC2())
+		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::object, boost::python::object, double, double, double)>(&Neural_Networks_Wrapper::Train), Train1())
+		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, boost::python::object, boost::python::object, double, double, double)>(&Neural_Networks_Wrapper::Train), Train2())
+		.def("Train", static_cast<double(Neural_Networks_Wrapper::*)(int, int, boost::python::list&, boost::python::object, boost::python::object, boost::python::list&, double, double, double)>(&Neural_Networks_Wrapper::Train), Train3())
 		;
 }
