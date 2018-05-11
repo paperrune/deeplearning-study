@@ -2591,14 +2591,14 @@ void Neural_Networks::FloatToNode(float ***memory, vector<Layer*> &layer, int le
 	for (int i = 0; i < layer.size(); i++) {
 		for (int h = 0; h < batch_size; h++) {
 			cudaMemset(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], 0, sizeof(float) * time_step * layer[i]->number_nodes);
-			cudaMemcpy(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], memory[h][i], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[h])) *layer[i]->number_nodes, cudaMemcpyHostToDevice);
+			cudaMemcpy(&layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], memory[i][h], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[h])) *layer[i]->number_nodes, cudaMemcpyHostToDevice);
 		}
 	}
 }
 void Neural_Networks::NodeToFloat(vector<Layer*> &layer, float ***memory) {
 	for (int i = 0; i < layer.size(); i++) {
 		for (int h = 0; h < batch_size; h++) {
-			cudaMemcpy(memory[h][i], &layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], sizeof(float) * time_step * layer[i]->number_nodes, cudaMemcpyDeviceToHost);
+			cudaMemcpy(memory[i][h], &layer[i]->neuron[0][h * time_step * layer[i]->number_nodes], sizeof(float) * time_step * layer[i]->number_nodes, cudaMemcpyDeviceToHost);
 		}
 	}
 }
@@ -3095,18 +3095,8 @@ void Neural_Networks::Test(float input[], float output[], int _length_data) {
 
 	Test(1, &input, &output, length_data);
 }
-void Neural_Networks::Test(int batch_size, float **_input, float **_output, int length_data[]) {
-	float ***input = new float**[batch_size];
-	float ***output = new float**[batch_size];
-
-	for (int h = 0; h < batch_size; h++) {
-		input[h] = &_input[h];
-		output[h] = &_output[h];
-	}
-	Test(batch_size, input, output, length_data);
-
-	delete[] input;
-	delete[] output;
+void Neural_Networks::Test(int batch_size, float **input, float **output, int length_data[]) {
+	Test(batch_size, &input, &output, length_data);
 }
 void Neural_Networks::Test(int batch_size, float ***input, float ***output, int _length_data[]) {
 	Resize_Memory(batch_size);
@@ -3137,39 +3127,14 @@ void Neural_Networks::Test(int batch_size, float ***input, float ***output, int 
 double Neural_Networks::Train(int batch_size, int number_training, float **input, float **target_output, double learning_rate, double epsilon, double noise_standard_deviation) {
 	return Train(batch_size, number_training, nullptr, input, target_output, learning_rate, epsilon, noise_standard_deviation);
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, float **_target_output, double learning_rate, double epsilon, double noise_standard_deviation) {
-	double loss;
-
-	float ***input = new float**[number_training];
-	float ***target_output = new float**[number_training];
-
-	for (int h = 0; h < number_training; h++) {
-		input[h] = &_input[h];
-		target_output[h] = &_target_output[h];
-	}
-	loss = Train(batch_size, number_training, length_data, input, target_output, nullptr, learning_rate, epsilon, noise_standard_deviation);
-
-	delete[] input;
-	delete[] target_output;
-
-	return loss;
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **input, float **target_output, double learning_rate, double epsilon, double noise_standard_deviation) {
+	return Train(batch_size, number_training, length_data, &input, &target_output, nullptr, learning_rate, epsilon, noise_standard_deviation);
 }
 double Neural_Networks::Train(int batch_size, int number_training, float **input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	return Train(batch_size, number_training, nullptr, input, reference, learning_rate, epsilon, noise_standard_deviation);
 }
-double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **_input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
-	double loss;
-
-	float ***input = new float**[number_training];
-
-	for (int h = 0; h < number_training; h++) {
-		input[h] = &_input[h];
-	}
-	loss = Train(batch_size, number_training, length_data, input, nullptr, reference, learning_rate, epsilon, noise_standard_deviation);
-
-	delete[] input;
-
-	return loss;
+double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float **input, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
+	return Train(batch_size, number_training, length_data, &input, nullptr, reference, learning_rate, epsilon, noise_standard_deviation);
 }
 double Neural_Networks::Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon, double noise_standard_deviation) {
 	int *index = new int[number_training];
@@ -3205,11 +3170,11 @@ double Neural_Networks::Train(int batch_size, int number_training, int length_da
 	for (int g = 0, h = 0; g < number_training; g++) {
 		for (int i = 0, j = 0; j < layer[i].size(); j++) {
 			cudaMemset(&input_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
-			cudaMemcpy(&input_batch[j][h * time_step * layer[i][j]->number_nodes], input[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
+			cudaMemcpy(&input_batch[j][h * time_step * layer[i][j]->number_nodes], input[j][index[g]], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
 		for (int i = layer_height - 1, j = 0; j < layer[i].size() && target_output; j++) {
 			cudaMemset(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], 0, sizeof(float) * time_step * layer[i][j]->number_nodes);
-			cudaMemcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[index[g]][j], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
+			cudaMemcpy(&target_output_batch[j][h * time_step * layer[i][j]->number_nodes], target_output[j][index[g]], sizeof(float) * ((length_data == nullptr) ? (time_step) : (length_data[index[g]])) * layer[i][j]->number_nodes, cudaMemcpyHostToDevice);
 		}
 		if (reference) {
 			if (length_data_batch) {
