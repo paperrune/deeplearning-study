@@ -79,7 +79,7 @@ NN.Connect(3, 2, "W")
 NN.Initialize(0, 0.01)
 
 # or load pretrained model
-# NN = Neural_Networks("NN.txt")
+# NN = Neural_Networks("MNIST_MLP.txt")
 
 NN.Set_Number_Threads(int(input("The number of threads : ")))
 
