@@ -2,7 +2,7 @@ import numpy as np
 import time
 from Neural_Networks import *
 
-def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, _input, target_output):
+def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, image, target_output):
     # training set images
     file = open(training_set_images, 'rb')
 
@@ -11,7 +11,7 @@ def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_s
         
     for h in range(number_training):
         for j in range(28 * 28):
-            _input[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
+            image[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
             
     file.close()
 
@@ -37,7 +37,7 @@ def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_s
         
     for h in range(number_training, number_training + number_test):        
         for j in range(28 * 28):
-            _input[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
+            image[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
             
     file.close()
 
