@@ -6,6 +6,8 @@
 
 #include "../Neural_Networks.h"
 
+using namespace NNGPU;
+
 void Read_CIFAR_10(string path, int number_training, int number_test, float **input, float **target_output) {
 	ifstream file;
 
