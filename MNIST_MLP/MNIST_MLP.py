@@ -68,13 +68,13 @@ number_test = 10000
 NN = Neural_Networks()
 
 NN.Add_Layer("MNIST", 784)
-NN.Add_Layer("BN,ReLU", 400)
-NN.Add_Layer("BN,ReLU", 400)
-NN.Add_Layer("CE,softmax", 10)
+NN.Add_Layer("BN,ReLU", 400)    # batch normalization, ReLU activation
+NN.Add_Layer("BN,ReLU", 400)    # batch normalization, ReLU activation
+NN.Add_Layer("CE,softmax", 10)  # cross-entropy loss, softmax activation
 
-NN.Connect(1, 0, "W")
-NN.Connect(2, 1, "W")
-NN.Connect(3, 2, "W")
+NN.Connect(1, 0, "W")   # fully connected
+NN.Connect(2, 1, "W")   # fully connected
+NN.Connect(3, 2, "W")   # fully connected
 
 NN.Initialize(0, 0.01)
 
