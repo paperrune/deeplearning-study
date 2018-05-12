@@ -7,6 +7,8 @@
 #include "Speech_Processing.h"
 #include "Wav.h"
 
+using namespace NNGPU;
+
 void Read_Label(string path, int number_events, vector<string> **event_label) {
 	ifstream file(path);
 
@@ -195,7 +197,7 @@ int main() {
 				}
 			}
 			printf(".");  NN.Save("NN.txt");
-			printf("LER: %.2lf, %.2lf	§¤: %lf  step %d  %.2lf sec\n", 100 * LER[0] / number_training, (number_test == 0) ? (0) : (100 * LER[1] / number_test), log_likelihood, g + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
+			printf("LER: %.2lf, %.2lf	Â§Â¤: %lf  step %d  %.2lf sec\n", 100 * LER[0] / number_training, (number_test == 0) ? (0) : (100 * LER[1] / number_test), log_likelihood, g + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
 
 			for (int h = 0; h < batch_size; h++) {
 				delete[] output[h];
