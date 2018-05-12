@@ -7,10 +7,10 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 
 ### Compile
 - Visual Studio 2015</br>
-![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br></br>
+![VS_2015](/MNIST_MLP/screenshot/VS_2015.png)</br>
 
 - GNU g++</br>
-![g++](/MNIST_MLP/screenshot/g++.png)</br></br>
+![g++](/MNIST_MLP/screenshot/g++.png)</br>
 
 - Python</br>
 [Neural_Networks.pyd](https://github.com/paperrune/Neural-Networks/tree/master/Python)</br>
