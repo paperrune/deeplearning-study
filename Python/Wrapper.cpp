@@ -44,6 +44,18 @@ public:
 	void Set_Number_Threads(int number_threads) {
 		omp_set_num_threads(number_threads);
 	}
+	void Set_Time_Mask(int layer_index, boost::python::object time_mask) {
+		Py_buffer time_mask_buffer;
+
+		if (PyObject_GetBuffer(time_mask.ptr(), &time_mask_buffer, PyBUF_SIMPLE) != -1) {
+			bool *time_mask = new bool[(layer[layer_index]->time_step) ? (layer[layer_index]->time_step):(NN->time_step)];
+
+			memcpy(time_mask, static_cast<bool*>(time_mask_buffer.buf), (layer[layer_index]->time_step) ? (layer[layer_index]->time_step) : (NN->time_step));
+			layer[layer_index]->Set_Time_Mask(time_mask);
+
+			PyBuffer_Release(&time_mask_buffer);
+		}
+	}
 	void Test(boost::python::object input, boost::python::object output, int _length_data = 0) {
 		boost::python::list length_data;
 
@@ -75,8 +87,8 @@ public:
 			for (int i = 0, j = 0, index = 0; j < NN->layer[i].size(); j++) {
 				input[j] = new float*[batch_size];
 
-				for (int h = 0; h < batch_size; h++, index += NN->layer[i][j]->number_nodes) {
-					float *p = (float*)input_buffer.buf;
+				for (int h = 0; h < batch_size; index += ((length_data) ? (length_data[h]) : ((NN->layer[i][j]->time_step) ? (NN->layer[i][j]->time_step):(NN->time_step))) * NN->layer[i][j]->number_nodes, h++) {
+					float *p = static_cast<float*>(input_buffer.buf);
 
 					input[j][h] = &p[index];
 				}
@@ -84,8 +96,8 @@ public:
 			for (int i = NN->layer_height - 1, j = 0, index = 0; j < NN->layer[i].size(); j++) {
 				output[j] = new float*[batch_size];
 
-				for (int h = 0; h < batch_size; h++, index += NN->layer[i][j]->number_nodes) {
-					float *p = (float*)output_buffer.buf;
+				for (int h = 0; h < batch_size; index += ((length_data) ? (length_data[h]) : ((NN->layer[i][j]->time_step) ? (NN->layer[i][j]->time_step) : (NN->time_step))) * NN->layer[i][j]->number_nodes, h++) {
+					float *p = static_cast<float*>(output_buffer.buf);
 
 					output[j][h] = &p[index];
 				}
@@ -161,8 +173,8 @@ public:
 			for (int i = 0, j = 0, index = 0; j < NN->layer[i].size(); j++) {
 				input[j] = new float*[number_training];
 
-				for (int h = 0; h < number_training; h++, index += NN->layer[i][j]->number_nodes) {
-					float *p = (float*)input_buffer.buf;
+				for (int h = 0; h < number_training; index += ((length_data) ? (length_data[h]) : ((NN->layer[i][j]->time_step) ? (NN->layer[i][j]->time_step) : (NN->time_step))) * NN->layer[i][j]->number_nodes, h++) {
+					float *p = static_cast<float*>(input_buffer.buf);
 
 					input[j][h] = &p[index];
 				}
@@ -170,8 +182,8 @@ public:
 			for (int i = NN->layer_height - 1, j = 0, index = 0; j < NN->layer[i].size(); j++) {
 				target_output[j] = new float*[number_training];
 
-				for (int h = 0; h < number_training; h++, index += NN->layer[i][j]->number_nodes) {
-					float *p = (float*)target_output_buffer.buf;
+				for (int h = 0; h < number_training; index += ((length_data) ? (length_data[h]) : ((NN->layer[i][j]->time_step) ? (NN->layer[i][j]->time_step) : (NN->time_step))) * NN->layer[i][j]->number_nodes, h++) {
+					float *p = static_cast<float*>(target_output_buffer.buf);
 
 					target_output[j][h] = &p[index];
 				}
@@ -222,6 +234,7 @@ BOOST_PYTHON_MODULE(Neural_Networks) {
 		.def("Initialize", static_cast<void(Neural_Networks_Wrapper::*)(int, double, double)>(&Neural_Networks_Wrapper::Initialize), Initialize2())
 		.def("Save", &Neural_Networks_Wrapper::Save)
 		.def("Set_Number_Threads", &Neural_Networks_Wrapper::Set_Number_Threads)
+		.def("Set_Time_Mask", &Neural_Networks_Wrapper::Set_Time_Mask)
 		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(boost::python::object, boost::python::object, int)>(&Neural_Networks_Wrapper::Test), Test())
 		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, boost::python::object, boost::python::object)>(&Neural_Networks_Wrapper::Test))
 		.def("Test", static_cast<void(Neural_Networks_Wrapper::*)(int, boost::python::object, boost::python::object, boost::python::list&)>(&Neural_Networks_Wrapper::Test))
