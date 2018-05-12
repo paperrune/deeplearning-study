@@ -68,21 +68,21 @@ number_test = 10000
 NN = Neural_Networks()
 
 NN.Add_Layer("MNIST", 1, 28, 28)
-NN.Add_Layer("BN,ReLU", 24, 24, 24)
+NN.Add_Layer("BN,ReLU", 24, 24, 24) # batch normalization, ReLU activation
 NN.Add_Layer("", 24, 12, 12)
-NN.Add_Layer("BN,ReLU", 24, 8, 8)
-NN.Add_Layer("BN,ReLU", 48, 8, 8)
+NN.Add_Layer("BN,ReLU", 24, 8, 8)   # batch normalization, ReLU activation
+NN.Add_Layer("BN,ReLU", 48, 8, 8)   # batch normalization, ReLU activation
 NN.Add_Layer("", 48, 4, 4)
-NN.Add_Layer("BN,ReLU", 192)
-NN.Add_Layer("CE,softmax", 10)
+NN.Add_Layer("BN,ReLU", 192)        # batch normalization, ReLU activation
+NN.Add_Layer("CE,softmax", 10)      # cross-entropy loss, softmax activation
 
-NN.Connect(1, 0, "W")
-NN.Connect(2, 1, "P,max")
-NN.Connect(3, 2, "W,DS")
-NN.Connect(4, 3, "W")
-NN.Connect(5, 4, "P,max")
-NN.Connect(6, 5, "W")
-NN.Connect(7, 6, "W")
+NN.Connect(1, 0, "W")       # 5x5 convolution
+NN.Connect(2, 1, "P,max")   # 2x2 max pooling
+NN.Connect(3, 2, "W,DS")    # 5x5 depthwise separable convolution
+NN.Connect(4, 3, "W")       # 1x1 convolution
+NN.Connect(5, 4, "P,max")   # 2x2 max pooling
+NN.Connect(6, 5, "W")       # fully connected
+NN.Connect(7, 6, "W")       # fully connected
 
 NN.Initialize(0, 0.01)
 
