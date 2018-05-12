@@ -431,15 +431,15 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(Train1, Neural_Networks_Wrapper::Train, 5
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(Train2, Neural_Networks_Wrapper::Train, 6, 8);
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(Train3, Neural_Networks_Wrapper::Train, 7, 9);
 
-class Scope_CPU {};
-class Scope_GPU {};
+class Scope_NNCPU {};
+class Scope_NNGPU {};
 
 BOOST_PYTHON_MODULE(Neural_Networks) {
 	using namespace boost::python;
 	{
 		using namespace NNCPU;
 
-		scope NNCPU = class_<Scope_CPU>("NNCPU");
+		scope NNCPU = class_<Scope_NNCPU>("NNCPU");
 			class_<Neural_Networks_Wrapper>("Neural_Networks", init<>())
 			.def(init<int>())
 			.def(init<string>())
@@ -463,7 +463,7 @@ BOOST_PYTHON_MODULE(Neural_Networks) {
 	{
 		using namespace NNGPU;
 
-		scope NNGPU = class_<Scope_GPU>("NNGPU");
+		scope NNGPU = class_<Scope_NNGPU>("NNGPU");
 			class_<Neural_Networks_Wrapper>("Neural_Networks", init<>())
 			.def(init<int>())
 			.def(init<string>())
