@@ -18,6 +18,6 @@ Following files are required from http://yann.lecun.com/exdb/mnist/
 ### Result
 i7-4790K</br>
 C++</br>
-![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br>
-</br>Python</br>
+![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br></br>
+Python</br>
 ![result](/MNIST_MLP/screenshot/MNIST_MLP_Python.png)</br>
