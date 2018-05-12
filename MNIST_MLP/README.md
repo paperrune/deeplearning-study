@@ -20,4 +20,4 @@ i7-4790K</br>
 C++</br>
 ![result](/MNIST_MLP/screenshot/MNIST_MLP.png)</br></br>
 Python</br>
-![result](/MNIST_MLP/screenshot/MNIST_MLP_Python.png)</br>
+![result](/MNIST_MLP/screenshot/MNIST_MLP_Python.png)
