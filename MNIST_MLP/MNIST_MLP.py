@@ -1,8 +1,8 @@
 import numpy as np
 import time
-from Neural_Networks import *
+from Neural_Networks import NNCPU
 
-def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, image, target_output):
+def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, _input, target_output):
     # training set images
     file = open(training_set_images, 'rb')
 
@@ -11,7 +11,7 @@ def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_s
         
     for h in range(number_training):
         for j in range(28 * 28):
-            image[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
+            _input[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
             
     file.close()
 
@@ -37,7 +37,7 @@ def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_s
         
     for h in range(number_training, number_training + number_test):        
         for j in range(28 * 28):
-            image[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
+            _input[h][j] = int.from_bytes(file.read(1), byteorder='little') / 255
             
     file.close()
 
@@ -65,7 +65,7 @@ number_training = 60000
 number_test     = 10000
 
 # train from scratch
-NN = Neural_Networks()
+NN = NNCPU.Neural_Networks()
 
 NN.Add_Layer("MNIST", 784)
 NN.Add_Layer("BN,ReLU", 400)    # batch normalization, ReLU activation
@@ -77,6 +77,7 @@ NN.Connect(2, 1, "W")   # fully connected
 NN.Connect(3, 2, "W")   # fully connected
 
 NN.Initialize(0, 0.01)
+
 
 # or load pretrained model
 # NN = Neural_Networks("MNIST_MLP.txt")
