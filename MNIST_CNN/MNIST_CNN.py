@@ -112,7 +112,7 @@ for f in range(number_iterations):
         
         if h == batch_size or i == number_training + number_test - 1:
             _input = np.array(image[i - h + 1])
-            output = np.zeros((h, 10), dtype='f')
+            output = np.empty((h, 10), dtype='f')
 
             for g in range(1, h):
                 _input = np.append(_input, image[i - h + g + 1])
