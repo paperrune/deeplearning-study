@@ -6,6 +6,8 @@
 
 #include "../Neural_Networks.h"
 
+using namespace NNCPU;
+
 void Read_MNIST(string training_set_images, string training_set_labels, string test_set_images, string test_set_labels, int number_training, int number_test, float **input, float **target_output) {
 	ifstream file(training_set_images, ifstream::binary);
 
