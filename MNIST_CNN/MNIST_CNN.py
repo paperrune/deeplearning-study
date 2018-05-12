@@ -56,13 +56,13 @@ def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_s
     file.close()
     
 
-batch_size = 60
-decay_rate = 0.977
-epsilon = 0.001
-learning_rate = 0.005
+batch_size      = 60
+decay_rate      = 0.977
+epsilon         = 0.001
+learning_rate   = 0.005
 number_iterations = 50
 number_training = 60000
-number_test = 10000
+number_test     = 10000
 
 # train from scratch
 NN = Neural_Networks()
