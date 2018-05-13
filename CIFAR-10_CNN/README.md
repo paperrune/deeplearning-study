@@ -17,7 +17,7 @@ Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
 GeForce GTX 1060 6GB</br>
 without data augmentation</br>
 C++</br>
-![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN.png)</br>
+![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN.png)</br></br>
 Python</br>
 ![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN_Python.png)</br></br>
 
