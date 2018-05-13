@@ -9,12 +9,17 @@ Following files are required from https://www.cs.toronto.edu/~kriz/cifar.html
 
 ### Compile
 - Visual Studio 2015 + CUDA 9.1</br>
-![VS_2015](/CIFAR-10_CNN/screenshot/VS_2015.png)</br></br>
+![VS_2015](/CIFAR-10_CNN/screenshot/VS_2015.png)</br>
+- Python</br>
+[Neural_Networks.pyd](https://github.com/paperrune/Neural-Networks/tree/master/Python)</br>
 
 ### Results
 GeForce GTX 1060 6GB</br>
 without data augmentation</br>
+C++</br>
 ![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN.png)</br>
+Python</br>
+![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN_Python.png)</br></br>
 
 with data augmentation</br>
-![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN+.png)</br>
+![result](/CIFAR-10_CNN/screenshot/CIFAR-10_CNN+.png)
