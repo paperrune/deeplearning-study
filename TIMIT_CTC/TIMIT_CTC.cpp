@@ -7,8 +7,6 @@
 #include "Speech_Processing.h"
 #include "Wav.h"
 
-using namespace NNGPU;
-
 void Read_Label(string path, int number_events, vector<string> **event_label) {
 	ifstream file(path);
 
