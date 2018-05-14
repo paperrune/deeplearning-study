@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from Neural_Networks import NNCPU
+from Neural_Networks import *
 
 def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, _input, target_output):
     # training set images
@@ -65,7 +65,7 @@ number_training = 60000
 number_test     = 10000
 
 # train from scratch
-NN = NNCPU.Neural_Networks()
+NN = Neural_Networks()
 
 NN.Add_Layer("MNIST", 784)
 NN.Add_Layer("BN,ReLU", 400)    # batch normalization, ReLU activation
