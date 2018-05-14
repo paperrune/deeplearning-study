@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from Neural_Networks import NNGPU
+from Neural_Networks import *
 
 def Read_CIFAR_10(path, number_training, number_test, image, target_output):
     file = open(path + "data_batch_1.bin", 'rb')
@@ -47,7 +47,7 @@ number_training = 50000
 number_test     = 10000
 
 # train from scratch
-NN = NNGPU.Neural_Networks()
+NN = Neural_Networks()
 
 NN.Add_Layer("CIFAR-10", 3, 32, 32)
 NN.Add_Layer("BN,ReLU", 48, 32, 32) # batch normalization, ReLU activation
