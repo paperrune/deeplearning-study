@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from Neural_Networks import NNCPU
+from Neural_Networks import *
 
 def Read_MNIST(training_set_images, training_set_labels, test_set_images, test_set_labels, number_training, number_test, image, target_output):
     # training set images
@@ -68,7 +68,7 @@ number_test     = 10000
 time_step       = 28
 
 # train from scratch
-NN = NNCPU.Neural_Networks(time_step)
+NN = Neural_Networks(time_step)
 
 NN.Add_Layer("MNIST", 784 // time_step)
 NN.Add_Layer("BN,LSTM", 100)            # batch normalization, LSTM forward direction
