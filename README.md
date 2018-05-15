@@ -12,6 +12,7 @@ C++ / CUDA C implementation of Neural Networks</br></br>
 "sigmoid" : logistic sigmoid
 "softmax" : softmax
 "tangent" : hyperbolic tangent
+""        : identity function
 
 > Loss
 "CE"      : cross-entopy
