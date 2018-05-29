@@ -97,7 +97,7 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size) 
 			layer[i]->Forward();
 		}
 
-		// calculate error
+		// calculate loss
 		for (int j = 0; j < layer.back()->number_nodes; j++) {
 			loss += (layer.back()->neuron[j] - y_test[h][j]) * (layer.back()->neuron[j] - y_test[h][j]);
 		}
