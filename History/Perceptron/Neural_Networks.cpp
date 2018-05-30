@@ -130,7 +130,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size) {
 					// calculate error
 					layer->error[j] = (layer->neuron[j] - y_train[h][j]);
 					loss += layer->error[j] * layer->error[j];
-					layer->error[j] /= (0.5 * layer->number_nodes);
+					layer->error[j] = 2 * layer->error[j] / layer->number_nodes;
 				}
 				else {
 					// backpropagate error
