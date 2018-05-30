@@ -234,12 +234,13 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 			for (int i = 0; i < layer.size(); i++) {
 				Layer *layer = this->layer[i];
 
-				for (int h = 0; h < this->batch_size; h++) {
-					float *error = &layer->error[h * layer->number_nodes];
+				for (int j = 0; j < layer->number_nodes; j++) {
+					double sum = 0;
 
-					for (int j = 0; j < layer->number_nodes; j++) {
-						layer->bias[j] -= learning_rate * error[j];
+					for (int h = 0; h < this->batch_size; h++) {
+						sum += layer->error[h * layer->number_nodes + j];
 					}
+					layer->bias[j] -= learning_rate * sum;
 				}
 			}
 
@@ -250,13 +251,16 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 				Layer *layer = connection->layer;
 				Layer *parent_layer = connection->parent_layer;
 
-				for (int h = 0; h < this->batch_size; h++) {
-					float *error = &layer->error[h * layer->number_nodes];
-					float *neuron = &parent_layer->neuron[h * parent_layer->number_nodes];
+				for (int j = 0; j < connection->number_weights; j++) {
+					int k = j / parent_layer->number_nodes;
+					int l = j % parent_layer->number_nodes;
 
-					for (int j = 0; j < connection->number_weights; j++) {
-						connection->weight[j] -= learning_rate * error[j / parent_layer->number_nodes] * neuron[j % parent_layer->number_nodes];
+					double sum = 0;
+
+					for (int h = 0; h < this->batch_size; h++) {
+						sum += layer->error[h * layer->number_nodes + k] * parent_layer->neuron[h * parent_layer->number_nodes + l];
 					}
+					connection->weight[j] -= learning_rate * sum;
 				}
 			}
 		}
