@@ -3,3 +3,4 @@
 3. [Cross-Entropy+Softmax](https://github.com/paperrune/Neural-Networks/tree/master/History/Cross-Entropy+Softmax)
 4. [Multilayer-Perceptron](https://github.com/paperrune/Neural-Networks/tree/master/History/Multilayer-Perceptron)
 5. [tanh](https://github.com/paperrune/Neural-Networks/tree/master/History/tanh)
+6. [ReLU](https://github.com/paperrune/Neural-Networks/tree/master/History/ReLU)
