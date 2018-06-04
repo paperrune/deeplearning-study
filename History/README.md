@@ -4,3 +4,4 @@
 4. [Multilayer-Perceptron](https://github.com/paperrune/Neural-Networks/tree/master/History/Multilayer-Perceptron)
 5. [tanh](https://github.com/paperrune/Neural-Networks/tree/master/History/tanh)
 6. [ReLU](https://github.com/paperrune/Neural-Networks/tree/master/History/ReLU)
+7. [Dropout](https://github.com/paperrune/Neural-Networks/tree/master/History/Dropout)
