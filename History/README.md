@@ -6,3 +6,5 @@
 6. [ReLU](https://github.com/paperrune/Neural-Networks/tree/master/History/ReLU)
 7. [Dropout](https://github.com/paperrune/Neural-Networks/tree/master/History/Dropout)
 8. [Momentum](https://github.com/paperrune/Neural-Networks/tree/master/History/Momentum)
+9. [Nesterov Accelerated Gradient](https://github.com/paperrune/Neural-Networks/tree/master/History/Nesterov-Accelerated-Gradient)
+
