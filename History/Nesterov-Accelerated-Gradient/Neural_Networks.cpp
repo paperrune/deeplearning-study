@@ -49,7 +49,7 @@ Layer::~Layer() {
 }
 
 void Layer::Activation(bool training) {
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *neuron = &this->neuron[h * number_nodes];
 
@@ -104,7 +104,7 @@ void Layer::Activation(bool training) {
 	}
 }
 void Layer::Backward() {
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *error = &this->error[h * number_nodes];
 		float *neuron = &this->neuron[h * number_nodes];
@@ -127,7 +127,7 @@ void Layer::Backward() {
 }
 void Layer::Derivative(int loss, float **y_batch) {
 	if (y_batch) {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
 			float *error = &this->error[h * number_nodes];
 			float *neuron = &this->neuron[h * number_nodes];
@@ -153,7 +153,7 @@ void Layer::Derivative(int loss, float **y_batch) {
 		Derivative(loss);
 	}
 	else {
-		#pragma omp parallel for
+#pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
 			float *error = &this->error[h * number_nodes];
 			float *neuron = &this->neuron[h * number_nodes];
@@ -166,7 +166,7 @@ void Layer::Derivative(int loss, float **y_batch) {
 					error[j] *= (neuron[j] > 0);
 				}
 			}
-			else if (activation == Activation::sigmoid && loss != Loss::cross_entropy){
+			else if (activation == Activation::sigmoid && loss != Loss::cross_entropy) {
 				for (int j = 0; j < number_nodes; j++) {
 					error[j] *= (1 - neuron[j]) * neuron[j];
 				}
@@ -186,7 +186,7 @@ void Layer::Derivative(int loss, float **y_batch) {
 	}
 }
 void Layer::Forward() {
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *neuron = &this->neuron[h * number_nodes];
 
@@ -218,11 +218,14 @@ void Layer::Resize_Memory(int batch_size) {
 
 
 Optimizer::Optimizer(int type, double learning_rate, double momentum, int number_parameters) {
-	this->type = type;
+	this->gradient = nullptr;
 	this->learning_rate = learning_rate;
 	this->momentum = momentum;
+	this->type = type;
 
-	gradient = (type) ? (new float[number_parameters]) : (nullptr);
+	if (type) {
+		memset(gradient = new float[number_parameters], 0, sizeof(float) * number_parameters);
+	}
 }
 Optimizer::~Optimizer() {
 	if (gradient) {
@@ -268,7 +271,7 @@ double Neural_Networks::Calculate_Loss(Layer *layer, float **y_batch) {
 
 	memset(batch_sum, 0, sizeof(double) * batch_size);
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *neuron = &layer->neuron[h * layer->number_nodes];
 
@@ -371,7 +374,7 @@ float** Neural_Networks::Shuffle(int seed, float **data, int data_size) {
 double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size, int batch_size) {
 	float **x_batch = new float*[batch_size];
 	float **y_batch = new float*[batch_size];
-	
+
 	double loss = 0;
 
 	for (int g = 0, h = 0; g < test_size; g++) {
@@ -405,7 +408,7 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size, 
 double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, int batch_size) {
 	float **x_batch = new float*[batch_size];
 	float **y_batch = new float*[batch_size];
-	
+
 	double loss = 0;
 
 	for (int g = 0, h = 0; g < train_size; g++) {
@@ -465,7 +468,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 			for (int i = 1; i < layer.size(); i++) {
 				Layer *layer = this->layer[i];
 
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < layer->number_nodes; j++) {
 					double sum = 0;
 
@@ -483,7 +486,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 				Layer *layer = connection->layer;
 				Layer *parent_layer = connection->parent_layer;
 
-				#pragma omp parallel for
+#pragma omp parallel for
 				for (int j = 0; j < connection->number_weights; j++) {
 					int k = j / parent_layer->number_nodes;
 					int l = j % parent_layer->number_nodes;
