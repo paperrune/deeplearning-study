@@ -477,11 +477,14 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 
 
 Optimizer::Optimizer(int type, double learning_rate, double momentum, int number_parameters) {
-	this->type = type;
+	this->gradient = nullptr;
 	this->learning_rate = learning_rate;
 	this->momentum = momentum;
+	this->type = type;
 
-	gradient = new float[number_parameters];
+	if (type) {
+		memset(gradient = new float[number_parameters], 0, sizeof(float) * number_parameters);
+	}
 }
 Optimizer::~Optimizer() {
 	delete[] gradient;
