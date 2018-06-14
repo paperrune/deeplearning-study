@@ -302,25 +302,7 @@ void Layer::Backward() {
 
 		Layer *child_layer = connection->layer;
 
-		if (connection->properties[0] == 'P') {
-			#pragma omp parallel for
-			for (int h = 0; h < batch_size; h++) {
-				float *error = &this->error[h * number_nodes];
-				float *next_error = &child_layer->error[h * child_layer->number_nodes];
-
-				for (int j = 0; j < number_nodes; j++) {
-					double sum = 0;
-
-					vector<Index> &from_error = connection->from_error[j];
-
-					for (auto index = from_error.begin(); index != from_error.end(); index++) {
-						sum += next_error[index->next_node];
-					}
-					error[j] += sum;
-				}
-			}
-		}
-		else if (connection->properties[0] == 'W') {
+		if (connection->properties[0] == 'W') {
 			#pragma omp parallel for
 			for (int h = 0; h < batch_size; h++) {
 				float *error = &this->error[h * number_nodes];
@@ -408,47 +390,7 @@ void Layer::Forward() {
 
 		Layer *parent_layer = connection->parent_layer;
 
-		if (connection->properties[0] == 'P') {
-			if (strstr(connection->properties.c_str(), "average")) {
-				#pragma omp parallel for
-				for (int h = 0; h < batch_size; h++) {
-					float *neuron = &this->neuron[h * number_nodes];
-					float *prev_neuron = &parent_layer->neuron[h * parent_layer->number_nodes];
-
-					for (int j = 0; j < number_nodes; j++) {
-						double sum = 0;
-
-						vector<Index> &from_neuron = connection->from_neuron[j];
-
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							sum += prev_neuron[index->prev_node];
-						}
-						neuron[j] += sum / from_neuron.size();
-					}
-				}
-			}
-			else if(strstr(connection->properties.c_str(), "max")) {
-				#pragma omp parallel for
-				for (int h = 0; h < batch_size; h++) {
-					float *neuron = &this->neuron[h * number_nodes];
-					float *prev_neuron = &parent_layer->neuron[h * parent_layer->number_nodes];
-
-					for (int j = 0; j < number_nodes; j++) {
-						double max = 0;
-
-						vector<Index> &from_neuron = connection->from_neuron[j];
-
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							if (index == from_neuron.begin() || max < prev_neuron[index->prev_node]) {
-								max = prev_neuron[index->prev_node];
-							}
-						}
-						neuron[j] += max;
-					}
-				}
-			}
-		}
-		else if (connection->properties[0] == 'W') {
+		if (connection->properties[0] == 'W') {
 			#pragma omp parallel for
 			for (int h = 0; h < batch_size; h++) {
 				float *neuron = &this->neuron[h * number_nodes];
