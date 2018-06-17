@@ -1,5 +1,4 @@
 import keras
-
 from keras.datasets import mnist
 from keras.initializers import RandomUniform
 from keras.layers import Dense, Flatten
