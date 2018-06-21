@@ -42,6 +42,28 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 			kernel_depth = 1;
 		}
 	}
+	else if (const char *pool_size = strstr(properties.c_str(), "pool")) {
+		const char *end = strstr(pool_size, ")");
+
+		kernel_width = atoi(pool_size + 5);
+		pool_size = strstr(pool_size, "x");
+
+		if (pool_size && pool_size < end && atoi(pool_size + 1) > 0) {
+			kernel_height = atoi(pool_size + 1);
+			pool_size = strstr(pool_size + 1, "x");
+
+			if (pool_size && pool_size < end && atoi(pool_size + 1) > 0) {
+				kernel_depth = atoi(pool_size + 1);
+			}
+			else {
+				kernel_depth = 1;
+			}
+		}
+		else {
+			kernel_height = 1;
+			kernel_depth = 1;
+		}
+	}
 	else if (properties[0] == 'P') {
 		kernel_width = (parent_layer->map_width > layer->map_width) ? (parent_layer->map_width / layer->map_width) : (layer->map_width / parent_layer->map_width);
 		kernel_height = (parent_layer->map_height > layer->map_height) ? (parent_layer->map_height / layer->map_height) : (layer->map_height / parent_layer->map_height);
