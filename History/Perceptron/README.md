@@ -56,5 +56,5 @@ Epoch 20/20
 ## C++
 main.cpp</br>
 Neural_Networks.cpp</br>
-Neural_Networks.h</br>
+Neural_Networks.h</br></br>
 ![result](/History/Perceptron/result.png)
