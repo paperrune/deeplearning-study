@@ -1,5 +1,3 @@
-## Keras
-keras.py
 ```
 _________________________________________________________________
 Layer (type)                 Output Shape              Param #   
@@ -52,9 +50,3 @@ Epoch 19/20
 Epoch 20/20
 60000/60000 [==============================] - 48s 798us/step - loss: 0.0149 - acc: 0.9220 - val_loss: 0.0147 - val_acc: 0.9223
 ```
-
-## C++
-main.cpp</br>
-Neural_Networks.cpp</br>
-Neural_Networks.h</br></br>
-![result](/History/Perceptron/result.png)
