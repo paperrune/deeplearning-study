@@ -28,15 +28,15 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
  
 model = Sequential()
 model.add(Conv2D(24,
-                activation='relu',
-                kernel_initializer="he_normal",
-                kernel_size=(5, 5),
-                input_shape=(img_rows, img_cols, 1)))
+                 activation='relu',
+                 kernel_initializer="he_normal",
+                 kernel_size=(5, 5),
+                 input_shape=(img_rows, img_cols, 1)))
 model.add(MaxPooling2D())
 model.add(Conv2D(48,
-                activation='relu',                 
-                kernel_initializer="he_normal",
-                kernel_size=(5, 5)))
+                 activation='relu',                 
+                 kernel_initializer="he_normal",
+                 kernel_size=(5, 5)))
 model.add(MaxPooling2D())
 model.add(Flatten())
 model.add(Dense(512,
