@@ -110,7 +110,7 @@ int main() {
 	float **y_test = &y_data[number_training];
 
 	double decay = 0.000001;
-	double learning_rate = 0.1;
+	double learning_rate = 0.5;
 
 	string path;
 
@@ -126,7 +126,7 @@ int main() {
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(0);
+	srand(3);
 
 	NN.Add( 1, 28, 28);
 	NN.Add(24, 24, 24)->Activation(Activation::relu);
@@ -136,14 +136,14 @@ int main() {
 	NN.Add(512)->Activation(Activation::relu);
 	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
-	NN.Connect(1, 0, "W")->Initialize(GlorotUniform());
+	NN.Connect(1, 0, "W")->Initializer(HeNormal());
 	NN.Connect(2, 1, "P,max");
-	NN.Connect(3, 2, "W")->Initialize(GlorotUniform());
+	NN.Connect(3, 2, "W")->Initializer(HeNormal());
 	NN.Connect(4, 3, "P,max");
-	NN.Connect(5, 4, "W")->Initialize(GlorotUniform());
-	NN.Connect(6, 5, "W")->Initialize(GlorotUniform());
+	NN.Connect(5, 4, "W")->Initializer(HeNormal());
+	NN.Connect(6, 5, "W")->Initializer(HeNormal());
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate)));
+	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate, decay)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };

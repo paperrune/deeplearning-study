@@ -31,6 +31,8 @@ struct Connection {
 
 	string properties;
 
+	Initializer *initializer;
+
 	Layer *layer;
 	Layer *parent_layer;
 
@@ -43,7 +45,9 @@ struct Connection {
 	Connection(Layer *layer, Layer *parent_layer, string properties);
 	~Connection();
 
-	Connection* Initialize(Initializer initializer);
+	void Initialize();
+
+	Connection* Initializer(Initializer initializer);
 };
 
 struct Index {
@@ -54,58 +58,71 @@ struct Index {
 
 struct Initializer {
 	struct GlorotNormal {
+		int seed;
+
 		default_random_engine *generator;
 
 		GlorotNormal(int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 		}
 	};
 	struct GlorotUniform {
+		int seed;
+
 		default_random_engine *generator;
 
 		GlorotUniform(int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 		}
 	};
 	struct HeNormal {
+		int seed;
+
 		default_random_engine *generator;
 
 		HeNormal(int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 		}
 	};
 	struct HeUniform {
+		int seed;
+
 		default_random_engine *generator;
 
 		HeUniform(int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 		}
 	};
 	struct RandomNormal {
+		int seed;
+
 		double mean;
 		double stdv;
 
 		default_random_engine *generator;
 
 		RandomNormal(double stdv, double mean = 0, int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 			this->mean = mean;
 			this->stdv = stdv;
 		}
 	};
 	struct RandomUniform {
+		int seed;
+
 		double max;
 		double min;
 
 		default_random_engine *generator;
 
 		RandomUniform(double min, double max, int seed = -1) {
-			generator = (seed >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 			this->max = max;
 			this->min = min;
 		}
 	};
 
+	int seed;
 	int type;
 
 	double max;
@@ -126,6 +143,8 @@ struct Initializer {
 	~Initializer();
 
 	void Random(int memory_size, float memory[], int fan_in, int fan_out);
+
+	Initializer* Copy();
 };
 
 typedef Initializer::GlorotNormal GlorotNormal;
@@ -156,6 +175,8 @@ struct Layer {
 	vector<Connection*> connection;
 	vector<Connection*> child_connection;
 
+	Initializer *initializer;
+
 	Optimizer *optimizer;
 
 	Layer(int number_maps, int map_width, int map_height, int map_depth, string properties = "");
@@ -165,10 +186,11 @@ struct Layer {
 	void Backward();
 	void Differentiate(int loss = -1, float **y_batch = nullptr);
 	void Forward();
+	void Initialize();
 	void Resize_Memory(int batch_size);
 
 	Layer* Activation(int activation);
-	Layer* Initialize(Initializer initializer);
+	Layer* Initializer(Initializer initializer);
 };
 
 struct Optimizer {

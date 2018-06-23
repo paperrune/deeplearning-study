@@ -15,6 +15,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 	this->from_error = nullptr;
 	this->from_neuron = nullptr;
 	this->from_weight = nullptr;
+	this->initializer = nullptr;
 	this->layer = layer;
 	this->parent_layer = parent_layer;
 	this->properties = properties;
@@ -215,14 +216,31 @@ Connection::~Connection() {
 	if (from_weight) {
 		delete[] from_weight;
 	}
+	if (initializer) {
+		delete initializer;
+	}
 	if (optimizer) {
 		delete optimizer;
 	}
 	delete[] weight;
 }
 
-Connection *Connection::Initialize(Initializer initializer) {
-	initializer.Random(number_weights, weight, parent_layer->number_maps * kernel_size, layer->number_maps * kernel_size);
+void Connection::Initialize() {
+	if (initializer) {
+		int pool_size[] = {
+			(parent_layer->connection.size() > 0 && parent_layer->connection[0]->properties[0] == 'P') ? (parent_layer->connection[0]->kernel_size) : (1),
+			(layer->child_connection.size() > 0 && layer->child_connection[0]->properties[0] == 'P') ? (layer->child_connection[0]->kernel_size) : (1)
+		};
+
+		initializer->Random(number_weights, weight, parent_layer->number_maps * kernel_size * pool_size[0], layer->number_maps * kernel_size / pool_size[1]);
+	}
+}
+
+Connection *Connection::Initializer(::Initializer initializer) {
+	if (this->initializer) {
+		delete this->initializer;
+	}
+	this->initializer = initializer.Copy();
 	return this;
 }
 
@@ -322,10 +340,23 @@ void Initializer::Random(int memory_size, float memory[], int fan_in, int fan_ou
 	}
 }
 
+Initializer* Initializer::Copy() {
+	switch (type) {
+	case 0: return new Initializer(value);
+	case 1: return new Initializer(RandomUniform(min, max, seed));
+	case 2: return new Initializer(RandomNormal(stdv, mean, seed));
+	case 3: return new Initializer(GlorotUniform(seed));
+	case 4: return new Initializer(GlorotNormal(seed));
+	case 5: return new Initializer(HeUniform(seed));
+	case 6: return new Initializer(HeNormal(seed));
+	}
+}
+
 
 Layer::Layer(int number_maps, int map_width, int map_height, int map_depth, string properties) {
 	this->activation = Activation::linear;
 	this->batch_size = 1;
+	this->initializer = nullptr;
 	this->map_width = map_width;
 	this->map_height = map_height;
 	this->map_depth = map_depth;
@@ -342,6 +373,9 @@ Layer::Layer(int number_maps, int map_width, int map_height, int map_depth, stri
 Layer::~Layer() {
 	if (bias) {
 		delete[] bias;
+	}
+	if (initializer) {
+		delete initializer;
 	}
 	if (optimizer) {
 		delete optimizer;
@@ -611,6 +645,11 @@ void Layer::Forward() {
 		}
 	}
 }
+void Layer::Initialize() {
+	if (initializer) {
+		initializer->Random(number_maps, bias, 1, number_maps);
+	}
+}
 void Layer::Resize_Memory(int batch_size) {
 	this->batch_size = batch_size;
 
@@ -622,8 +661,14 @@ Layer* Layer::Activation(int activation) {
 	this->activation = activation;
 	return this;
 }
-Layer* Layer::Initialize(Initializer initializer) {
-	initializer.Random(number_maps, bias = new float[number_maps], 1, number_maps);
+Layer* Layer::Initializer(::Initializer initializer) {
+	if (bias == nullptr) {
+		bias = new float[number_maps];
+	}
+	if (this->initializer) {
+		delete this->initializer;
+	}
+	this->initializer = initializer.Copy();
 	return this;
 }
 
@@ -752,6 +797,7 @@ void Neural_Networks::Compile(int loss, Optimizer *optimizer) {
 				delete connection[i]->optimizer;
 			}
 			connection[i]->optimizer = optimizer->Copy(connection[i]->number_weights);
+			connection[i]->Initialize();
 		}
 	}
 	for (int i = 1; i < layer.size(); i++) {
@@ -760,6 +806,7 @@ void Neural_Networks::Compile(int loss, Optimizer *optimizer) {
 				delete layer[i]->optimizer;
 			}
 			layer[i]->optimizer = optimizer->Copy(layer[i]->number_maps);
+			layer[i]->Initialize();
 		}
 	}
 }
@@ -998,7 +1045,8 @@ Connection* Neural_Networks::Connect(int from, int to, string properties) {
 	if (properties[0] == 'W' && layer[from]->bias == nullptr) {
 		Layer *layer = this->layer[from];
 
-		memset(layer->bias = new float[layer->number_maps], 0, sizeof(float) * layer->number_maps);
+		layer->bias = new float[layer->number_maps];
+		layer->initializer = new Initializer(0);
 	}
 	if (properties[0] == 'P' && !(strstr(properties.c_str(), "average") || strstr(properties.c_str(), "max"))) {
 		cerr << "[Connect], The pooling layer must have 'average' or 'max' property" << endl;
