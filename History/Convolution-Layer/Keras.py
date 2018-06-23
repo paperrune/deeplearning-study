@@ -30,12 +30,12 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
 model.add(Conv2D(24,
-                activation='relu',                 
-                bias_initializer='zeros',
-                kernel_initializer=RandomUniform(minval=-0.1, maxval=0.1),
-                kernel_size=(5, 5),
-                strides=(2, 2),
-                input_shape=(img_rows, img_cols, 1)))
+                 activation='relu',                 
+                 bias_initializer='zeros',
+                 kernel_initializer=RandomUniform(minval=-0.1, maxval=0.1),
+                 kernel_size=(5, 5),
+                 strides=(2, 2),
+                 input_shape=(img_rows, img_cols, 1)))
 model.add(Flatten())
 model.add(Dense(512,
                 activation='relu',
