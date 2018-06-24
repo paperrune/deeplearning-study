@@ -9,13 +9,6 @@
 
 #include "Neural_Networks.h"
 
-Batch_Normalization::Batch_Normalization(int number_maps, int map_size) {
-	this->map_size = map_size;
-	this->number_maps = number_maps;
-	this->number_nodes = number_maps * map_size;
-}
-
-
 Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 	unordered_map<int, int> weight_index;
 
