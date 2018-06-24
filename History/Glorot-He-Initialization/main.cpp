@@ -126,7 +126,7 @@ int main() {
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(3);
+	srand(1);
 
 	NN.Add( 1, 28, 28);
 	NN.Add(24, 24, 24)->Activation(Activation::relu);
@@ -175,8 +175,6 @@ int main() {
 				h = 0;
 			}
 		}
-		printf("."); NN.Save_Weights("weights.txt");
-
 		printf("loss: %.4f / %.4f	accuracy: %.4f / %.4f	step %d  %.2f sec\n", loss[0], loss[1], 1.0 * score[0] / number_training, 1.0 * score[1] / number_test, e + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
 
 		for (int h = 0; h < batch_size; h++) {

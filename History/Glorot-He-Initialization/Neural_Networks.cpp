@@ -9,6 +9,13 @@
 
 #include "Neural_Networks.h"
 
+Batch_Normalization::Batch_Normalization(int number_maps, int map_size) {
+	this->map_size = map_size;
+	this->number_maps = number_maps;
+	this->number_nodes = number_maps * map_size;
+}
+
+
 Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 	unordered_map<int, int> weight_index;
 
@@ -252,30 +259,36 @@ Initializer::Initializer(double value) {
 }
 Initializer::Initializer(GlorotNormal initializer) {
 	generator = initializer.generator;
+	seed = initializer.seed;
 	type = 4;
 }
 Initializer::Initializer(GlorotUniform initializer) {
 	generator = initializer.generator;
+	seed = initializer.seed;
 	type = 3;
 }
 Initializer::Initializer(HeNormal initializer) {
 	generator = initializer.generator;
+	seed = initializer.seed;
 	type = 6;
 }
 Initializer::Initializer(HeUniform initializer) {
 	generator = initializer.generator;
+	seed = initializer.seed;
 	type = 5;
 }
 Initializer::Initializer(RandomNormal initializer) {
 	generator = initializer.generator;
 	mean = initializer.mean;
 	stdv = initializer.stdv;
+	seed = initializer.seed;
 	type = 2;
 }
 Initializer::Initializer(RandomUniform initializer) {
 	generator = initializer.generator;
 	max = initializer.max;
 	min = initializer.min;
+	seed = initializer.seed;
 	type = 1;
 }
 Initializer::~Initializer() {
