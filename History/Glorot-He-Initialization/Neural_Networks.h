@@ -17,7 +17,6 @@ namespace Loss {
 	enum { cross_entropy, mean_squared_error };
 }
 
-
 struct Connection {
 	int kernel_width;
 	int kernel_height;
