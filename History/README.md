@@ -10,3 +10,4 @@
 10. [Convolution Layer](https://github.com/paperrune/Neural-Networks/tree/master/History/Convolution-Layer)
 11. [Pooling Layer](https://github.com/paperrune/Neural-Networks/tree/master/History/Pooling-Layer)
 12. [Glorot-He-Initialization](https://github.com/paperrune/Neural-Networks/tree/master/History/Glorot-He-Initialization)
+13. [Batch-Normalization](https://github.com/paperrune/Neural-Networks/tree/master/History/Batch-Normalization)
