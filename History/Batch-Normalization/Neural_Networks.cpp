@@ -679,9 +679,6 @@ Layer::~Layer() {
 }
 
 void Layer::Activate(bool training) {
-	if (batch_normalization) {
-		batch_normalization->Activate(neuron, training);
-	}
 	if (bias) {
 		#pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
@@ -693,6 +690,9 @@ void Layer::Activate(bool training) {
 				}
 			}
 		}
+	}
+	if (batch_normalization) {
+		batch_normalization->Activate(neuron, training);
 	}
 
 	#pragma omp parallel for
