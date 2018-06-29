@@ -128,17 +128,11 @@ int main() {
 	srand(9);
 
 	NN.Add( 1, 28, 28);
-	NN.Add(24, 24, 24)
-		->Activation(Activation::relu)
-		->Batch_Normalization();
+	NN.Add(24, 24, 24)->Activation(Activation::relu)->Batch_Normalization();
 	NN.Add(24, 12, 12);
-	NN.Add(48,  8,  8)
-		->Activation(Activation::relu)
-		->Batch_Normalization();
+	NN.Add(48,  8,  8)->Activation(Activation::relu)->Batch_Normalization();
 	NN.Add(48,  4,  4);
-	NN.Add(512)
-		->Activation(Activation::relu)
-		->Batch_Normalization();
+	NN.Add(512)->Activation(Activation::relu)->Batch_Normalization();
 	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
 	NN.Connect(1, 0, "W")->Initializer(HeNormal());
