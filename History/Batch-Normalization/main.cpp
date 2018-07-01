@@ -125,7 +125,7 @@ int main() {
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(9);
+	srand(1);
 
 	NN.Add( 1, 28, 28);
 	NN.Add(24, 24, 24)->Activation(Activation::relu)->Batch_Normalization();
