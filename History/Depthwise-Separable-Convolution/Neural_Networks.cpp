@@ -197,7 +197,7 @@ void Batch_Normalization::Initialize() {
 	beta_initializer->Random(number_maps, beta, number_maps, number_maps);
 	gamma_initializer->Random(number_maps, gamma, number_maps, number_maps);
 	moving_mean_initializer->Random(number_maps, moving_mean, number_maps, number_maps);
-	moving_variance_initializer->Random(number_maps, moving_mean, number_maps, number_maps);
+	moving_variance_initializer->Random(number_maps, moving_variance, number_maps, number_maps);
 }
 void Batch_Normalization::Load(ifstream &file) {
 	for (int j = 0; j < layer->number_maps; j++) {
