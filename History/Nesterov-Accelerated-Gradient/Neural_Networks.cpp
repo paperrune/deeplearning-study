@@ -179,7 +179,7 @@ void Layer::Derivative(int loss, float **y_batch) {
 
 			if (strstr(properties.c_str(), "dropout")) {
 				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] *= mask[h * number_nodes + j];
+					error[j] *= mask[h * number_nodes + j];
 				}
 			}
 		}
