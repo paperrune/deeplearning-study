@@ -311,6 +311,8 @@ struct Optimizer {
 };
 
 typedef Optimizer::SGD SGD;
+typedef Optimizer::Momentum Momentum;
+typedef Optimizer::Nesterov Nesterov;
 
 class Neural_Networks {
 private:
