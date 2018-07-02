@@ -566,7 +566,9 @@ Initializer::Initializer(RandomUniform initializer) {
 	type = 1;
 }
 Initializer::~Initializer() {
-	delete generator;
+	if (generator) {
+		delete generator;
+	}
 }
 
 void Initializer::Random(int memory_size, float memory[], int fan_in, int fan_out) {
