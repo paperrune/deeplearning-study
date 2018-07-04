@@ -663,6 +663,7 @@ Initializer* Initializer::Copy() {
 	case 5: return new Initializer(HeUniform(seed));
 	case 6: return new Initializer(HeNormal(seed));
 	}
+	return nullptr;
 }
 
 
