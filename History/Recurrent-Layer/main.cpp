@@ -98,7 +98,7 @@ int main() {
 	bool *time_mask;
 
 	int batch_size = 128;
-	int epochs = 60;
+	int epochs = 100;
 	int number_threads = 6;
 	int number_training = 60000;
 	int number_test = 10000;
@@ -113,8 +113,7 @@ int main() {
 	float **y_test = &y_data[number_training];
 
 	double decay = 0.000001;
-	double learning_rate = 0.01;
-	double momentum = 0.9;
+	double learning_rate = 0.05;
 
 	string path;
 
@@ -130,7 +129,7 @@ int main() {
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(0);
+	srand(2);
 
 	for (int h = 0; h < number_training + number_test; h++) {
 		memcpy(&y_data[h][(time_step - 1) * number_nodes[1]], y_data[h], sizeof(float) * number_nodes[1]);
@@ -139,17 +138,14 @@ int main() {
 	time_mask[time_step - 1] = true;
 
 	NN.Add(Layer(time_step, number_nodes[0] / time_step));
-	NN.Add(RNN(time_step, 128));
-	NN.Add(RNN(time_step, 128));
+	NN.Add(RNN(time_step, 128))->Activation(Activation::relu);
 	NN.Add(Layer(time_step, number_nodes[1]))->Activation(Activation::softmax)->Time_Mask(time_mask, time_step);
 
 	NN.Connect(1, 0, "W");
 	NN.Connect(1, 1, "W,recurrent");
 	NN.Connect(2, 1, "W");
-	NN.Connect(2, 2, "W,recurrent");
-	NN.Connect(3, 2, "W");
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(Nesterov(learning_rate, momentum, decay)));
+	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate, decay)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };

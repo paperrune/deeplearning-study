@@ -1259,7 +1259,6 @@ void Matrix::Gram_Schmidt_Process(double gain) {
 			sum += (*this)(j, i) * (*this)(j, i);
 		}
 		sum = sqrt(sum);
-
 		for (int j = 0; j < number_rows; j++) {
 			(*this)(j, i) = gain * (*this)(j, i) / sum;
 		}
@@ -1493,7 +1492,7 @@ void RNN::Activate(int time_index, bool training) {
 
 	#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
-		float *neuron[] = { &this->neuron[0][(h * time_step + t) * number_nodes], &this->neuron[1][(h * time_step + t) * number_nodes]};
+		float *neuron[] = { &this->neuron[0][(h * time_step + t) * number_nodes], &this->neuron[1][(h * time_step + t) * number_nodes] };
 
 		if (strstr(properties.c_str(), "dropout")) {
 			double rate = atof(strstr(properties.c_str(), "dropout") + 7);
@@ -1697,7 +1696,7 @@ void RNN::Construct(Layer *layer) {
 void RNN::Differentiate(int time_index) {
 	int t = time_index;
 
-	#pragma omp parallel for
+#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *error[] = { &this->error[0][(h * time_step + t) * number_nodes], &this->error[1][(h * time_step + t) * number_nodes] };
 		float *neuron[] = { &this->neuron[0][(h * time_step + t) * number_nodes], &this->neuron[1][(h * time_step + t) * number_nodes] };
@@ -2049,7 +2048,7 @@ float** Neural_Networks::Shuffle(float **data, int data_size, int seed) {
 double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size, int batch_size) {
 	float **x_batch = new float*[batch_size];
 	float **y_batch = new float*[batch_size];
-	
+
 	double loss = 0;
 
 	for (int g = 0, h = 0; g < test_size; g++) {
@@ -2085,7 +2084,7 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size, 
 double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, int batch_size) {
 	float **x_batch = new float*[batch_size];
 	float **y_batch = new float*[batch_size];
-	
+
 	double loss = 0;
 
 	for (int g = 0, h = 0; g < train_size; g++) {
@@ -2164,7 +2163,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 Connection* Neural_Networks::Connect(int from, int to, string properties) {
 	Connection *connection = new Connection(layer[from], layer[to], properties);
 
-	if (properties[0] == 'W'){
+	if (properties[0] == 'W') {
 		if (!strstr(properties.c_str(), "depthwise") && !layer[from]->RNN && layer[from]->bias == nullptr) {
 			Layer *layer = this->layer[from];
 

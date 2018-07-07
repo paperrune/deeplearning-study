@@ -12,7 +12,7 @@ struct Optimizer;
 struct RNN;
 
 namespace Activation {
-	enum {linear, relu, sigmoid, softmax, tanh};
+	enum { linear, relu, sigmoid, softmax, tanh };
 }
 namespace Loss {
 	enum { cross_entropy, mean_squared_error };
@@ -239,7 +239,7 @@ struct Layer {
 
 	float *bias;
 	float *error;
-	float *neuron;	
+	float *neuron;
 
 	string properties;
 
