@@ -1210,6 +1210,9 @@ Layer* Layer::Initializer(::Initializer initializer) {
 	return this;
 }
 Layer* Layer::Time_Mask(bool time_mask[], int length_mask) {
+	if (length_mask == 0) {
+		length_mask = time_step;
+	}
 	if (this->time_mask) {
 		delete[] this->time_mask;
 	}
@@ -1858,6 +1861,9 @@ RNN* RNN::Initializer(::Initializer initializer) {
 	return this;
 }
 RNN* RNN::Time_Mask(bool time_mask[], int length_mask) {
+	if (length_mask == 0) {
+		length_mask = time_step;
+	}
 	if (this->time_mask) {
 		delete[] this->time_mask;
 	}
