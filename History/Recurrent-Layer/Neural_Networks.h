@@ -275,7 +275,7 @@ struct Layer {
 	Layer* Activation(int activation);
 	Layer* Copy();
 	Layer* Initializer(Initializer initializer);
-	Layer* Time_Mask(bool time_mask[], int length_mask);
+	Layer* Time_Mask(bool time_mask[], int length_mask = 0);
 };
 
 struct Matrix {
