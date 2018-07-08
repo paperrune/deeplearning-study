@@ -139,7 +139,7 @@ int main() {
 
 	NN.Add(Layer(time_step, number_nodes[0] / time_step));
 	NN.Add(RNN(time_step, 128))->Activation(Activation::relu);
-	NN.Add(Layer(time_step, number_nodes[1]))->Activation(Activation::softmax)->Time_Mask(time_mask, time_step);
+	NN.Add(Layer(time_step, number_nodes[1]))->Activation(Activation::softmax)->Time_Mask(time_mask);
 
 	NN.Connect(1, 0, "W");
 	NN.Connect(1, 1, "W,recurrent");
