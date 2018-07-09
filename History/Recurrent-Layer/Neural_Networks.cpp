@@ -1595,13 +1595,11 @@ void RNN::Adjust_Parameter(int iterations) {
 					vector<Index> &from_weight = connection->from_weight[j];
 
 					for (int h = 0; h < batch_size * time_step; h++) {
-						if (parent_layer->time_mask == nullptr || parent_layer->time_mask[h % time_step]) {
-							float *error = &this->error[0][h * number_nodes];
-							float *neuron = &parent_layer->neuron[h * parent_layer->number_nodes];
+						float *error = &this->error[0][h * number_nodes];
+						float *neuron = &parent_layer->neuron[h * parent_layer->number_nodes];
 
-							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
-								sum += error[index->next_node] * neuron[index->prev_node];
-							}
+						for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
+							sum += error[index->next_node] * neuron[index->prev_node];
 						}
 					}
 					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
@@ -1643,7 +1641,7 @@ void RNN::Backward(int time_index) {
 					}
 				}
 			}
-			else if (time_mask == nullptr || time_mask[t]) {
+			else {
 				#pragma omp parallel for
 				for (int h = 0; h < batch_size; h++) {
 					float *error = &this->error[0][(h * time_step + t) * number_nodes];
@@ -1699,7 +1697,7 @@ void RNN::Construct(Layer *layer) {
 void RNN::Differentiate(int time_index) {
 	int t = time_index;
 
-#pragma omp parallel for
+	#pragma omp parallel for
 	for (int h = 0; h < batch_size; h++) {
 		float *error[] = { &this->error[0][(h * time_step + t) * number_nodes], &this->error[1][(h * time_step + t) * number_nodes] };
 		float *neuron[] = { &this->neuron[0][(h * time_step + t) * number_nodes], &this->neuron[1][(h * time_step + t) * number_nodes] };
@@ -1774,7 +1772,7 @@ void RNN::Forward(int time_index) {
 					}
 				}
 			}
-			else if (parent_layer->time_mask == nullptr || parent_layer->time_mask[t]) {
+			else {
 				#pragma omp parallel for
 				for (int h = 0; h < batch_size; h++) {
 					float *neuron = &this->neuron[0][(h * time_step + t) * number_nodes];
