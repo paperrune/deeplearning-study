@@ -133,7 +133,7 @@ int main() {
 	NN.Add(RNN(time_step, 128))->Activation(Activation::relu)->Direction(+1);
 	NN.Add(RNN(time_step, 128))->Activation(Activation::relu)->Direction(-1);
 	NN.Add(Layer(2, 128));
-	NN.Add(Layer(1, 255));
+	NN.Add(Layer(1, 256));
 	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
 	NN.Connect(1, 0, "W");
