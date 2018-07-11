@@ -32,7 +32,7 @@ model.add(Dense(num_classes,
 
 model.summary()
 model.compile(loss='categorical_crossentropy',
-              optimizer=SGD(lr=0.02, decay=1e-6),
+              optimizer=SGD(lr=0.03, decay=1e-6),
               metrics=['accuracy'])
  
 history = model.fit(x_train,
