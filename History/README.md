@@ -13,3 +13,4 @@
 13. [Batch-Normalization](https://github.com/paperrune/Neural-Networks/tree/master/History/Batch-Normalization)
 14. [Depthwise-Separable-Convolution](https://github.com/paperrune/Neural-Networks/tree/master/History/Depthwise-Separable-Convolution)
 15. [Recurrent-Layer](https://github.com/paperrune/Neural-Networks/tree/master/History/Recurrent-Layer)
+16. [Bidirectional-Recurrent-Layer](https://github.com/paperrune/Neural-Networks/tree/master/History/Bidirectional-Recurrent-Layer)
