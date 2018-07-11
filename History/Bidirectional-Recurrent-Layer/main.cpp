@@ -111,7 +111,7 @@ int main() {
 	float **y_test = &y_data[number_training];
 
 	double decay = 0.000001;
-	double learning_rate = 0.03;
+	double learning_rate = 0.02;
 
 	string path;
 
