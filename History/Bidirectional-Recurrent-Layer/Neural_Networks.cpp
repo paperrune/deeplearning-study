@@ -415,7 +415,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 		if (!strstr(properties.c_str(), "copy")) {
 			for (int t = 0; t < layer->time_step; t++) {
 				for (int u = 0; u < parent_layer->time_step; u++) {
-					if (t == u) {
+					if ((parent_layer->time_mask == nullptr || parent_layer->time_mask[u]) && t == u) {
 						this->time_connection[0][t].push_back(u);
 						this->time_connection[1][u].push_back(t);
 					}
