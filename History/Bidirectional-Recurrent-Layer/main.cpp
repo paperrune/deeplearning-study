@@ -164,7 +164,7 @@ int main() {
 		double loss[2] = { NN.Fit(NN.Shuffle(x_train, number_training), NN.Shuffle(y_train, number_training), number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
 
 		for (int h = 0; h < batch_size; h++) {
-			output[h] = new float[time_step * number_nodes[1]];
+			output[h] = new float[number_nodes[1]];
 		}
 		for (int h = 0, i = 0; i < number_training + number_test; i++) {
 			_input[h] = x_data[i];
