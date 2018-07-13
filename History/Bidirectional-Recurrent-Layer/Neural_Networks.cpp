@@ -1561,13 +1561,6 @@ void RNN::Activate(int time_index, bool training) {
 	for (int h = 0; h < batch_size; h++) {
 		float *neuron[] = { &this->neuron[0][(h * time_step + t) * number_nodes], &this->neuron[1][(h * time_step + t) * number_nodes] };
 
-		if (strstr(properties.c_str(), "dropout")) {
-			double rate = atof(strstr(properties.c_str(), "dropout") + 7);
-
-			for (int j = 0; j < number_nodes; j++) {
-				neuron[0][j] *= (training) ? (layer->dropout_mask[h * number_nodes + j]) : (1 - rate);
-			}
-		}
 		for (int j = 0; j < number_maps; j++) {
 			for (int k = 0; k < map_size; k++) {
 				int index = j * map_size + k;
@@ -1800,12 +1793,6 @@ void RNN::Differentiate(int time_index) {
 		else if (activation == Activation::tanh) {
 			for (int j = 0; j < number_nodes; j++) {
 				error[0][j] *= (1 - neuron[0][j]) * (1 + neuron[0][j]);
-			}
-		}
-
-		if (strstr(properties.c_str(), "dropout")) {
-			for (int j = 0; j < number_nodes; j++) {
-				error[0][j] *= layer->dropout_mask[h * number_nodes + j];
 			}
 		}
 		memcpy(&this->error[1][(h * time_step + t) * number_nodes], &this->error[0][(h * time_step + t) * number_nodes], sizeof(float) * number_nodes);
