@@ -890,16 +890,16 @@ void Layer::Adjust_Parameter(int iterations) {
 			Connection *connection = this->connection[i];
 
 			if (connection->properties[0] == 'W') {
-				for (int t = 0; t < time_step; t++) {
-					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
-						Layer *parent_layer = connection->parent_layer;
+				#pragma omp parallel for
+				for (int j = 0; j < connection->number_weights; j++) {
+					double sum = 0;
 
-						#pragma omp parallel for
-						for (int j = 0; j < connection->number_weights; j++) {
-							double sum = 0;
+					vector<Index> &from_weight = connection->from_weight[j];
 
-							vector<Index> &from_weight = connection->from_weight[j];
+					Layer *parent_layer = connection->parent_layer;
 
+					for (int t = 0; t < time_step; t++) {
+						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (int h = 0; h < batch_size; h++) {
 								float *error = &this->error[(h * time_step + t) * number_nodes];
 								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
@@ -908,9 +908,9 @@ void Layer::Adjust_Parameter(int iterations) {
 									sum += error[index->next_node] * neuron[index->prev_node];
 								}
 							}
-							connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 						}
 					}
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 				}
 			}
 		}
@@ -1643,16 +1643,16 @@ void RNN::Adjust_Parameter(int iterations) {
 		}
 
 		if (connection->properties[0] == 'W' && !strstr(connection->properties.c_str(), "recurrent")) {
-			for (int t = 0; t < time_step; t++) {
-				for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
-					Layer *parent_layer = connection->parent_layer;
+			#pragma omp parallel for
+			for (int j = 0; j < connection->number_weights; j++) {
+				double sum = 0;
 
-					#pragma omp parallel for
-					for (int j = 0; j < connection->number_weights; j++) {
-						double sum = 0;
+				vector<Index> &from_weight = connection->from_weight[j];
 
-						vector<Index> &from_weight = connection->from_weight[j];
+				Layer *parent_layer = connection->parent_layer;
 
+				for (int t = 0; t < time_step; t++) {
+					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 						for (int h = 0; h < batch_size; h++) {
 							float *error = &this->error[0][(h * time_step + t) * number_nodes];
 							float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
@@ -1661,9 +1661,9 @@ void RNN::Adjust_Parameter(int iterations) {
 								sum += error[index->next_node] * neuron[index->prev_node];
 							}
 						}
-						connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 					}
 				}
+				connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 			}
 		}
 	}
