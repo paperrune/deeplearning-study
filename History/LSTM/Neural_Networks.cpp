@@ -1109,7 +1109,7 @@ void Layer::Differentiate(int time_index, int loss, float **y_batch) {
 					}
 				}
 			}
-			Differentiate(loss);
+			Differentiate(t, loss);
 		}
 		else {
 			#pragma omp parallel for
