@@ -758,8 +758,8 @@ Layer::Layer(int time_step, int number_maps, int map_width, int map_height, int 
 	this->RNN = RNN;
 
 	bias = nullptr;
-	error = new float[number_nodes];
-	neuron = new float[number_nodes];
+	error = new float[time_step * number_nodes];
+	neuron = new float[time_step * number_nodes];
 }
 Layer::~Layer() {
 	if (batch_normalization) {
