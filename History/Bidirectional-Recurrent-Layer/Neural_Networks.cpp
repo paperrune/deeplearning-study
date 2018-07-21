@@ -174,7 +174,7 @@ void Batch_Normalization::Differentiate(int time_index, float _error[]) {
 		double error_mean;
 		double error_variance = 0;
 		double standard_deviation = sqrt(variance[j] + epsilon);
-		double sum[] = { 0, };
+		double sum[2] = { 0, };
 
 		for (int h = 0; h < batch_size; h++) {
 			int index = h * time_step * number_nodes;
