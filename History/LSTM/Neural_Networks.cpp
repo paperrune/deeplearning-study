@@ -2717,9 +2717,7 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Compile(int loss, Optimizer optimizer) {
-	optimizer.gradient = nullptr;
-	
+void Neural_Networks::Compile(int loss, Optimizer optimizer) {	
 	if (this->optimizer) {
 		delete this->optimizer;
 	}
@@ -2730,6 +2728,7 @@ void Neural_Networks::Compile(int loss, Optimizer optimizer) {
 	for (int i = 0; i < layer.size(); i++) {
 		layer[i]->Compile(optimizer.Copy());
 	}
+	optimizer.gradient = nullptr;
 }
 void Neural_Networks::Load_Weights(string path) {
 	ifstream file(path);
