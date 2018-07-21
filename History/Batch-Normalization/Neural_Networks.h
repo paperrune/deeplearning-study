@@ -1,6 +1,7 @@
 #ifndef Neural_Networks_H
 #define Neural_Networks_H
 
+#include <random>
 #include <vector>
 
 using namespace std;
