@@ -1,7 +1,6 @@
 #include <fstream>
 #include <iostream>
 #include <omp.h>
-#include <random>
 #include <stdio.h>
 #include <string>
 #include <time.h>
