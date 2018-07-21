@@ -2718,6 +2718,8 @@ Neural_Networks::~Neural_Networks() {
 }
 
 void Neural_Networks::Compile(int loss, Optimizer optimizer) {
+	optimizer.gradient = nullptr;
+	
 	if (this->optimizer) {
 		delete this->optimizer;
 	}
