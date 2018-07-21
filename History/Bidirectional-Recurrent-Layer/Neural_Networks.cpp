@@ -2189,7 +2189,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 		if (++h == batch_size || g == train_size - 1) {
 			Resize_Memory(h);
 
-			// prepare dropout dropout_mask if specified
+			// prepare dropout if specified
 			for (int i = 1; i < layer.size(); i++) {
 				Layer *layer = this->layer[i];
 
