@@ -58,7 +58,7 @@ public:
 	void Predict(float input[], float output[]);
 	void Predict(float **input, float **output, int batch_size = 1);
 
-	double Evaluate(float **x_data, float **y_data, int data_size, int batch_size = 1);
+	double Evaluate(float **x_data, float **y_data, int test_size, int batch_size = 1);
 	double Fit(float **x_train, float **y_train, int train_size, int batch_size = 1);
 };
 
