@@ -54,7 +54,7 @@ public:
 	void Connect(int from, int to, double scale);
 	void Predict(float input[], float output[]);
 
-	double Evaluate(float **x_data, float **y_data, int data_size);
+	double Evaluate(float **x_data, float **y_data, int test_size);
 	double Fit(float **x_train, float **y_train, int train_size);
 };
 
