@@ -17,6 +17,8 @@ struct Connection {
 
 	Connection(Layer *layer, Layer *parent_layer, double scale);
 	~Connection();
+
+	void Destruct();
 };
 
 struct Layer {
@@ -32,6 +34,7 @@ struct Layer {
 	Layer(int number_nodes);
 	~Layer();
 
+	void Destruct();
 	void Forward();
 	void Resize_Memory(int batch_size);
 };
