@@ -43,6 +43,8 @@ private:
 
 	vector<Connection*> connection;
 	vector<Layer*> layer;
+
+	double Calculate_Loss(Layer *layer, float y_data[]);
 public:
 	Neural_Networks();
 	~Neural_Networks();
@@ -52,7 +54,6 @@ public:
 	void Connect(int from, int to, double scale);
 	void Predict(float input[], float output[]);
 
-	double Calculate_Loss(Layer *layer, float y_data[]);
 	double Evaluate(float **x_data, float **y_data, int data_size);
 	double Fit(float **x_train, float **y_train, int train_size);
 };
