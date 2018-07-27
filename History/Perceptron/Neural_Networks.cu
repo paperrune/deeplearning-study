@@ -137,6 +137,20 @@ void Layer::Forward() {
 }
 
 
+double Neural_Networks::Calculate_Loss(Layer *layer, float _y_data[]) {
+	float loss, *y_data;
+
+	cudaMalloc(&y_data, sizeof(float) * layer->number_nodes);
+	cudaMemcpy(y_data, _y_data, sizeof(float) * layer->number_nodes, cudaMemcpyHostToDevice);
+
+	::Calculate_Loss << <1, NUMBER_THREADS >> > (*layer, y_data);
+
+	cudaMemcpy(&loss, y_data, sizeof(float), cudaMemcpyDeviceToHost);
+	cudaFree(y_data);
+
+	return loss;
+}
+
 Neural_Networks::Neural_Networks() {}
 Neural_Networks::~Neural_Networks() {
 	for (int i = 0; i < layer.size(); i++) {
@@ -165,19 +179,6 @@ void Neural_Networks::Predict(float input[], float output[]) {
 	cudaMemcpy(output, layer.back()->neuron, sizeof(float) * layer.back()->number_nodes, cudaMemcpyDeviceToHost);
 }
 
-double Neural_Networks::Calculate_Loss(Layer *layer, float _y_data[]) {
-	float loss, *y_data;
-
-	cudaMalloc(&y_data, sizeof(float) * layer->number_nodes);
-	cudaMemcpy(y_data, _y_data, sizeof(float) * layer->number_nodes, cudaMemcpyHostToDevice);
-
-	::Calculate_Loss << <1, NUMBER_THREADS >> > (*layer, y_data);
-
-	cudaMemcpy(&loss, y_data, sizeof(float), cudaMemcpyDeviceToHost);
-	cudaFree(y_data);
-
-	return loss;
-}
 double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size) {
 	double loss = 0;
 
