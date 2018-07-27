@@ -190,6 +190,8 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size) 
 		for (int i = 1; i < layer.size(); i++) {
 			layer[i]->Forward();
 		}
+		
+		// calculate loss
 		loss += Calculate_Loss(layer.back(), y_test[h]);
 	}
 	return loss / (test_size * layer.back()->number_nodes);
@@ -210,6 +212,8 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size) {
 		for (int i = 1; i < layer.size(); i++) {
 			layer[i]->Forward();
 		}
+		
+		// calculate loss
 		loss += Calculate_Loss(layer.back(), y_train[h]);
 
 		// error backpropagation
