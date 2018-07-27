@@ -154,6 +154,7 @@ double Neural_Networks::Calculate_Loss(Layer *layer, float _y_data[]) {
 Neural_Networks::Neural_Networks() {}
 Neural_Networks::~Neural_Networks() {
 	for (int i = 0; i < layer.size(); i++) {
+		layer[i]->Destruct();
 		delete layer[i];
 	}
 }
