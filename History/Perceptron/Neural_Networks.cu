@@ -190,7 +190,7 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size) 
 		for (int i = 1; i < layer.size(); i++) {
 			layer[i]->Forward();
 		}
-		
+
 		// calculate loss
 		loss += Calculate_Loss(layer.back(), y_test[h]);
 	}
@@ -212,7 +212,7 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size) {
 		for (int i = 1; i < layer.size(); i++) {
 			layer[i]->Forward();
 		}
-		
+
 		// calculate loss
 		loss += Calculate_Loss(layer.back(), y_train[h]);
 
@@ -220,26 +220,24 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size) {
 		for (int i = layer.size() - 1; i > 0; i--) {
 			Layer *layer = this->layer[i];
 
-			for (int j = 0; j < layer->number_nodes; j++) {
-				if (i == this->layer.size() - 1) {
-					float *y_data;
+			if (i == this->layer.size() - 1) {
+				float *y_data;
 
-					cudaMalloc(&y_data, sizeof(float) * layer->number_nodes);
-					cudaMemcpy(y_data, y_train[h], sizeof(float) * layer->number_nodes, cudaMemcpyHostToDevice);
-					::Calculate_Error << <layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer, y_data);
+				cudaMalloc(&y_data, sizeof(float) * layer->number_nodes);
+				cudaMemcpy(y_data, y_train[h], sizeof(float) * layer->number_nodes, cudaMemcpyHostToDevice);
+				::Calculate_Error << <layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer, y_data);
 
-					cudaFree(y_data);
-				}
-				else {
-					// backpropagate error
-					for (int k = 0; k < layer->connection.size(); k++) {
-						Connection *connection = layer->connection[k];
-
-						::Backward << <connection->parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer, *connection->parent_layer, *connection);
-					}
-				}
-				::Differentiate << <layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer);
+				cudaFree(y_data);
 			}
+			else {
+				// backpropagate error
+				for (int k = 0; k < layer->connection.size(); k++) {
+					Connection *connection = layer->connection[k];
+
+					::Backward << <connection->parent_layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer, *connection->parent_layer, *connection);
+				}
+			}
+			::Differentiate << <layer->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer);
 		}
 
 		// adjust bias
