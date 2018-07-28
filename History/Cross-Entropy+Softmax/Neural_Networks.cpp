@@ -86,11 +86,11 @@ void Layer::Backward() {
 
 				Layer *parent_layer = connection->parent_layer;
 
-				float *next_error = &parent_layer->error[h * parent_layer->number_nodes];
+				float *prev_error = &parent_layer->error[h * parent_layer->number_nodes];
 				float *weight = &connection->weight[j * parent_layer->number_nodes];
 
 				for (int l = 0; l < parent_layer->number_nodes; l++) {
-					next_error[l] += error[j] * weight[l];
+					prev_error[l] += error[j] * weight[l];
 				}
 			}
 		}
