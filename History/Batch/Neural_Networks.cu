@@ -109,7 +109,7 @@ __global__ void Forward(Layer layer, Layer parent_layer, Connection connection) 
 		for (int l = 0; l < parent_layer.number_nodes; l++) {
 			sum += prev_neuron[l] * connection.weight[j * parent_layer.number_nodes + l];
 		}
-		neuron[j] += sum;
+		neuron[j] = sum;
 	}
 }
 
