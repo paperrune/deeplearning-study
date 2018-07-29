@@ -8,7 +8,7 @@ using namespace std;
 struct Layer;
 
 namespace Activation {
-	enum {linear, sigmoid, softmax, tanh};
+	enum { linear, sigmoid, softmax, tanh };
 }
 namespace Loss {
 	enum { cross_entropy, mean_squared_error };
@@ -26,6 +26,8 @@ struct Connection {
 
 	Connection(Layer *layer, Layer *parent_layer, double scale);
 	~Connection();
+
+	void Destruct();
 };
 struct Layer {
 	int activation;
@@ -34,7 +36,7 @@ struct Layer {
 
 	float *bias;
 	float *error;
-	float *neuron;	
+	float *neuron;
 
 	vector<Connection*> connection;
 
@@ -44,6 +46,7 @@ struct Layer {
 	void Activation();
 	void Backward();
 	void Derivative(int loss = -1, float **y_batch = nullptr);
+	void Destruct();
 	void Forward();
 	void Resize_Memory(int batch_size);
 };
