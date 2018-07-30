@@ -79,24 +79,24 @@ loss: 0.0148 / 0.0150    accuracy: 0.9223 / 0.9197    step 20  1322.87 sec
 
 ### Neural_Networks CPU
 ```
-loss: 0.0240 / 0.0191	accuracy: 0.8946 / 0.9044	step 1  7.50 sec
-loss: 0.0186 / 0.0174	accuracy: 0.9037 / 0.9099	step 2  15.54 sec
-loss: 0.0175 / 0.0167	accuracy: 0.9079 / 0.9121	step 3  23.39 sec
-loss: 0.0169 / 0.0163	accuracy: 0.9107 / 0.9137	step 4  31.29 sec
-loss: 0.0165 / 0.0160	accuracy: 0.9124 / 0.9149	step 5  39.66 sec
-loss: 0.0162 / 0.0158	accuracy: 0.9136 / 0.9154	step 6  47.38 sec
-loss: 0.0160 / 0.0156	accuracy: 0.9148 / 0.9157	step 7  54.97 sec
-loss: 0.0158 / 0.0155	accuracy: 0.9157 / 0.9160	step 8  62.40 sec
-loss: 0.0156 / 0.0154	accuracy: 0.9166 / 0.9162	step 9  69.86 sec
-loss: 0.0155 / 0.0153	accuracy: 0.9175 / 0.9163	step 10  77.15 sec
-loss: 0.0154 / 0.0153	accuracy: 0.9179 / 0.9167	step 11  84.70 sec
-loss: 0.0153 / 0.0152	accuracy: 0.9183 / 0.9169	step 12  92.23 sec
-loss: 0.0152 / 0.0152	accuracy: 0.9188 / 0.9175	step 13  99.66 sec
-loss: 0.0151 / 0.0151	accuracy: 0.9193 / 0.9179	step 14  107.03 sec
-loss: 0.0151 / 0.0151	accuracy: 0.9198 / 0.9185	step 15  115.72 sec
-loss: 0.0150 / 0.0151	accuracy: 0.9202 / 0.9189	step 16  123.55 sec
-loss: 0.0149 / 0.0150	accuracy: 0.9205 / 0.9191	step 17  131.42 sec
-loss: 0.0149 / 0.0150	accuracy: 0.9208 / 0.9196	step 18  139.47 sec
-loss: 0.0148 / 0.0150	accuracy: 0.9210 / 0.9198	step 19  147.34 sec
-loss: 0.0148 / 0.0150	accuracy: 0.9214 / 0.9198	step 20  154.98 sec
+loss: 0.0240 / 0.0191	accuracy: 0.8946 / 0.9044	step 1  5.65 sec
+loss: 0.0186 / 0.0174	accuracy: 0.9037 / 0.9099	step 2  11.23 sec
+loss: 0.0175 / 0.0167	accuracy: 0.9079 / 0.9121	step 3  16.81 sec
+loss: 0.0169 / 0.0163	accuracy: 0.9107 / 0.9137	step 4  22.38 sec
+loss: 0.0165 / 0.0160	accuracy: 0.9124 / 0.9149	step 5  27.94 sec
+loss: 0.0162 / 0.0158	accuracy: 0.9136 / 0.9154	step 6  33.52 sec
+loss: 0.0160 / 0.0156	accuracy: 0.9148 / 0.9157	step 7  39.10 sec
+loss: 0.0158 / 0.0155	accuracy: 0.9157 / 0.9160	step 8  44.67 sec
+loss: 0.0156 / 0.0154	accuracy: 0.9166 / 0.9162	step 9  50.25 sec
+loss: 0.0155 / 0.0153	accuracy: 0.9175 / 0.9163	step 10  55.84 sec
+loss: 0.0154 / 0.0153	accuracy: 0.9179 / 0.9167	step 11  61.41 sec
+loss: 0.0153 / 0.0152	accuracy: 0.9183 / 0.9169	step 12  66.97 sec
+loss: 0.0152 / 0.0152	accuracy: 0.9188 / 0.9175	step 13  72.54 sec
+loss: 0.0151 / 0.0151	accuracy: 0.9193 / 0.9179	step 14  78.12 sec
+loss: 0.0151 / 0.0151	accuracy: 0.9198 / 0.9185	step 15  83.70 sec
+loss: 0.0150 / 0.0151	accuracy: 0.9202 / 0.9189	step 16  89.27 sec
+loss: 0.0149 / 0.0150	accuracy: 0.9205 / 0.9191	step 17  94.85 sec
+loss: 0.0149 / 0.0150	accuracy: 0.9208 / 0.9196	step 18  100.44 sec
+loss: 0.0148 / 0.0150	accuracy: 0.9210 / 0.9198	step 19  105.98 sec
+loss: 0.0148 / 0.0150	accuracy: 0.9214 / 0.9198	step 20  111.58 sec
 ```
