@@ -1,5 +1,5 @@
 ## Results
-### Keras
+### Keras CPU
 ```
 _________________________________________________________________
 Layer (type)                 Output Shape              Param #   
@@ -53,7 +53,7 @@ Epoch 20/20
 60000/60000 [==============================] - 48s 798us/step - loss: 0.0149 - acc: 0.9220 - val_loss: 0.0147 - val_acc: 0.9223
 ```
 
-### Tensorflow
+### Tensorflow GPU
 ```
 loss: 0.0240 / 0.0191    accuracy: 0.8815 / 0.9044    step 1  67.53 sec
 loss: 0.0186 / 0.0174    accuracy: 0.9046 / 0.9102    step 2  133.71 sec
@@ -77,7 +77,7 @@ loss: 0.0148 / 0.0150    accuracy: 0.9220 / 0.9197    step 19  1257.38 sec
 loss: 0.0148 / 0.0150    accuracy: 0.9223 / 0.9197    step 20  1322.87 sec
 ```
 
-### Neural_Networks
+### Neural_Networks CPU
 ```
 loss: 0.0240 / 0.0191	accuracy: 0.8946 / 0.9044	step 1  7.50 sec
 loss: 0.0186 / 0.0174	accuracy: 0.9037 / 0.9099	step 2  15.54 sec
