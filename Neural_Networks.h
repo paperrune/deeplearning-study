@@ -328,7 +328,11 @@ struct Loss {
 		this->type = connectionist_temporal_classification;
 		ctc.label = nullptr;
 	}
-	~Loss() {}
+	~Loss() {
+		if (ctc) {
+			cerr << "[~Loss], memory not released." << endl;
+		}
+	}
 
 	void Destruct() {
 		if (ctc) {
