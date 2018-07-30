@@ -122,9 +122,11 @@ int main() {
 
 	srand(0);
 	NN.Add(number_nodes[0]);
-	NN.Add(number_nodes[1]);
-	NN.Connect(1, 0, 0.01);
-	NN.Compile(learning_rate);
+	NN.Add(number_nodes[1])->Activation(Activation::sigmoid);
+
+	NN.Connect(1, 0, "W")->Initializer(RandomUniform(-0.01, 0.01));
+
+	NN.Compile(Loss::mean_squared_error, Optimizer(SGD(learning_rate)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
@@ -146,7 +148,7 @@ int main() {
 			score[(i < number_training) ? (0) : (1)] += (int)y_data[i][argmax];
 		}
 		printf("loss: %.4f / %.4f	accuracy: %.4f / %.4f	step %d  %.2f sec\n", loss[0], loss[1], 1.0 * score[0] / number_training, 1.0 * score[1] / number_test, e + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		
+
 		delete[] output;
 	}
 
