@@ -77,7 +77,7 @@ loss: 0.0148 / 0.0150    accuracy: 0.9220 / 0.9197    step 19  1257.38 sec
 loss: 0.0148 / 0.0150    accuracy: 0.9223 / 0.9197    step 20  1322.87 sec
 ```
 
-### C++
+### Neural_Networks.cpp
 ```
 loss: 0.0240 / 0.0191	accuracy: 0.8946 / 0.9044	step 1  7.50 sec
 loss: 0.0186 / 0.0174	accuracy: 0.9037 / 0.9099	step 2  15.54 sec
