@@ -108,6 +108,21 @@ struct Connection {
 	Connection* Initializer(Initializer initializer);
 };
 
+struct Dropout {
+	bool *mask;
+
+	int batch_size;
+	int number_nodes;
+
+	double rate;
+
+	Dropout(int number_nodes, double rate);
+	~Dropout();
+
+	void Initialize_Mask(int seed = -1);
+	void Resize_Memory(int batch_size);
+};
+
 struct Index {
 	int next_node;
 	int prev_node;
@@ -228,7 +243,6 @@ typedef Initializer::RandomNormal RandomNormal;
 typedef Initializer::RandomUniform RandomUniform;
 
 struct Layer {
-	bool *dropout_mask;
 	bool *time_mask;
 
 	int activation;
@@ -251,6 +265,8 @@ struct Layer {
 	vector<Connection*> child_connection;
 
 	Batch_Normalization *batch_normalization;
+
+	Dropout *dropout;
 
 	Initializer *initializer;
 

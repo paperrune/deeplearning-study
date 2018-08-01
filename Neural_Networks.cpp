@@ -39,9 +39,11 @@ Batch_Normalization::Batch_Normalization(int time_step, int number_maps, int map
 }
 Batch_Normalization::~Batch_Normalization() {
 	if (beta_optimizer) {
+		beta_optimizer->Destruct();
 		delete beta_optimizer;
 	}
 	if (gamma_optimizer) {
+		gamma_optimizer->Destruct();
 		delete gamma_optimizer;
 	}
 	delete[] beta;
@@ -228,9 +230,11 @@ void Batch_Normalization::Load(ifstream &file) {
 }
 void Batch_Normalization::Optimizer(::Optimizer &optimizer) {
 	if (beta_optimizer) {
+		beta_optimizer->Destruct();
 		delete beta_optimizer;
 	}
 	if (gamma_optimizer) {
+		gamma_optimizer->Destruct();
 		delete gamma_optimizer;
 	}
 	beta_optimizer = optimizer.Copy(number_maps);
@@ -819,6 +823,32 @@ CTC* CTC::Copy() {
 }
 
 
+Dropout::Dropout(int number_nodes, double rate) {
+	this->batch_size = 1;
+	this->mask = new bool[number_nodes];
+	this->number_nodes = number_nodes;
+	this->rate = rate;
+}
+Dropout::~Dropout() {
+	delete[] mask;
+}
+
+void Dropout::Initialize_Mask(int seed) {
+	default_random_engine *generator = ((seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+
+	uniform_real_distribution<double> distribution(0, 1);
+
+	for (int i = 0; i < batch_size * number_nodes; i++) {
+		mask[i] = (rate == 0 || distribution(*generator) > rate) ? (true) : (false);
+	}
+}
+void Dropout::Resize_Memory(int batch_size) {
+	if (this->batch_size != batch_size) {
+		mask = (bool*)realloc(mask, (this->batch_size = batch_size) * number_nodes);
+	}
+}
+
+
 Initializer::Initializer(double value) {
 	generator = nullptr;
 	this->value = value;
@@ -1018,6 +1048,9 @@ Layer::~Layer() {
 	if (bias) {
 		delete[] bias;
 	}
+	if (dropout) {
+		delete dropout;
+	}
 	if (initializer) {
 		delete initializer;
 	}
@@ -1066,6 +1099,9 @@ void Layer::Activate(int time_index, bool training) {
 		if (batch_normalization) {
 			batch_normalization->Activate(time_index, neuron, training);
 		}
+		if (dropout && training) {
+			dropout->Initialize_Mask();
+		}
 
 		#pragma omp parallel for
 		for (int h = 0; h < batch_size; h++) {
@@ -1087,40 +1123,37 @@ void Layer::Activate(int time_index, bool training) {
 					neuron[j] /= sum;
 				}
 			}
-			else if (activation == Activation::linear) {
-				// neuron = neuron;
-			}
-			else if (activation == Activation::hard_sigmoid) {
-				double slope = 0.2;
-				double shift = 0.5;
+			else {
+				for (int j = 0; j < number_nodes; j++) {
+					if (dropout && training) {
+						if (dropout->mask[(h * time_step + t) * number_nodes + j]) {
+							neuron[j] /= (1 - dropout->rate);
+						}
+						else {
+							neuron[j] = 0;
+							continue;
+						}
+					}
 
-				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] = neuron[j] * slope + shift;
-					neuron[j] = (1 < neuron[j]) ? (1) : (neuron[j]);
-					neuron[j] = (0 > neuron[j]) ? (0) : (neuron[j]);
-				}
-			}
-			else if (activation == Activation::relu) {
-				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] = (neuron[j] > 0) ? (neuron[j]) : (0);
-				}
-			}
-			else if (activation == Activation::sigmoid) {
-				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] = 1 / (1 + exp(-neuron[j]));
-				}
-			}
-			else if (activation == Activation::tanh) {
-				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] = 2 / (1 + exp(-2 * neuron[j])) - 1;
-				}
-			}
+					if (activation == Activation::linear) {
+						// neuron = neuron;
+					}
+					else if (activation == Activation::hard_sigmoid) {
+						double slope = 0.2;
+						double shift = 0.5;
 
-			if (strstr(properties.c_str(), "dropout")) {
-				double rate = atof(strstr(properties.c_str(), "dropout") + 7);
-
-				for (int j = 0; j < number_nodes; j++) {
-					neuron[j] *= (training) ? (dropout_mask[h * number_nodes + j]) : (1 - rate);
+						neuron[j] = neuron[j] * slope + shift;
+						neuron[j] = (1 < neuron[j]) ? (1) : ((0 > neuron[j]) ? (0) : (neuron[j]));
+					}
+					else if (activation == Activation::relu) {
+						neuron[j] = (neuron[j] > 0) ? (neuron[j]) : (0);
+					}
+					else if (activation == Activation::sigmoid) {
+						neuron[j] = 1 / (1 + exp(-neuron[j]));
+					}
+					else if (activation == Activation::tanh) {
+						neuron[j] = 2 / (1 + exp(-2 * neuron[j])) - 1;
+					}
 				}
 			}
 		}
@@ -1307,6 +1340,7 @@ void Layer::Construct() {
 	this->lstm = nullptr;
 	this->map_size = map_depth * map_height * map_width;
 	this->number_nodes = number_maps * map_size;
+	this->dropout = (strstr(properties.c_str(), "dropout")) ? (new Dropout(number_nodes, atof(strstr(properties.c_str(), "dropout") + 7))) : (nullptr);
 	this->optimizer = nullptr;
 	this->rnn = nullptr;
 	this->time_mask = nullptr;
@@ -1364,36 +1398,45 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 			float *error = &this->error[(h * time_step + t) * number_nodes];
 			float *neuron = &this->neuron[(h * time_step + t) * number_nodes];
 
-			if (activation == Activation::linear) {
-				// error *= 1;
-			}
-			else if (activation == Activation::hard_sigmoid && (loss == nullptr || loss->type != Loss::cross_entropy)) {
-				double slope = 0.2;
-				double shift = 0.5;
+			for (int j = 0; j < number_nodes; j++) {
+				double scaled_neuron = neuron[j];
 
-				for (int j = 0; j < number_nodes; j++) {
-					error[j] *= ((neuron[j] == 0 || neuron[j] == 1) ? (0) : (slope));
+				if (dropout){
+					if (dropout->mask[(h * time_step + t) * number_nodes + j]) {
+						error[j] /= (1 - dropout->rate);
+						scaled_neuron *= (1 - dropout->rate);
+					}
+					else {
+						error[j] = 0;
+						continue;
+					}
 				}
-			}
-			else if (activation == Activation::relu) {
-				for (int j = 0; j < number_nodes; j++) {
-					error[j] *= (neuron[j] > 0);
-				}
-			}
-			else if (activation == Activation::sigmoid && (loss == nullptr || loss->type != Loss::cross_entropy)) {
-				for (int j = 0; j < number_nodes; j++) {
-					error[j] *= (1 - neuron[j]) * neuron[j];
-				}
-			}
-			else if (activation == Activation::tanh) {
-				for (int j = 0; j < number_nodes; j++) {
-					error[j] *= (1 - neuron[j]) * (1 + neuron[j]);
-				}
-			}
 
-			if (strstr(properties.c_str(), "dropout")) {
-				for (int j = 0; j < number_nodes; j++) {
-					error[j] *= dropout_mask[h * number_nodes + j];
+				if (activation == Activation::linear) {
+					// error *= 1;
+				}
+				else if (activation == Activation::hard_sigmoid && (loss == nullptr || loss->type != Loss::cross_entropy)) {
+					double slope = 0.2;
+					double shift = 0.5;
+
+					for (int j = 0; j < number_nodes; j++) {
+						error[j] *= ((neuron[j] == 0 || neuron[j] == 1) ? (0) : (slope));
+					}
+				}
+				else if (activation == Activation::relu) {
+					for (int j = 0; j < number_nodes; j++) {
+						error[j] *= (neuron[j] > 0);
+					}
+				}
+				else if (activation == Activation::sigmoid && (loss == nullptr || loss->type != Loss::cross_entropy)) {
+					for (int j = 0; j < number_nodes; j++) {
+						error[j] *= (1 - scaled_neuron) * scaled_neuron;
+					}
+				}
+				else if (activation == Activation::tanh) {
+					for (int j = 0; j < number_nodes; j++) {
+						error[j] *= (1 - scaled_neuron) * (1 + scaled_neuron);
+					}
 				}
 			}
 		}
@@ -1528,6 +1571,9 @@ void Layer::Resize_Memory(int batch_size) {
 	}
 	if (batch_normalization) {
 		batch_normalization->Resize_Memory(batch_size);
+	}
+	if (dropout) {
+		dropout->Resize_Memory(batch_size);
 	}
 	if (lstm) {
 		lstm->Resize_Memory(batch_size);
@@ -2350,11 +2396,7 @@ Optimizer::Optimizer(Nesterov Nesterov) {
 Optimizer::Optimizer(Adam Adam) {
 	Construct(3, Adam.decay, Adam.epsilon, Adam.learning_rate, Adam.momentum[0], Adam.momentum[1], 0);
 }
-Optimizer::~Optimizer() {
-	if (gradient || memory[0] || memory[1]) {
-		cerr << "[~Optimizer], memory not released." << endl;
-	}
-}
+Optimizer::~Optimizer() {}
 
 void Optimizer::Construct(int type, double decay, double epsilon, double learning_rate, double momentum_1, double momentum_2, int number_parameters) {
 	this->decay = decay;
@@ -3075,21 +3117,6 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 		if (++h == batch_size || g == train_size - 1) {
 			Resize_Memory(h);
 
-			// prepare dropout_mask if dropout specified
-			for (int i = 1; i < layer.size(); i++) {
-				Layer *layer = this->layer[i];
-
-				if (strstr(layer->properties.c_str(), "dropout")) {
-					double rate = atof(strstr(layer->properties.c_str(), "dropout") + 7);
-
-					layer->dropout_mask = new bool[h * layer->number_nodes];
-
-					for (int j = 0; j < h * layer->number_nodes; j++) {
-						layer->dropout_mask[j] = (rand() >= rate * (RAND_MAX + 1));
-					}
-				}
-			}
-
 			// copy x_train to neuron
 			while (--h >= 0) {
 				memcpy(&layer[0]->neuron[h * layer[0]->time_step * layer[0]->number_nodes], x_batch[h], sizeof(float) * ((sequence_length_batch) ? (sequence_length_batch[h]) : (layer[0]->time_step)) * layer[0]->number_nodes);
@@ -3142,14 +3169,6 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 				layer[i]->Adjust_Parameter(iterations);
 			}
 			iterations++;
-
-			for (int i = 1; i < layer.size(); i++) {
-				Layer *layer = this->layer[i];
-
-				if (strstr(layer->properties.c_str(), "dropout")) {
-					delete[] layer->dropout_mask;
-				}
-			}
 		}
 	}
 	if (x_batch) {
