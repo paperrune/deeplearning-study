@@ -5,7 +5,9 @@ from keras.layers import Dense
 from keras.models import Sequential
 from keras.optimizers import SGD
 
+batch_size = 1
 epochs = 20
+learning_rate = 0.1
 num_classes = 10
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -29,11 +31,11 @@ model.add(Dense(num_classes,
                 bias_initializer='zeros'))
 model.summary()
 model.compile(loss='mean_squared_error',
-              optimizer=SGD(lr=0.1),
+              optimizer=SGD(lr=learning_rate),
               metrics=['accuracy'])
 
 history = model.fit(x_train,
                     y_train,
-                    batch_size=1,
+                    batch_size=batch_size,
                     epochs=epochs,
                     validation_data=(x_test, y_test))
