@@ -6,7 +6,8 @@ from keras.models import Sequential
 from keras.optimizers import SGD
 
 batch_size = 128
-epochs = 30
+epochs = 50
+learning_rate = 0.5
 num_classes = 10
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -23,13 +24,9 @@ y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
-model.add(Dense(768,
+model.add(Dense(512,
                 activation='relu',
                 input_shape=(784,),
-                kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01, seed=None),
-                bias_initializer='zeros'))
-model.add(Dense(768,
-                activation='relu',
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01, seed=None),
                 bias_initializer='zeros'))
 model.add(Dense(num_classes,
@@ -38,7 +35,7 @@ model.add(Dense(num_classes,
                 bias_initializer='zeros'))
 model.summary()
 model.compile(loss='categorical_crossentropy',
-              optimizer=SGD(lr=0.5),
+              optimizer=SGD(lr=learning_rate),
               metrics=['accuracy'])
 
 history = model.fit(x_train,
