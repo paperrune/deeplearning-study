@@ -96,7 +96,7 @@ void Read_MNIST(string training_set_images, string training_set_labels, string t
 int main() {
 	int batch_size = 128;
 	int epochs = 30;
-	int number_threads = 4;
+	int number_threads = 6;
 	int number_training = 60000;
 	int number_test = 10000;
 	int number_nodes[] = { 784, 10 };
