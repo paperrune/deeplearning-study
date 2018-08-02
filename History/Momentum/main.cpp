@@ -96,7 +96,7 @@ void Read_MNIST(string training_set_images, string training_set_labels, string t
 int main() {
 	int batch_size = 128;
 	int epochs = 30;
-	int number_threads = 6;
+	int number_threads = 4;
 	int number_training = 60000;
 	int number_test = 10000;
 	int number_nodes[] = { 784, 10 };
@@ -123,20 +123,20 @@ int main() {
 		y_data[h] = new float[number_nodes[1]];
 	}
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
-	omp_set_num_threads(number_threads);
 
 	srand(3);
+	omp_set_num_threads(number_threads);
 
 	NN.Add(number_nodes[0]);
-	NN.Add(512, Activation::relu);
-	NN.Add(512, Activation::relu);
-	NN.Add(number_nodes[1], Activation::softmax);
+	NN.Add(512)->Activation(Activation::relu);
+	NN.Add(512)->Activation(Activation::relu);
+	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
-	NN.Connect(1, 0, 0.01);
-	NN.Connect(2, 1, 0.01);
-	NN.Connect(3, 2, 0.01);
+	NN.Connect(1, 0, "W")->Initializer(RandomUniform(-0.01, 0.01));
+	NN.Connect(2, 1, "W")->Initializer(RandomUniform(-0.01, 0.01));
+	NN.Connect(3, 2, "W")->Initializer(RandomUniform(-0.01, 0.01));
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(Optimizer::SGD, learning_rate, momentum));
+	NN.Compile(Loss::cross_entropy, Optimizer(Momentum(learning_rate, momentum)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
@@ -169,11 +169,7 @@ int main() {
 			}
 		}
 		printf("loss: %.4f / %.4f	accuracy: %.4f / %.4f	step %d  %.2f sec\n", loss[0], loss[1], 1.0 * score[0] / number_training, 1.0 * score[1] / number_test, e + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		
-		for (int h = 0; h < batch_size; h++) {
-			delete[] output[h];
-		}
-		delete[] _input;
+
 		delete[] output;
 	}
 
