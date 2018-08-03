@@ -1,7 +1,11 @@
+#include <fstream>
+#include <iostream>
 #include <math.h>
 #include <memory.h>
 #include <random>
+#include <sstream>
 #include <stdlib.h>
+#include <unordered_map>
 
 #include "cuda_runtime.h"
 #include "curand_kernel.h"
@@ -76,13 +80,41 @@ __device__ void Differentiate(Layer &layer, int index, int loss, float y_data[],
 	}
 }
 
+__device__ double Calculate_Gradient(Optimizer &optimizer, int index, double gradient, int iterations) {
+	double learning_rate = optimizer.learning_rate / (1 + optimizer.decay * iterations);
+	double output = 0;
+
+	if (optimizer.type == 0) { // SGD
+		output = -learning_rate * gradient;
+	}
+	else if (optimizer.type == 1) { // Momentum
+		output = optimizer.gradient[index] * optimizer.momentum[0] - learning_rate * gradient;
+		optimizer.gradient[index] = output;
+	}
+	else if (optimizer.type == 2) { // Nesterov
+		output = (optimizer.gradient[index] * optimizer.momentum[0] - learning_rate * gradient) * optimizer.momentum[0] - learning_rate * gradient;
+		optimizer.gradient[index] = output;
+	}
+	else if (optimizer.type == 3) { // Adam
+		double m1 = optimizer.momentum[0] * optimizer.memory[0][index] + (1 - optimizer.momentum[0]) * gradient;
+		double m2 = optimizer.momentum[1] * optimizer.memory[1][index] + (1 - optimizer.momentum[1]) * gradient * gradient;
+
+		optimizer.memory[0][index] = m1;
+		optimizer.memory[1][index] = m2;
+		m1 /= (1 - optimizer.momentum[0]);
+		m2 /= (1 - optimizer.momentum[1]);
+		output = -learning_rate * m1 / sqrt(m2 + optimizer.epsilon);
+	}
+	return output;
+}
+
 __global__ void Activate(Layer layer) {
 	int j = blockIdx.y * blockDim.x + threadIdx.x;
 
 	if (j < layer.number_nodes) {
 		int index = blockIdx.x * layer.number_nodes + j;
 
-		layer.neuron[index] += layer.bias[j];
+		layer.neuron[index] += layer.bias[j / layer.map_size];
 		Activate(layer, j);
 	}
 }
@@ -92,7 +124,7 @@ __global__ void Activate(Layer layer, ::Dropout dropout, bool training) {
 	if (j < layer.number_nodes) {
 		int index = blockIdx.x * layer.number_nodes + j;
 
-		layer.neuron[index] += layer.bias[j];
+		layer.neuron[index] += layer.bias[j / layer.map_size];
 
 		if (training){
 			if (dropout.mask[index]) {
@@ -106,28 +138,35 @@ __global__ void Activate(Layer layer, ::Dropout dropout, bool training) {
 		Activate(layer, j);
 	}
 }
-__global__ void Adjust_Bias(Layer layer, double learning_rate) {
+__global__ void Adjust_Bias(Layer layer, Optimizer optimizer, int iterations) {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (j < layer.number_nodes) {
+	if (j < layer.number_maps) {
 		double sum = 0;
 
 		for (int h = 0; h < layer.batch_size; h++) {
-			sum += layer.error[h * layer.number_nodes + j];
+			for (int k = 0; k < layer.map_size; k++) {
+				sum += layer.error[h * layer.number_nodes + j * layer.map_size + k];
+			}
 		}
-		layer.bias[j] -= learning_rate * sum;
+		layer.bias[j] += Calculate_Gradient(optimizer, j, sum, iterations);
 	}
 }
-__global__ void Adjust_Weight(Layer layer, Layer parent_layer, Connection connection, double learning_rate) {
+__global__ void Adjust_Weight(Layer layer, Layer parent_layer, Connection connection, Optimizer optimizer, int iterations) {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (j < connection.number_weights) {
 		double sum = 0;
 
-		for (int k = j / parent_layer.number_nodes, l = j % parent_layer.number_nodes, h = 0; h < layer.batch_size; h++) {
-			sum += layer.error[h * layer.number_nodes + k] * parent_layer.neuron[h * parent_layer.number_nodes + l];
+		for (int h = 0; h < layer.batch_size; h++) {
+			float *error = &layer.error[h * layer.number_nodes];
+			float *prev_neuron = &parent_layer.neuron[h * parent_layer.number_nodes];
+
+			for (Index *from_weight = &connection.from_weight[j]; from_weight->weight != -1; from_weight += connection.number_weights) {
+				sum += error[from_weight->next_node] * prev_neuron[from_weight->prev_node];
+			}
 		}
-		connection.weight[j] -= learning_rate * sum;
+		connection.weight[j] += Calculate_Gradient(optimizer, j, sum, iterations);
 	}
 }
 __global__ void Backward(Layer layer, Layer parent_layer, Connection connection) {
@@ -139,8 +178,8 @@ __global__ void Backward(Layer layer, Layer parent_layer, Connection connection)
 
 		double sum = 0;
 
-		for (int l = 0; l < layer.number_nodes; l++) {
-			sum += error[l] * connection.weight[l * parent_layer.number_nodes + j];
+		for (Index *from_error = &connection.from_error[j]; from_error->weight != -1; from_error += parent_layer.number_nodes) {
+			sum += error[from_error->next_node] * connection.weight[from_error->weight];
 		}
 		prev_error[j] += sum;
 	}
@@ -205,33 +244,367 @@ __global__ void Forward(Layer layer, Layer parent_layer, Connection connection) 
 
 		double sum = 0;
 
-		for (int l = 0; l < parent_layer.number_nodes; l++) {
-			sum += prev_neuron[l] * connection.weight[j * parent_layer.number_nodes + l];
+		for (Index *from_neuron = &connection.from_neuron[j]; from_neuron->weight != -1; from_neuron += layer.number_nodes) {
+			sum += prev_neuron[from_neuron->prev_node] * connection.weight[from_neuron->weight];
 		}
 		neuron[j] += sum;
 	}
 }
 
-Connection::Connection(Layer *layer, Layer *parent_layer, double scale) {
-	float *memory;
+Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
+	unordered_map<int, int> weight_index;
 
+	this->from_error = nullptr;
+	this->from_neuron = nullptr;
+	this->from_weight = nullptr;
+	this->initializer = nullptr;
 	this->layer = layer;
 	this->parent_layer = parent_layer;
-	this->number_weights = layer->number_nodes * parent_layer->number_nodes;
+	this->properties = properties;
+	this->number_weights = 0;
+	this->optimizer = nullptr;
+	this->weight = nullptr;
 
-	memory = new float[number_weights];
-	cudaMalloc(&weight, sizeof(float) * number_weights);
+	// set kernel / pool size if specified
+	if (const char *kernel_size = strstr(properties.c_str(), "kernel")) {
+		const char *end = strstr(kernel_size, ")");
 
-	for (int i = 0; i < number_weights; i++) {
-		memory[i] = scale * (2.0 * rand() / RAND_MAX - 1);
+		kernel_width = atoi(kernel_size + 7);
+		kernel_size = strstr(kernel_size, "x");
+
+		if (kernel_size && kernel_size < end && atoi(kernel_size + 1) > 0) {
+			kernel_height = atoi(kernel_size + 1);
+			kernel_size = strstr(kernel_size + 1, "x");
+
+			if (kernel_size && kernel_size < end && atoi(kernel_size + 1) > 0) {
+				kernel_depth = atoi(kernel_size + 1);
+			}
+			else {
+				kernel_depth = 1;
+			}
+		}
+		else {
+			kernel_height = 1;
+			kernel_depth = 1;
+		}
 	}
-	cudaMemcpy(weight, memory, sizeof(float) * number_weights, cudaMemcpyHostToDevice);
-	delete[] memory;
+	else if (const char *pool_size = strstr(properties.c_str(), "pool")) {
+		const char *end = strstr(pool_size, ")");
+
+		kernel_width = atoi(pool_size + 5);
+		pool_size = strstr(pool_size, "x");
+
+		if (pool_size && pool_size < end && atoi(pool_size + 1) > 0) {
+			kernel_height = atoi(pool_size + 1);
+			pool_size = strstr(pool_size + 1, "x");
+
+			if (pool_size && pool_size < end && atoi(pool_size + 1) > 0) {
+				kernel_depth = atoi(pool_size + 1);
+			}
+			else {
+				kernel_depth = 1;
+			}
+		}
+		else {
+			kernel_height = 1;
+			kernel_depth = 1;
+		}
+	}
+	else if (properties[0] == 'P') {
+		kernel_width = (parent_layer->map_width > layer->map_width) ? (parent_layer->map_width / layer->map_width) : (layer->map_width / parent_layer->map_width);
+		kernel_height = (parent_layer->map_height > layer->map_height) ? (parent_layer->map_height / layer->map_height) : (layer->map_height / parent_layer->map_height);
+		kernel_depth = (parent_layer->map_depth > layer->map_depth) ? (parent_layer->map_depth / layer->map_depth) : (layer->map_depth / parent_layer->map_depth);
+	}
+	else {
+		kernel_width = abs(parent_layer->map_width - layer->map_width) + 1;
+		kernel_height = abs(parent_layer->map_height - layer->map_height) + 1;
+		kernel_depth = abs(parent_layer->map_depth - layer->map_depth) + 1;
+	}
+	kernel_size = kernel_depth * kernel_height * kernel_width;
+
+	// set stride size if specified
+	if (const char *stride_size = strstr(properties.c_str(), "stride")) {
+		const char *end = strstr(stride_size, ")");
+
+		stride_width = atoi(stride_size + 7);
+		stride_size = strstr(stride_size, "x");
+
+		if (stride_size && stride_size < end && atoi(stride_size + 1) > 0) {
+			stride_height = atoi(stride_size + 1);
+			stride_size = strstr(stride_size + 1, "x");
+
+			if (stride_size && stride_size < end && atoi(stride_size + 1) > 0) {
+				stride_depth = atoi(stride_size + 1);
+			}
+			else {
+				stride_depth = 1;
+			}
+		}
+		else {
+			stride_height = 1;
+			stride_depth = 1;
+		}
+	}
+	else if (properties[0] == 'P') {
+		stride_width = (parent_layer->map_width > layer->map_width) ? (parent_layer->map_width / layer->map_width) : (layer->map_width / parent_layer->map_width);
+		stride_height = (parent_layer->map_height > layer->map_height) ? (parent_layer->map_height / layer->map_height) : (layer->map_height / parent_layer->map_height);
+		stride_depth = (parent_layer->map_depth > layer->map_depth) ? (parent_layer->map_depth / layer->map_depth) : (layer->map_depth / parent_layer->map_depth);
+	}
+	else {
+		stride_width = 1;
+		stride_height = 1;
+		stride_depth = 1;
+	}
+
+	// allocate memory for the weight, if necessary
+	if (properties[0] == 'W') {
+		for (int j = 0, index = 0; j < layer->number_maps; j++) {
+			for (int k = 0; k < parent_layer->number_maps; k++) {
+				if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == k) {
+					for (int l = 0; l < kernel_size; l++) {
+						weight_index.insert(pair<int, int>(j * parent_layer->number_maps * kernel_size + k * kernel_size + l, index++));
+					}
+					number_weights += kernel_size;
+				}
+			}
+		}
+		cudaMalloc(&weight, sizeof(float) * number_weights);
+		cudaMemset(weight, 0, sizeof(float) * number_weights);
+	}
+
+	if (properties[0] == 'P' || properties[0] == 'W') {
+		int offset[3] = { kernel_depth - (abs(layer->map_depth * stride_depth - parent_layer->map_depth) + 1), kernel_height - (abs(layer->map_height * stride_height - parent_layer->map_height) + 1), kernel_width - (abs(layer->map_width * stride_width - parent_layer->map_width) + 1) };
+
+		vector<Index> *from_error = new vector<Index>[parent_layer->number_nodes];
+		vector<Index> *from_neuron = new vector<Index>[layer->number_nodes];
+		vector<Index> *from_weight = (number_weights) ? (new vector<Index>[number_weights]) : (nullptr);
+
+		for (int j = 0; j < layer->number_maps; j++) {
+			for (int k = 0; k < layer->map_depth; k++) {
+				for (int l = 0; l < layer->map_height; l++) {
+					for (int m = 0; m < layer->map_width; m++) {
+						int node_index[2] = { j * layer->map_size + k * layer->map_height * layer->map_width + l * layer->map_width + m, };
+
+						if (properties[0] == 'W') {
+							for (int n = 0; n < parent_layer->number_maps; n++) {
+								if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == n) {
+									int distance[3];
+
+									for (int o = 0; o < parent_layer->map_depth; o++) {
+										distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
+										if (-offset[0] <= distance[0] && distance[0] < kernel_depth - offset[0]) {
+											for (int p = 0; p < parent_layer->map_height; p++) {
+												distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
+												if (-offset[1] <= distance[1] && distance[1] < kernel_height - offset[1]) {
+													for (int q = 0; q < parent_layer->map_width; q++) {
+														distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
+														if (-offset[2] <= distance[2] && distance[2] < kernel_width - offset[2]) {
+															Index index;
+
+															node_index[1] = n * parent_layer->map_size + o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
+
+															index.prev_node = node_index[1];
+															index.next_node = node_index[0];
+															index.weight = weight_index.find(j * parent_layer->number_maps * kernel_size + n * kernel_size + (distance[0] + offset[0]) * kernel_height * kernel_width + (distance[1] + offset[1]) * kernel_width + (distance[2] + offset[2]))->second;
+
+															from_error[node_index[1]].push_back(index);
+															from_neuron[node_index[0]].push_back(index);
+															from_weight[index.weight].push_back(index);
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						else if (properties[0] == 'P') {
+							int distance[3];
+
+							for (int o = 0; o < parent_layer->map_depth; o++) {
+								distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
+								if (0 <= distance[0] && distance[0] < kernel_depth) {
+									for (int p = 0; p < parent_layer->map_height; p++) {
+										distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
+										if (0 <= distance[1] && distance[1] < kernel_height) {
+											for (int q = 0; q < parent_layer->map_width; q++) {
+												distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
+												if (0 <= distance[2] && distance[2] < kernel_width) {
+													Index index;
+
+													node_index[1] = j * parent_layer->map_size + o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
+
+													index.prev_node = node_index[1];
+													index.next_node = node_index[0];
+													index.weight = 0;
+
+													from_error[node_index[1]].push_back(index);
+													from_neuron[node_index[0]].push_back(index);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		{ // add last index (index.weight == -1)
+			Index index;
+
+			index.weight = -1;
+
+			for (int j = 0; j < parent_layer->number_nodes; j++) {
+				from_error[j].push_back(index);
+			}
+			for (int j = 0; j < layer->number_nodes; j++) {
+				from_neuron[j].push_back(index);
+			}
+			if (from_weight) {
+				for (int j = 0; j < this->number_weights; j++) {
+					from_weight[j].push_back(index);
+				}
+			}
+		}
+
+		{ // copy from_error
+			int max = 0;
+
+			Index *memory = new Index[0];
+
+			for (int j = 0; j < parent_layer->number_nodes; j++) {
+				if (max < from_error[j].size()) {
+					max = static_cast<int>(from_error[j].size());
+				}
+			}
+			cudaMalloc(&this->from_error, sizeof(Index) * max * parent_layer->number_nodes);
+			memory = new Index[max * parent_layer->number_nodes];
+
+			for (int j = 0; j < parent_layer->number_nodes; j++) {
+				for (int k = 0; k < from_error[j].size(); k++) {
+					memory[j + k * parent_layer->number_nodes] = from_error[j][k];
+				}
+			}
+			cudaMemcpy(this->from_error, memory, sizeof(Index) * max * parent_layer->number_nodes, cudaMemcpyHostToDevice);
+			delete[] memory;
+		}
+
+		{ // copry from_neuron
+			int max = 0;
+
+			Index *memory;
+
+			for (int j = 0; j < layer->number_nodes; j++) {
+				if (max < from_neuron[j].size()) {
+					max = static_cast<int>(from_neuron[j].size());
+				}
+			}
+			cudaMallocManaged(&this->from_neuron, sizeof(Index) * max * layer->number_nodes);
+			memory = new Index[max * layer->number_nodes];
+
+			for (int j = 0; j < layer->number_nodes; j++) {
+				for (int k = 0; k < from_neuron[j].size(); k++) {
+					memory[j + k * layer->number_nodes] = from_neuron[j][k];
+				}
+			}
+			cudaMemcpy(this->from_neuron, memory, sizeof(Index) * max * layer->number_nodes, cudaMemcpyHostToDevice);
+			delete[] memory;
+		}
+
+		if (from_weight) {
+			int max = 0;
+
+			Index *memory;
+
+			for (int j = 0; j < number_weights; j++) {
+				if (max < from_weight[j].size()) {
+					max = static_cast<int>(from_weight[j].size());
+				}
+			}
+			cudaMallocManaged(&this->from_weight, sizeof(Index) * max * number_weights);
+			memory = new Index[max * number_weights];
+
+			for (int j = 0; j < number_weights; j++) {
+				for (int k = 0; k < from_weight[j].size(); k++) {
+					memory[j + k * number_weights] = from_weight[j][k];
+				}
+			}
+			cudaMemcpy(this->from_weight, memory, sizeof(Index) * max * number_weights, cudaMemcpyHostToDevice);
+			delete[] memory;
+		}
+		delete[] from_error;
+		delete[] from_neuron;
+		delete[] from_weight;
+	}
 }
 Connection::~Connection() {}
 
 void Connection::Destruct() {
+	if (from_error) {
+		cudaFree(from_error);
+	}
+	if (from_neuron) {
+		cudaFree(from_neuron);
+	}
+	if (from_weight) {
+		cudaFree(from_weight);
+	}
+	if (initializer) {
+		delete initializer;
+	}
+	if (optimizer) {
+		optimizer->Destruct();
+		delete optimizer;
+	}
 	cudaFree(weight);
+}
+void Connection::Initialize() {
+	if (initializer) {
+		int kernel_size = this->kernel_size;
+		int number_maps[] = { parent_layer->number_maps, layer->number_maps };
+		int pool_size[] = { 1, 1 };
+
+		Layer *layer = this->layer;
+		Layer *parent_layer = this->parent_layer;
+
+		if (strstr(properties.c_str(), "depthwise") && layer->Search_Child_Connection("pointwise")) {
+			layer = layer->Search_Child_Connection("pointwise")->layer;
+			number_maps[1] = layer->number_maps / parent_layer->number_maps;
+			number_maps[0] = 1;
+		}
+		if (strstr(properties.c_str(), "pointwise") && parent_layer->Search_Connection("depthwise")) {
+			kernel_size = parent_layer->Search_Connection("depthwise")->kernel_size;
+			parent_layer = parent_layer->Search_Connection("depthwise")->parent_layer;
+
+			number_maps[1] = layer->number_maps / parent_layer->number_maps;
+			number_maps[0] = 1;
+		}
+		if (parent_layer->connection.size() > 0 && parent_layer->Search_Connection("P")) {
+			pool_size[0] = parent_layer->Search_Connection("P")->kernel_size;
+		}
+		if (layer->child_connection.size() > 0 && layer->Search_Child_Connection("P")) {
+			pool_size[1] = layer->Search_Child_Connection("P")->kernel_size;
+		}
+		initializer->Random(number_weights, weight, number_maps[0] * kernel_size * pool_size[0], number_maps[1] * kernel_size / pool_size[1]);
+	}
+}
+void Connection::Optimizer(::Optimizer *optimizer) {
+	if (this->optimizer) {
+		this->optimizer->Destruct();
+	}
+	this->optimizer = optimizer->Copy(number_weights);
+}
+
+Connection *Connection::Initializer(::Initializer initializer) {
+	if (this->initializer) {
+		delete this->initializer;
+	}
+	this->initializer = initializer.Copy();
+	return this;
 }
 
 
@@ -267,17 +640,197 @@ void Dropout::Resize_Memory(int batch_size) {
 }
 
 
-Layer::Layer(int number_nodes, int activation, string properties) {
-	this->activation = activation;
-	this->batch_size = 1;
-	this->dropout = (strstr(properties.c_str(), "dropout")) ? (new Dropout(number_nodes, atof(strstr(properties.c_str(), "dropout") + 7))) : (nullptr);
-	this->number_nodes = number_nodes;
+Initializer::Initializer(double value) {
+	generator = nullptr;
+	this->value = value;
+	type = 0;
+}
+Initializer::Initializer(GlorotNormal initializer) {
+	generator = initializer.generator;
+	seed = initializer.seed;
+	type = 4;
+}
+Initializer::Initializer(GlorotUniform initializer) {
+	generator = initializer.generator;
+	seed = initializer.seed;
+	type = 3;
+}
+Initializer::Initializer(HeNormal initializer) {
+	generator = initializer.generator;
+	seed = initializer.seed;
+	type = 6;
+}
+Initializer::Initializer(HeUniform initializer) {
+	generator = initializer.generator;
+	seed = initializer.seed;
+	type = 5;
+}
+Initializer::Initializer(Orthogonal initializer) {
+	generator = initializer.generator;
+	seed = initializer.seed;
+	value = initializer.gain;
+	type = 7;
+}
+Initializer::Initializer(RandomNormal initializer) {
+	generator = initializer.generator;
+	mean = initializer.mean;
+	stdv = initializer.stdv;
+	seed = initializer.seed;
+	type = 2;
+}
+Initializer::Initializer(RandomUniform initializer) {
+	generator = initializer.generator;
+	max = initializer.max;
+	min = initializer.min;
+	seed = initializer.seed;
+	type = 1;
+}
+Initializer::~Initializer() {
+	if (generator) {
+		delete generator;
+	}
+}
+
+void Initializer::Random(int memory_size, float _memory[], int fan_in, int fan_out) {
+	float *memory = new float[memory_size];
+
+	if (type == 0) { // Constant
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = value;
+		}
+	}
+	else if (type == 1) { // RandomUniform
+		uniform_real_distribution<double> distribution(min, max);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 2) { // RandomNormal
+		normal_distribution<double> distribution(mean, stdv);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 3) { // GlorotUniform
+		double range = sqrt(6.0 / (fan_in + fan_out));
+
+		uniform_real_distribution<double> distribution(-range, range);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 4) { // GlorotNormal
+		double stdv = sqrt(2.0 / (fan_in + fan_out));
+
+		normal_distribution<double> distribution(0, stdv);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 5) { // HeUniform
+		double range = sqrt(6.0 / fan_in);
+
+		uniform_real_distribution<double> distribution(-range, range);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 6) { // HeNormal
+		double stdv = sqrt(2.0 / fan_in);
+
+		normal_distribution<double> distribution(0, stdv);
+
+		for (int i = 0; i < memory_size; i++) {
+			memory[i] = distribution(*generator);
+		}
+	}
+	else if (type == 7) { // Orthogonal
+		Matrix matrix(fan_in, fan_in);
+
+		normal_distribution<double> distribution(0, 1);
+
+		for (int i = 0; i < fan_in; i++) {
+			for (int j = 0; j < fan_out; j++) {
+				matrix(i, j) = distribution(*generator);
+			}
+		}
+		matrix.Gram_Schmidt_Process(value);
+
+		for (int i = 0, index = 0; i < fan_in; i++) {
+			for (int j = 0; j < fan_out; j++) {
+				memory[index++] = matrix(i, j);
+			}
+		}
+	}
+
+	cudaMemcpy(_memory, memory, sizeof(float) * memory_size, cudaMemcpyHostToDevice);
+	delete[] memory;
+}
+
+Initializer* Initializer::Copy() {
+	switch (type) {
+	case 0: return new Initializer(value);
+	case 1: return new Initializer(RandomUniform(min, max, seed));
+	case 2: return new Initializer(RandomNormal(stdv, mean, seed));
+	case 3: return new Initializer(GlorotUniform(seed));
+	case 4: return new Initializer(GlorotNormal(seed));
+	case 5: return new Initializer(HeUniform(seed));
+	case 6: return new Initializer(HeNormal(seed));
+	case 7: return new Initializer(Orthogonal(value, seed));
+	}
+	return nullptr;
+}
+
+
+Layer::Layer(int number_maps, string properties) {
+	this->map_width = 1;
+	this->map_height = 1;
+	this->map_depth = 1;
+	this->number_maps = number_maps;
 	this->properties = properties;
 
-	cudaMalloc(&bias, sizeof(float) * number_nodes);
-	cudaMemset(bias, 0, sizeof(float) * number_nodes);
-	cudaMalloc(&error, sizeof(float) * number_nodes);
-	cudaMalloc(&neuron, sizeof(float) * number_nodes);
+	Construct();
+}
+Layer::Layer(int time_step, int number_maps, string properties) {
+	this->map_width = 1;
+	this->map_height = 1;
+	this->map_depth = 1;
+	this->number_maps = number_maps;
+	this->properties = properties;
+
+	Construct();
+}
+Layer::Layer(int time_step, int number_maps, int map_width, string properties) {
+	this->map_width = map_width;
+	this->map_height = 1;
+	this->map_depth = 1;
+	this->number_maps = number_maps;
+	this->properties = properties;
+
+	Construct();
+}
+Layer::Layer(int time_step, int number_maps, int map_width, int map_height, string properties) {
+	this->map_width = map_width;
+	this->map_height = map_height;
+	this->map_depth = 1;
+	this->number_maps = number_maps;
+	this->properties = properties;
+
+	Construct();
+}
+Layer::Layer(int time_step, int number_maps, int map_width, int map_height, int map_depth, string properties) {
+	this->map_width = map_width;
+	this->map_height = map_height;
+	this->map_depth = map_depth;
+	this->number_maps = number_maps;
+	this->properties = properties;
+
+	Construct();
 }
 Layer::~Layer() {}
 
@@ -294,6 +847,19 @@ void Layer::Activate(bool training) {
 		::Activate << <number_blocks, NUMBER_THREADS >> > (*this);
 	}
 }
+void Layer::Adjust_Parameter(int iterations) {
+	// adjust bias
+	if (bias) {
+		::Adjust_Bias << <number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*this, *optimizer, iterations);
+	}
+
+	// adjust weight
+	for (int i = 0; i < connection.size(); i++) {
+		Connection *connection = this->connection[i];
+
+		::Adjust_Weight << <connection->number_weights / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*connection->layer, *connection->parent_layer, *connection, *connection->optimizer, iterations);
+	}
+}
 void Layer::Backward() {
 	for (int k = 0; k < connection.size(); k++) {
 		Connection *connection = this->connection[k];
@@ -302,6 +868,31 @@ void Layer::Backward() {
 
 		::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection);
 	}
+}
+void Layer::Compile(::Optimizer *optimizer) {
+	for (int j = 0; j < connection.size(); j++) {
+		Connection *connection = this->connection[j];
+
+		if (connection->properties[0] == 'W') {
+			connection->Optimizer(optimizer);
+			connection->Initialize();
+		}
+	}
+	Optimizer(optimizer);
+	Initialize();
+}
+void Layer::Construct() {
+	this->activation = Activation::linear;
+	this->batch_size = 1;
+	this->initializer = nullptr;
+	this->map_size = map_depth * map_height * map_width;
+	this->number_nodes = number_maps * map_size;
+	this->dropout = (strstr(properties.c_str(), "dropout")) ? (new Dropout(number_nodes, atof(strstr(properties.c_str(), "dropout") + 7))) : (nullptr);
+	this->optimizer = nullptr;
+
+	bias = nullptr;
+	cudaMalloc(&error, sizeof(float) * number_nodes);
+	cudaMalloc(&neuron, sizeof(float) * number_nodes);
 }
 void Layer::Differentiate(int loss, float **y_batch) {
 	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
@@ -332,15 +923,24 @@ void Layer::Differentiate(int loss, float **y_batch) {
 	}
 }
 void Layer::Destruct() {
-	for (int i = 0; i < connection.size(); i++) {
-		connection[i]->Destruct();
-		delete connection[i];
+	if (bias) {
+		cudaFree(bias);
 	}
 	if (dropout) {
 		dropout->Destruct();
 		delete dropout;
 	}
-	delete[] bias;
+	if (initializer) {
+		delete initializer;
+	}
+	if (optimizer) {
+		optimizer->Destruct();
+		delete optimizer;
+	}
+	for (int i = 0; i < connection.size(); i++) {
+		connection[i]->Destruct();
+		delete connection[i];
+	}
 	delete[] error;
 	delete[] neuron;
 }
@@ -349,6 +949,20 @@ void Layer::Forward() {
 
 	for (int k = 0; k < connection.size(); k++) {
 		::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *connection[k]->parent_layer, *connection[k]);
+	}
+}
+void Layer::Initialize() {
+	if (bias) {
+		initializer->Random(number_maps, bias, 1, number_maps);
+	}
+}
+void Layer::Optimizer(::Optimizer *optimizer) {
+	if (bias) {
+		if (this->optimizer) {
+			this->optimizer->Destruct();
+			delete this->optimizer;
+		}
+		this->optimizer = optimizer->Copy(number_nodes);
 	}
 }
 void Layer::Resize_Memory(int batch_size) {
@@ -367,6 +981,267 @@ void Layer::Resize_Memory(int batch_size) {
 	}
 	cudaMemset(error, 0, memory_size);
 	cudaMemset(neuron, 0, memory_size);
+}
+
+Connection* Layer::Search_Child_Connection(string properties) {
+	for (int i = 0; i < child_connection.size(); i++) {
+		if (strstr(child_connection[i]->properties.c_str(), properties.c_str())) {
+			return child_connection[i];
+		}
+	}
+	return nullptr;
+}
+Connection* Layer::Search_Connection(string properties) {
+	for (int i = 0; i < connection.size(); i++) {
+		if (strstr(connection[i]->properties.c_str(), properties.c_str())) {
+			return connection[i];
+		}
+	}
+	return nullptr;
+}
+
+Layer* Layer::Activation(int activation) {
+	this->activation = activation;
+	return this;
+}
+Layer* Layer::Copy() {
+	return new Layer(number_maps, map_width, map_height, map_depth, properties);
+}
+Layer* Layer::Initializer(::Initializer initializer) {
+	if (bias == nullptr) {
+		cudaMalloc(&bias, sizeof(float) * number_nodes);
+	}
+	if (this->initializer) {
+		delete this->initializer;
+	}
+	this->initializer = initializer.Copy();
+	return this;
+}
+
+
+Matrix::Matrix(int number_rows, int number_columns) {
+	this->number_columns = number_columns;
+	this->number_rows = number_rows;
+
+	memset(data = new double[number_rows * number_columns], 0, sizeof(double) * number_rows * number_columns);
+}
+Matrix::~Matrix() {
+	delete[] data;
+}
+
+void Matrix::Gram_Schmidt_Process(double gain) {
+	// Make Orthogonal Vectors
+	for (int i = 0; i < number_columns; i++) {
+		double *sum = { new double[i] };
+
+		for (int j = 0; j < i; j++) {
+			double temp[2] = { 0, };
+
+			for (int k = 0; k < number_rows; k++) {
+				temp[0] += (*this)(k, j) * (*this)(k, i);
+				temp[1] += (*this)(k, j) * (*this)(k, j);
+			}
+			sum[j] = temp[0] / temp[1];
+		}
+		for (int j = 0; j < i; j++) {
+			for (int k = 0; k < number_rows; k++) {
+				(*this)(k, i) -= sum[j] * (*this)(k, j);
+			}
+		}
+		delete[] sum;
+	}
+
+	// Make Orthonormal Vectors
+	for (int i = 0; i < number_columns; i++) {
+		double sum = 0;
+
+		for (int j = 0; j < number_rows; j++) {
+			sum += (*this)(j, i) * (*this)(j, i);
+		}
+		sum = sqrt(sum);
+		for (int j = 0; j < number_rows; j++) {
+			(*this)(j, i) = gain * (*this)(j, i) / sum;
+		}
+	}
+}
+void Matrix::Identity() {
+	for (int i = 0; i < number_rows; i++) {
+		for (int j = 0; j < number_columns; j++) {
+			(*this)(i, j) = (i == j);
+		}
+	}
+}
+void Matrix::LQ_Decomposition(Matrix &L, Matrix &Q) {
+	Matrix A = (*this);
+
+	A.Transpose();
+	A.QR_Decomposition(Q, L);
+	Q.Transpose();
+	L.Transpose();
+}
+void Matrix::QR_Decomposition(Matrix &Q, Matrix &R) {
+	int m = number_rows;
+	int n = number_columns;
+
+	double *u = new double[m];
+	double *v = new double[m];
+
+	Matrix P(m, m);
+
+	Q = Matrix(m, m);
+	Q.Identity();
+	R = (*this);
+
+	for (int i = 0; i < n && i < m - 1; i++) {
+		double sum[2] = { 0, };
+
+		memset(u, 0, sizeof(double) * m);
+		memset(v, 0, sizeof(double) * m);
+
+		for (int j = i; j < m; j++) {
+			u[j] = R(j, i);
+			sum[0] += u[j] * u[j];
+		}
+		if (u[i]) {
+			sum[0] = ((u[i] < 0) ? (-1) : (1)) * sqrt(sum[0]);
+		}
+
+		for (int j = i; j < m; j++) {
+			v[j] = (j == i) ? (u[j] + sum[0]) : (u[j]);
+			sum[1] += v[j] * v[j];
+		}
+		if (sum[1] = sqrt(sum[1])) {
+			for (int j = i; j < m; j++) {
+				v[j] /= sum[1];
+			}
+			for (int j = 0; j < m; j++) {
+				for (int k = 0; k < m; k++) {
+					P(j, k) = ((j == k) ? (1) : (0)) - 2 * v[k] * v[j];
+				}
+			}
+			R = P * R;
+			Q = Q * P;
+		}
+	}
+	delete[] u;
+	delete[] v;
+}
+void Matrix::Transpose() {
+	Matrix T(number_columns, number_rows);
+
+	for (int i = 0; i < number_rows; i++) {
+		for (int j = 0; j < number_columns; j++) {
+			T(j, i) = (*this)(i, j);
+		}
+	}
+	(*this) = T;
+}
+
+Matrix Matrix::Multiplication(const Matrix &A, const Matrix &B) {
+	if (A.number_columns != B.number_rows) {
+		cerr << "[Multiplication], A(" << A.number_rows << "x" << A.number_columns << ") * B(" << B.number_rows << "x" << B.number_columns << ") failed." << endl;
+	}
+
+	Matrix C(A.number_rows, B.number_columns);
+
+	for (int i = 0; i < A.number_rows; i++) {
+		for (int j = 0; j < B.number_columns; j++) {
+			double sum = 0;
+
+			for (int k = 0; k < A.number_columns; k++) {
+				sum += A(i, k) * B(k, j);
+			}
+			C(i, j) = sum;
+		}
+	}
+	return C;
+}
+
+
+Optimizer::Optimizer(int type, double decay, double epsilon, double learning_rate, double momentum_1, double momentum_2, int number_parameters) {
+	Construct(type, decay, epsilon, learning_rate, momentum_1, momentum_2, number_parameters);
+}
+Optimizer::Optimizer(SGD SGD) {
+	Construct(0, SGD.decay, 0, SGD.learning_rate, 0, 0, 0);
+}
+Optimizer::Optimizer(Momentum Momentum) {
+	Construct(1, Momentum.decay, 0, Momentum.learning_rate, Momentum.momentum, 0, 0);
+}
+Optimizer::Optimizer(Nesterov Nesterov) {
+	Construct(2, Nesterov.decay, 0, Nesterov.learning_rate, Nesterov.momentum, 0, 0);
+}
+Optimizer::Optimizer(Adam Adam) {
+	Construct(3, Adam.decay, Adam.epsilon, Adam.learning_rate, Adam.momentum[0], Adam.momentum[1], 0);
+}
+Optimizer::~Optimizer() {}
+
+void Optimizer::Construct(int type, double decay, double epsilon, double learning_rate, double momentum_1, double momentum_2, int number_parameters) {
+	this->decay = decay;
+	this->epsilon = epsilon;
+	this->gradient = nullptr;
+	this->memory[0] = nullptr;
+	this->memory[1] = nullptr;
+	this->learning_rate = learning_rate;
+	this->momentum[0] = momentum_1;
+	this->momentum[1] = momentum_2;
+	this->type = type;
+
+	if (type == 1 || type == 2) {
+		cudaMalloc(&gradient, sizeof(float) * number_parameters);
+		cudaMemset(gradient, 0, sizeof(float) * number_parameters);
+	}
+	else if (type == 3) {
+		cudaMalloc(&memory[0], sizeof(float) * number_parameters);
+		cudaMalloc(&memory[1], sizeof(float) * number_parameters);
+		cudaMemset(memory[0], 0, sizeof(float) * number_parameters);
+		cudaMemset(memory[1], 0, sizeof(float) * number_parameters);
+	}
+}
+void Optimizer::Destruct() {
+	if (gradient) {
+		cudaFree(gradient);
+		gradient = nullptr;
+	}
+	if (memory[0]) {
+		cudaFree(memory[0]);
+		memory[0] = nullptr;
+	}
+	if (memory[1]) {
+		cudaFree(memory[1]);
+		memory[1] = nullptr;
+	}
+}
+
+double Optimizer::Calculate_Gradient(int index, double gradient, int iterations) {
+	double learning_rate = this->learning_rate / (1 + decay * iterations);
+	double output = 0;
+
+	if (type == 0) { // SGD
+		output = -learning_rate * gradient;
+	}
+	else if (type == 1) { // Momentum
+		output = this->gradient[index] * momentum[0] - learning_rate * gradient;
+		this->gradient[index] = output;
+	}
+	else if (type == 2) { // Nesterov
+		output = (this->gradient[index] * momentum[0] - learning_rate * gradient) * momentum[0] - learning_rate * gradient;
+		this->gradient[index] = output;
+	}
+	else if (type == 3) { // Adam
+		double m1 = momentum[0] * memory[0][index] + (1 - momentum[0]) * gradient;
+		double m2 = momentum[1] * memory[1][index] + (1 - momentum[1]) * gradient * gradient;
+
+		memory[0][index] = m1;
+		memory[1][index] = m2;
+		m1 /= (1 - momentum[0]);
+		m2 /= (1 - momentum[1]);
+		output = -learning_rate * m1 / sqrt(m2 + epsilon);
+	}
+	return output;
+}
+
+Optimizer* Optimizer::Copy(int number_parameters) {
+	return new Optimizer(type, decay, epsilon, learning_rate, momentum[0], momentum[1], number_parameters);
 }
 
 
@@ -397,6 +1272,7 @@ double Neural_Networks::Calculate_Loss(Layer *layer, float **y_batch) {
 
 Neural_Networks::Neural_Networks() {
 	batch_size = 1;
+	optimizer = nullptr;
 }
 Neural_Networks::~Neural_Networks() {
 	for (int i = 0; i < layer.size(); i++) {
@@ -404,18 +1280,20 @@ Neural_Networks::~Neural_Networks() {
 	}
 }
 
-void Neural_Networks::Add(int number_nodes, int activation, string properties) {
-	this->layer.push_back(new Layer(number_nodes, activation, properties));
-}
-void Neural_Networks::Compile(int loss, double learning_rate) {
+void Neural_Networks::Compile(int loss, Optimizer optimizer) {
 	this->loss = loss;
-	this->learning_rate = learning_rate;
-}
-void Neural_Networks::Connect(int from, int to, double scale) {
-	Connection *connection = new Connection(layer[from], layer[to], scale);
 
-	this->connection.push_back(connection);
-	layer[from]->connection.push_back(connection);
+	if (this->optimizer) {
+		this->optimizer->Destruct();
+		delete this->optimizer;
+	}
+	this->iterations = 0;
+	this->loss = loss;
+	this->optimizer = optimizer.Copy();
+
+	for (int i = 0; i < layer.size(); i++) {
+		layer[i]->Compile(optimizer.Copy());
+	}
 }
 void Neural_Networks::Predict(float input[], float output[]) {
 	Predict(&input, &output);
@@ -523,21 +1401,56 @@ double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, in
 				layer[i]->Backward();
 			}
 
-			// adjust bias
+			// adjust parameter
 			for (int i = 0; i < layer.size(); i++) {
-				::Adjust_Bias << <layer[i]->number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*layer[i], learning_rate);
+				layer[i]->Adjust_Parameter(iterations);
 			}
-
-			// adjust weight
-			for (int i = 0; i < connection.size(); i++) {
-				Connection *connection = this->connection[i];
-
-				::Adjust_Weight << <connection->number_weights / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*connection->layer, *connection->parent_layer, *connection, learning_rate);
-			}
+			iterations++;
 		}
 	}
 	delete[] x_batch;
 	delete[] y_batch;
 
 	return loss / train_size;
+}
+
+Connection* Neural_Networks::Connect(int from, int to, string properties) {
+	Connection *connection = new Connection(layer[from], layer[to], properties);
+
+	if (properties[0] == 'W') {
+		if (!strstr(properties.c_str(), "depthwise") && layer[from]->bias == nullptr) {
+			Layer *layer = this->layer[from];
+
+			cudaMalloc(&layer->bias, sizeof(float) * layer->number_maps);
+			layer->initializer = new Initializer(0);
+		}
+		connection->initializer = (strstr(properties.c_str(), "recurrent")) ? (new Initializer(Orthogonal())) : (new Initializer(GlorotUniform()));
+	}
+	if (properties[0] == 'P' && !(strstr(properties.c_str(), "average") || strstr(properties.c_str(), "max"))) {
+		cerr << "[Connect], The pooling layer must have 'average' or 'max' property" << endl;
+		return nullptr;
+	}
+	layer[from]->connection.push_back(connection);
+	layer[to]->child_connection.push_back(connection);
+	return connection;
+}
+
+Layer* Neural_Networks::Add(int number_nodes, string properties) {
+	return Add(number_nodes, 1, 1, 1, properties);
+}
+Layer* Neural_Networks::Add(int number_maps, int map_width, string properties) {
+	return Add(number_maps, map_width, 1, 1, properties);
+}
+Layer* Neural_Networks::Add(int number_maps, int map_width, int map_height, string properties) {
+	return Add(number_maps, map_width, map_height, 1, properties);
+}
+Layer* Neural_Networks::Add(int number_maps, int map_width, int map_height, int map_depth, string properties) {
+	Layer *layer = new Layer(1, number_maps, map_width, map_height, map_depth, properties);
+
+	this->layer.push_back(layer);
+	return layer;
+}
+Layer* Neural_Networks::Add(Layer layer) {
+	this->layer.push_back(layer.Copy());
+	return this->layer.back();
 }

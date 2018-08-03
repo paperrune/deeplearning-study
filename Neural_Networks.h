@@ -344,11 +344,7 @@ struct Loss {
 		this->type = connectionist_temporal_classification;
 		ctc.label = nullptr;
 	}
-	~Loss() {
-		if (ctc) {
-			cerr << "[~Loss], memory not released." << endl;
-		}
-	}
+	~Loss() {}
 
 	void Destruct() {
 		if (ctc) {
@@ -466,7 +462,6 @@ struct Matrix {
 		return Multiplication(*this, matrix);
 	}
 
-	void Destruct();
 	void Gram_Schmidt_Process(double gain);
 	void Identity();
 	void LQ_Decomposition(Matrix &L, Matrix &Q);

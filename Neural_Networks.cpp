@@ -464,7 +464,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 
 		from_error = new vector<Index>[parent_layer->number_nodes];
 		from_neuron = new vector<Index>[layer->number_nodes];
-		from_weight = new vector<Index>[number_weights];
+		from_weight = (number_weights) ? (new vector<Index>[number_weights]) : (nullptr);
 
 		for (int j = 0; j < layer->number_maps; j++) {
 			for (int k = 0; k < layer->map_depth; k++) {
@@ -736,16 +736,18 @@ double CTC::Calculate_Error(vector<string> &reference, int sequence_length, floa
 	for (int t = 0; t < sequence_length; t++) {
 		int index = t * number_labels;
 
+		double sum[] = { -numeric_limits<double>::infinity(), };
+
+		for (int j = 0; j < reference.size(); j++) {
+			sum[0] = Log_Add(sum[0], alpha[t][j] + beta[t][j] - log(likelihood[index + Search_Label(reference[j])]));
+		}
 		for (int i = 0; i < number_labels; i++) {
-			double sum[] = { -numeric_limits<double>::infinity(), -numeric_limits<double>::infinity() };
+			sum[1] = -numeric_limits<double>::infinity();
 
 			for (int j = 0; j < reference.size(); j++) {
-				int k = Search_Label(reference[j]);
-
-				if (i == k) {
+				if (i == Search_Label(reference[j])) {
 					sum[1] = Log_Add(sum[1], alpha[t][j] + beta[t][j]);
 				}
-				sum[0] = Log_Add(sum[0], alpha[t][j] + beta[t][j] - log(likelihood[index + k]));
 			}
 			error[index + i] = likelihood[index + i] - exp(sum[1] - log(likelihood[index + i]) - sum[0]);
 
@@ -3193,6 +3195,7 @@ Neural_Networks::Neural_Networks() {
 }
 Neural_Networks::~Neural_Networks() {
 	if (loss) {
+		loss->Destruct();
 		delete loss;
 	}
 	if (optimizer) {
@@ -3374,7 +3377,6 @@ Connection* Neural_Networks::Connect(int from, int to, string properties, unorde
 			layer[to]->child_connection.push_back(connection);
 		}
 	}
-
 	return connection;
 }
 
