@@ -9,8 +9,6 @@ from keras.optimizers import SGD
 
 batch_size = 128
 epochs = 30
-learning_rate = 0.1
-momentum = 0.9
 num_classes = 10
 
 # input image dimensions
@@ -49,7 +47,7 @@ model.add(Dense(num_classes,
                 bias_initializer='zeros'))
 model.summary()
 model.compile(loss='categorical_crossentropy',
-              optimizer=SGD(lr=learning_rate, momentum=momentum, nesterov=True),
+              optimizer=SGD(lr=0.1, momentum=0.9, nesterov=True),
               metrics=['accuracy'])
 
 history = model.fit(x_train,
