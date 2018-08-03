@@ -19,7 +19,7 @@ learning_rate = 0.5
 X = tf.placeholder(tf.float32, [None, 784])
 Y = tf.placeholder(tf.float32, [None, 10])
 
-# weights & bias for perceptron
+# weights & bias for neural networks
 W1 = tf.Variable(tf.random_uniform([784, 512], minval=-0.01, maxval=0.01))
 b1 = tf.Variable(tf.zeros([512]))
 L1 = tf.tanh(tf.matmul(X, W1) + b1)
