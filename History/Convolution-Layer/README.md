@@ -113,7 +113,7 @@ loss: 0.0000 / 0.0562    accuracy: 1.0000 / 0.9890    step 29  54.37 sec
 loss: 0.0000 / 0.0564    accuracy: 1.0000 / 0.9890    step 30  56.18 sec
 ```
 
-### Neural_Networks CPU
+### Neural_Networks GPU
 ```
 loss: 0.2843 / 0.1030	accuracy: 0.9676 / 0.9667	step 1  40.17 sec
 loss: 0.0604 / 0.0583	accuracy: 0.9854 / 0.9806	step 2  80.71 sec
