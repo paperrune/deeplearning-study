@@ -69,6 +69,7 @@ with tf.Session() as sess:
             c, a, _ = sess.run([cost, accuracy, train], feed_dict={X: x_train[i:i+size], Y: y_train[i:i+size], learning_rate: initial_learning_rate / (1 + decay * iterations)})
             loss[0] += c * size
             score[0] += a * size
+            iterations += 1
 
         for i in range(0, x_test.shape[0], batch_size):
             size = batch_size if i + batch_size <= x_test.shape[0] else x_test.shape[0] - i
