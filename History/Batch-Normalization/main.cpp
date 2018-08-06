@@ -122,9 +122,9 @@ int main() {
 		y_data[h] = new float[number_nodes[1]];
 	}
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
-	omp_set_num_threads(number_threads);
 
-	srand(1);
+	srand(2);
+	omp_set_num_threads(number_threads);
 
 	NN.Add( 1, 28, 28);
 	NN.Add(24, 24, 24)->Activation(Activation::relu)->Batch_Normalization();
@@ -134,14 +134,14 @@ int main() {
 	NN.Add(512)->Activation(Activation::relu)->Batch_Normalization();
 	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
-	NN.Connect(1, 0, "W")->Initializer(HeNormal());
+	NN.Connect(1, 0, "W,kernel(5x5)")->Initializer(HeNormal());
 	NN.Connect(2, 1, "P,max");
-	NN.Connect(3, 2, "W")->Initializer(HeNormal());
+	NN.Connect(3, 2, "W,kernel(5x5)")->Initializer(HeNormal());
 	NN.Connect(4, 3, "P,max");
 	NN.Connect(5, 4, "W")->Initializer(HeNormal());
 	NN.Connect(6, 5, "W")->Initializer(HeNormal());
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate)));
+	NN.Compile(Loss::cross_entropy, Optimizer(SGD(learning_rate)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
@@ -149,7 +149,7 @@ int main() {
 		float **_input = new float*[batch_size];
 		float **output = new float*[batch_size];
 
-		double loss[2] = { NN.Fit(NN.Shuffle(x_train, number_training), NN.Shuffle(y_train, number_training), number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
+		double loss[2] = { NN.Fit(x_train, y_train, number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
 
 		for (int h = 0; h < batch_size; h++) {
 			output[h] = new float[number_nodes[1]];
@@ -175,10 +175,6 @@ int main() {
 		}
 		printf("loss: %.4f / %.4f	accuracy: %.4f / %.4f	step %d  %.2f sec\n", loss[0], loss[1], 1.0 * score[0] / number_training, 1.0 * score[1] / number_test, e + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
 
-		for (int h = 0; h < batch_size; h++) {
-			delete[] output[h];
-		}
-		delete[] _input;
 		delete[] output;
 	}
 
