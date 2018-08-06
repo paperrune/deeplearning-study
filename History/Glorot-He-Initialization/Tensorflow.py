@@ -5,6 +5,7 @@ batch_size = 128
 decay = 1e-6
 epochs = 30
 initial_learning_rate = 0.5
+
 learning_rate = tf.placeholder(tf.float32, shape=[])
  
 # input image dimensions
@@ -31,7 +32,7 @@ L1 = tf.nn.conv2d(X, W1, strides=[1, 1, 1, 1], padding='VALID')
 L1 = tf.nn.relu(tf.nn.bias_add(L1, b1))
 P1 = tf.nn.max_pool(L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
  
-W2 = tf.get_variable(name="W2", shape=[5, 5, 24, 48], initializer=tf.keras.initializers.he_normal())
+W2 = tf.get_variable(name="W2", shape=[5, 5, 24, 48], initializer=tf.keras.initializers.he_normal()) / 2
 b2 = tf.get_variable(name="b2", shape=[48], initializer=tf.zeros_initializer())
 L2 = tf.nn.conv2d(P1, W2, strides=[1, 1, 1, 1], padding='VALID')
 L2 = tf.nn.relu(tf.nn.bias_add(L2, b2))
@@ -39,13 +40,12 @@ P2 = tf.nn.max_pool(L2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME'
  
 P2_flat = tf.reshape(P2, [-1, 4 * 4 * 48])
  
-W3 = tf.get_variable(name="W3", shape=[4 * 4 * 48, 512], initializer=tf.keras.initializers.he_normal())
+W3 = tf.get_variable(name="W3", shape=[4 * 4 * 48, 512], initializer=tf.keras.initializers.he_normal()) / 2
 b3 = tf.get_variable(name="b3", shape=[512], initializer=tf.zeros_initializer())
-
 L3 = tf.nn.relu(tf.matmul(P2_flat, W3) + b3)
  
-W4 = tf.Variable(tf.random_uniform([512, 10], minval=-0.01, maxval=0.01))
-b4 = tf.Variable(tf.zeros([10]))
+W4 = tf.get_variable(name="W4", shape=[512, 10], initializer=tf.keras.initializers.he_normal())
+b4 = tf.get_variable(name="b4", shape=[10], initializer=tf.zeros_initializer())
  
 hypothesis = tf.matmul(L3, W4) + b4
  
@@ -62,7 +62,7 @@ with tf.Session() as sess:
  
     iterations = 0
  
-    for step in range(epochs):        
+    for step in range(epochs):     
         score = [0, 0]
         loss = [0, 0]
  
