@@ -87,36 +87,36 @@ Epoch 30/30
 
 ### Tensorflow GPU
 ```
-loss: 0.2911 / 0.1253    accuracy: 0.9099 / 0.9591    step 1  5.02 sec
-loss: 0.0527 / 0.0489    accuracy: 0.9841 / 0.9831    step 2  8.45 sec
-loss: 0.0316 / 0.0460    accuracy: 0.9904 / 0.9847    step 3  11.89 sec
-loss: 0.0209 / 0.0403    accuracy: 0.9940 / 0.9869    step 4  15.30 sec
-loss: 0.0144 / 0.0396    accuracy: 0.9961 / 0.9867    step 5  18.74 sec
-loss: 0.0108 / 0.0452    accuracy: 0.9969 / 0.9863    step 6  22.21 sec
-loss: 0.0086 / 0.0457    accuracy: 0.9974 / 0.9869    step 7  25.81 sec
-loss: 0.0055 / 0.0563    accuracy: 0.9984 / 0.9837    step 8  29.45 sec
-loss: 0.0077 / 0.0501    accuracy: 0.9975 / 0.9853    step 9  33.04 sec
-loss: 0.0049 / 0.0530    accuracy: 0.9983 / 0.9859    step 10  36.56 sec
-loss: 0.0038 / 0.0377    accuracy: 0.9990 / 0.9902    step 11  40.42 sec
-loss: 0.0039 / 0.0431    accuracy: 0.9989 / 0.9901    step 12  44.16 sec
-loss: 0.0018 / 0.0307    accuracy: 0.9995 / 0.9920    step 13  47.72 sec
-loss: 0.0014 / 0.0323    accuracy: 0.9997 / 0.9921    step 14  51.30 sec
-loss: 0.0011 / 0.0430    accuracy: 0.9997 / 0.9903    step 15  54.75 sec
-loss: 0.0007 / 0.0332    accuracy: 0.9999 / 0.9917    step 16  58.48 sec
-loss: 0.0005 / 0.0327    accuracy: 0.9999 / 0.9922    step 17  62.13 sec
-loss: 0.0003 / 0.0333    accuracy: 0.9999 / 0.9921    step 18  65.58 sec
-loss: 0.0003 / 0.0372    accuracy: 1.0000 / 0.9919    step 19  69.24 sec
-loss: 0.0012 / 0.0324    accuracy: 0.9997 / 0.9919    step 20  72.68 sec
-loss: 0.0002 / 0.0338    accuracy: 1.0000 / 0.9923    step 21  76.19 sec
-loss: 0.0001 / 0.0321    accuracy: 1.0000 / 0.9926    step 22  79.63 sec
-loss: 0.0001 / 0.0323    accuracy: 1.0000 / 0.9927    step 23  83.12 sec
-loss: 0.0001 / 0.0325    accuracy: 1.0000 / 0.9927    step 24  86.61 sec
-loss: 0.0000 / 0.0326    accuracy: 1.0000 / 0.9927    step 25  90.10 sec
-loss: 0.0000 / 0.0328    accuracy: 1.0000 / 0.9927    step 26  93.68 sec
-loss: 0.0000 / 0.0330    accuracy: 1.0000 / 0.9927    step 27  97.14 sec
-loss: 0.0000 / 0.0332    accuracy: 1.0000 / 0.9927    step 28  100.67 sec
-loss: 0.0000 / 0.0333    accuracy: 1.0000 / 0.9927    step 29  104.17 sec
-loss: 0.0000 / 0.0335    accuracy: 1.0000 / 0.9927    step 30  107.64 sec
+loss: 0.2432 / 0.0751	accuracy: 0.9263 / 0.9749	step 1  3.67 sec
+loss: 0.0555 / 0.0474	accuracy: 0.9827 / 0.9851	step 2  6.12 sec
+loss: 0.0366 / 0.0417	accuracy: 0.9890 / 0.9859	step 3  8.43 sec
+loss: 0.0266 / 0.0393	accuracy: 0.9925 / 0.9873	step 4  10.78 sec
+loss: 0.0197 / 0.0391	accuracy: 0.9945 / 0.9880	step 5  13.20 sec
+loss: 0.0146 / 0.0384	accuracy: 0.9961 / 0.9878	step 6  15.57 sec
+loss: 0.0110 / 0.0385	accuracy: 0.9972 / 0.9882	step 7  17.93 sec
+loss: 0.0081 / 0.0377	accuracy: 0.9983 / 0.9891	step 8  20.31 sec
+loss: 0.0064 / 0.0414	accuracy: 0.9985 / 0.9882	step 9  22.75 sec
+loss: 0.0056 / 0.0418	accuracy: 0.9987 / 0.9879	step 10  25.28 sec
+loss: 0.0300 / 0.0372	accuracy: 0.9923 / 0.9876	step 11  27.73 sec
+loss: 0.0078 / 0.0354	accuracy: 0.9975 / 0.9900	step 12  30.12 sec
+loss: 0.0042 / 0.0374	accuracy: 0.9990 / 0.9898	step 13  32.60 sec
+loss: 0.0029 / 0.0398	accuracy: 0.9993 / 0.9898	step 14  34.99 sec
+loss: 0.0022 / 0.0359	accuracy: 0.9994 / 0.9910	step 15  37.46 sec
+loss: 0.0027 / 0.0374	accuracy: 0.9994 / 0.9906	step 16  39.85 sec
+loss: 0.0016 / 0.0372	accuracy: 0.9996 / 0.9907	step 17  42.27 sec
+loss: 0.0011 / 0.0364	accuracy: 0.9999 / 0.9912	step 18  44.73 sec
+loss: 0.0016 / 0.0355	accuracy: 0.9997 / 0.9916	step 19  47.06 sec
+loss: 0.0006 / 0.0332	accuracy: 0.9999 / 0.9923	step 20  49.45 sec
+loss: 0.0004 / 0.0335	accuracy: 0.9999 / 0.9929	step 21  51.83 sec
+loss: 0.0003 / 0.0335	accuracy: 1.0000 / 0.9927	step 22  54.12 sec
+loss: 0.0002 / 0.0338	accuracy: 1.0000 / 0.9926	step 23  56.47 sec
+loss: 0.0002 / 0.0341	accuracy: 1.0000 / 0.9930	step 24  58.86 sec
+loss: 0.0002 / 0.0343	accuracy: 1.0000 / 0.9930	step 25  61.26 sec
+loss: 0.0002 / 0.0346	accuracy: 1.0000 / 0.9930	step 26  63.59 sec
+loss: 0.0001 / 0.0349	accuracy: 1.0000 / 0.9931	step 27  65.97 sec
+loss: 0.0001 / 0.0351	accuracy: 1.0000 / 0.9929	step 28  68.37 sec
+loss: 0.0001 / 0.0353	accuracy: 1.0000 / 0.9930	step 29  70.77 sec
+loss: 0.0001 / 0.0355	accuracy: 1.0000 / 0.9930	step 30  73.15 sec
 ```
 
 ### Neural_Networks GPU
