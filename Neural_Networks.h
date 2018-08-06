@@ -15,8 +15,7 @@ struct LSTM;
 struct Optimizer;
 struct RNN;
 
-class Batch_Normalization {
-public:
+struct Batch_Normalization {
 	int batch_size;
 	int map_size;
 	int number_maps;
@@ -67,7 +66,6 @@ public:
 	Batch_Normalization* Moving_Mean_Initializer(Initializer initializer);
 	Batch_Normalization* Moving_Variance_Initializer(Initializer initializer);
 };
-
 
 struct Connection {
 	int kernel_width;

@@ -1424,7 +1424,7 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 					error[j] *= ((neuron[j] == 0 || neuron[j] == 1) ? (0) : (slope));
 				}
 				else if (activation == Activation::relu) {
-					error[j] *= (neuron[j] > 0);
+					error[j] = (neuron[j] > 0) ? (error[j]) : (0);
 				}
 				else if (activation == Activation::sigmoid && (loss == nullptr || loss->type != Loss::cross_entropy)) {
 					error[j] *= (1 - scaled_neuron) * scaled_neuron;

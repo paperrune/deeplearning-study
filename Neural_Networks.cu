@@ -69,7 +69,7 @@ __device__ void Differentiate(Layer &layer, int index, int loss, float y_data[],
 			// error[index] *= 1;
 		}
 		else if (layer.activation == Activation::relu) {
-			layer.error[index] *= (layer.neuron[index] > 0);
+			layer.error[index] = (layer.neuron[index] > 0) ? (layer.error[index]) : (0);
 		}
 		else if (layer.activation == Activation::sigmoid && loss != Loss::cross_entropy) {
 			layer.error[index] *= (1 - neuron) * neuron;
@@ -108,13 +108,92 @@ __device__ double Calculate_Gradient(Optimizer &optimizer, int index, double gra
 	return output;
 }
 
+__global__ void Activate(Batch_Normalization batch_normalization, float _neuron[], bool training) {
+	int j = blockIdx.x;
+
+	if (training) {
+		float *neuron = &_neuron[j * batch_normalization.map_size];
+		float *neuron_backup = &batch_normalization.neuron_backup[j * batch_normalization.map_size];
+		float *neuron_normalized = &batch_normalization.neuron_normalized[j * batch_normalization.map_size];
+
+		__shared__ double standard_deviation;
+		__shared__ double sum[NUMBER_THREADS];
+
+		sum[threadIdx.x] = 0;
+		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+			int index = h * batch_normalization.number_nodes;
+
+			for (int k = 0; k < batch_normalization.map_size; k++) {
+				sum[threadIdx.x] += neuron[index + k];
+			}
+		}
+		for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+			__syncthreads();
+
+			if (threadIdx.x < h) {
+				sum[threadIdx.x] += sum[threadIdx.x + h];
+			}
+		}
+		if (threadIdx.x == 0) {
+			batch_normalization.moving_mean[j] = batch_normalization.momentum * batch_normalization.moving_mean[j] + (1 - batch_normalization.momentum) * (batch_normalization.mean[j] = sum[0] / (batch_normalization.batch_size * batch_normalization.map_size));
+		}
+
+		sum[threadIdx.x] = 0;
+		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+			int index = h * batch_normalization.number_nodes;
+
+			for (int k = 0; k < batch_normalization.map_size; k++) {
+				sum[threadIdx.x] += (neuron[index + k] - batch_normalization.mean[j]) * (neuron[index + k] - batch_normalization.mean[j]);
+			}
+		}
+		for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+			__syncthreads();
+
+			if (threadIdx.x < h) {
+				sum[threadIdx.x] += sum[threadIdx.x + h];
+			}
+		}
+		if (threadIdx.x == 0) {
+			batch_normalization.moving_variance[j] = batch_normalization.momentum * batch_normalization.moving_variance[j] + (1 - batch_normalization.momentum) * (batch_normalization.variance[j] = sum[0] / (batch_normalization.batch_size * batch_normalization.map_size));
+			standard_deviation = sqrt(batch_normalization.variance[j] + batch_normalization.epsilon);
+		}
+		__syncthreads();
+
+		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+			int index = h * batch_normalization.number_nodes;
+
+			for (int k = 0; k < batch_normalization.map_size; k++) {
+				neuron_backup[index + k] = neuron[index + k];
+				neuron_normalized[index + k] = (neuron[index + k] - batch_normalization.mean[j]) / standard_deviation;
+				neuron[index + k] = batch_normalization.gamma[j] * neuron_normalized[index + k] + batch_normalization.beta[j];
+			}
+		}
+	}
+	else {
+		float *neuron = &_neuron[j * batch_normalization.map_size];
+		float *neuron_backup = &batch_normalization.neuron_backup[j * batch_normalization.map_size];
+
+		double standard_deviation = sqrt(batch_normalization.moving_variance[j] + batch_normalization.epsilon);
+
+		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+			int index = h * batch_normalization.number_nodes;
+
+			for (int k = 0; k < batch_normalization.map_size; k++) {
+				neuron_backup[index + k] = neuron[index + k];
+				neuron[index + k] = batch_normalization.gamma[j] / standard_deviation * neuron[index + k] + (batch_normalization.beta[j] - batch_normalization.gamma[j] * batch_normalization.moving_mean[j] / standard_deviation);
+			}
+		}
+	}
+}
 __global__ void Activate(Layer layer) {
 	int j = blockIdx.y * blockDim.x + threadIdx.x;
 
 	if (j < layer.number_nodes) {
 		int index = blockIdx.x * layer.number_nodes + j;
 
-		layer.neuron[index] += layer.bias[j / layer.map_size];
+		if (layer.bias) {
+			layer.neuron[index] += layer.bias[j / layer.map_size];
+		}
 		Activate(layer, j);
 	}
 }
@@ -124,8 +203,9 @@ __global__ void Activate(Layer layer, ::Dropout dropout, bool training) {
 	if (j < layer.number_nodes) {
 		int index = blockIdx.x * layer.number_nodes + j;
 
-		layer.neuron[index] += layer.bias[j / layer.map_size];
-
+		if (layer.bias) {
+			layer.neuron[index] += layer.bias[j / layer.map_size];
+		}
 		if (training){
 			if (dropout.mask[index]) {
 				layer.neuron[index] /= (1 - dropout.rate);
@@ -152,6 +232,52 @@ __global__ void Adjust_Bias(Layer layer, Optimizer optimizer, int iterations) {
 		layer.bias[j] += Calculate_Gradient(optimizer, j, sum, iterations);
 	}
 }
+__global__ void Adjust_Parameter(Batch_Normalization batch_normalization, Optimizer gamma_optimizer, Optimizer beta_optimizer, int iterations) {
+	int j = blockIdx.x;
+
+	float *error_backup = &batch_normalization.error_backup[j * batch_normalization.map_size];
+	float *neuron_normalized = &batch_normalization.neuron_normalized[j * batch_normalization.map_size];
+
+	__shared__ double sum[NUMBER_THREADS];
+
+	sum[threadIdx.x] = 0;
+	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+		int index = h * batch_normalization.number_nodes;
+
+		for (int k = 0; k < batch_normalization.map_size; k++) {
+			sum[threadIdx.x] += error_backup[index + k] * neuron_normalized[index + k];
+		}
+	}
+	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+		__syncthreads();
+
+		if (threadIdx.x < h) {
+			sum[threadIdx.x] += sum[threadIdx.x + h];
+		}
+	}
+	if (threadIdx.x == 0) {
+		batch_normalization.gamma[j] += Calculate_Gradient(gamma_optimizer, j, sum[0], iterations);
+	}
+
+	sum[threadIdx.x] = 0;
+	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+		int index = h * batch_normalization.number_nodes;
+
+		for (int k = 0; k < batch_normalization.map_size; k++) {
+			sum[threadIdx.x] += error_backup[index + k];
+		}
+	}
+	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+		__syncthreads();
+
+		if (threadIdx.x < h) {
+			sum[threadIdx.x] += sum[threadIdx.x + h];
+		}
+	}
+	if (threadIdx.x == 0) {
+		batch_normalization.beta[j] += Calculate_Gradient(beta_optimizer, j, sum[0], iterations);
+	}
+}
 __global__ void Adjust_Weight(Layer layer, Layer parent_layer, Connection connection, Optimizer optimizer, int iterations) {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -169,7 +295,7 @@ __global__ void Adjust_Weight(Layer layer, Layer parent_layer, Connection connec
 		connection.weight[j] += Calculate_Gradient(optimizer, j, sum, iterations);
 	}
 }
-__global__ void Backward(Layer layer, Layer parent_layer, Connection connection) {
+__global__ void Backward(Layer layer, Layer parent_layer, Connection connection, int type) {
 	int j = blockIdx.y * blockDim.x + threadIdx.x;
 
 	if (j < parent_layer.number_nodes) {
@@ -178,10 +304,31 @@ __global__ void Backward(Layer layer, Layer parent_layer, Connection connection)
 
 		double sum = 0;
 
-		for (Index *from_error = &connection.from_error[j]; from_error->weight != -1; from_error += parent_layer.number_nodes) {
-			sum += error[from_error->next_node] * connection.weight[from_error->weight];
+		if (type == 0) { // average-pooling
+			for (Index *from_error = &connection.from_error[j]; from_error->weight != -1; from_error += parent_layer.number_nodes) {
+				sum += error[from_error->next_node] / connection.from_neuron[from_error->next_node].weight;
+			}
+			prev_error[j] += sum;
+			return;
 		}
-		prev_error[j] += sum;
+		if (type == 1) { // max-pooling
+			float *neuron = &layer.neuron[blockIdx.x * layer.number_nodes];
+			float *prev_neuron = &parent_layer.neuron[blockIdx.x * parent_layer.number_nodes];
+
+			for (Index *from_error = &connection.from_error[j]; from_error->weight != -1; from_error += parent_layer.number_nodes) {
+				if (prev_neuron[j] == neuron[from_error->next_node]) {
+					sum += error[from_error->next_node];
+				}
+			}
+			prev_error[j] += sum;
+			return;
+		}
+		if (type == 2) {
+			for (Index *from_error = &connection.from_error[j]; from_error->weight != -1; from_error += parent_layer.number_nodes) {
+				sum += error[from_error->next_node] * connection.weight[from_error->weight];
+			}
+			prev_error[j] += sum;
+		}
 	}
 }
 __global__ void Calculate_Loss(Layer layer, int loss, float y_data[]) {
@@ -213,6 +360,72 @@ __global__ void Calculate_Loss(Layer layer, int loss, float y_data[]) {
 		y_data[0] = sum[0];
 	}
 }
+__global__ void Differentiate(Batch_Normalization batch_normalization, float _error[]) {
+	int j = blockIdx.x;
+
+	float *error = &_error[j * batch_normalization.map_size];
+	float *error_backup = &batch_normalization.error_backup[j * batch_normalization.map_size];
+	float *error_normalized = &batch_normalization.error_normalized[j * batch_normalization.map_size];
+	float *neuron_backup = &batch_normalization.neuron_backup[j * batch_normalization.map_size];
+
+	double standard_deviation = sqrt(batch_normalization.variance[j] + batch_normalization.epsilon);
+
+	__shared__ double error_mean;
+	__shared__ double error_variance;
+	__shared__ double sum[2][NUMBER_THREADS];
+
+	sum[0][threadIdx.x] = 0;
+	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+		int index = h * batch_normalization.number_nodes;
+
+		for (int k = 0; k < batch_normalization.map_size; k++) {
+			error_normalized[index + k] = error[index + k] * batch_normalization.gamma[j];
+			sum[0][threadIdx.x] += error_normalized[index + k] * (neuron_backup[index + k] - batch_normalization.mean[j]);
+		}
+	}
+	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+		__syncthreads();
+
+		if (threadIdx.x < h) {
+			sum[0][threadIdx.x] += sum[0][threadIdx.x + h];
+		}
+	}
+	if (threadIdx.x == 0) {
+		error_variance = sum[0][threadIdx.x] * (-0.5) * pow(batch_normalization.variance[j] + batch_normalization.epsilon, -1.5);
+	}
+
+	sum[0][threadIdx.x] = 0;
+	sum[1][threadIdx.x] = 0;
+	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+		int index = h * batch_normalization.number_nodes;
+
+		for (int k = 0; k < batch_normalization.map_size; k++) {
+			sum[0][threadIdx.x] += error_normalized[index + k];
+			sum[1][threadIdx.x] += (neuron_backup[index + k] - batch_normalization.mean[j]);
+		}
+	}
+	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
+		__syncthreads();
+
+		if (threadIdx.x < h) {
+			sum[0][threadIdx.x] += sum[0][threadIdx.x + h];
+			sum[1][threadIdx.x] += sum[1][threadIdx.x + h];
+		}
+	}
+	if (threadIdx.x == 0) {
+		error_mean = -sum[0][threadIdx.x] / standard_deviation + error_variance * (-2) * sum[1][threadIdx.x] / (batch_normalization.batch_size * batch_normalization.map_size);
+	}
+	__syncthreads();
+
+	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
+		int index = h * batch_normalization.number_nodes;
+
+		for (int k = 0; k < batch_normalization.map_size; k++) {
+			error_backup[index + k] = error[index + k];
+			error[index + k] = error_normalized[index + k] / standard_deviation + error_variance * 2 * (neuron_backup[index + k] - batch_normalization.mean[j]) / (batch_normalization.batch_size * batch_normalization.map_size) + error_mean / (batch_normalization.batch_size * batch_normalization.map_size);
+		}
+	}
+}
 __global__ void Differentiate(Layer layer, int loss = -1, float y_data[] = nullptr) {
 	int j = blockIdx.y * blockDim.x + threadIdx.x;
 
@@ -235,7 +448,7 @@ __global__ void Differentiate(Layer layer, Dropout dropout, int loss = -1, float
 		}
 	}
 }
-__global__ void Forward(Layer layer, Layer parent_layer, Connection connection) {
+__global__ void Forward(Layer layer, Layer parent_layer, Connection connection, int type) {
 	int j = blockIdx.y * blockDim.x + threadIdx.x;
 
 	if (j < layer.number_nodes) {
@@ -244,12 +457,177 @@ __global__ void Forward(Layer layer, Layer parent_layer, Connection connection) 
 
 		double sum = 0;
 
-		for (Index *from_neuron = &connection.from_neuron[j]; from_neuron->weight != -1; from_neuron += layer.number_nodes) {
-			sum += prev_neuron[from_neuron->prev_node] * connection.weight[from_neuron->weight];
+		if (type == 0) { // average-pooling
+			int number_connections = 0;
+
+			for (Index *from_neuron = &connection.from_neuron[j]; from_neuron->weight != -1; from_neuron += layer.number_nodes, number_connections++) {
+				sum += prev_neuron[from_neuron->prev_node];
+			}
+			neuron[j] += sum / number_connections;
+			return;
 		}
-		neuron[j] += sum;
+		if (type == 1) { // max-pooling
+			for (Index *from_neuron = &connection.from_neuron[j]; from_neuron->weight != -1; from_neuron += layer.number_nodes) {
+				if (from_neuron == &connection.from_neuron[j] || sum < prev_neuron[from_neuron->prev_node]) {
+					sum = prev_neuron[from_neuron->prev_node];
+				}
+			}
+			neuron[j] += sum;
+			return;
+		}
+		if (type == 2) {
+			for (Index *from_neuron = &connection.from_neuron[j]; from_neuron->weight != -1; from_neuron += layer.number_nodes) {
+				sum += prev_neuron[from_neuron->prev_node] * connection.weight[from_neuron->weight];
+			}
+			neuron[j] += sum;
+		}
 	}
 }
+
+Batch_Normalization::Batch_Normalization(int number_maps, int map_size, double epsilon, double momentum, Layer *layer) {
+	this->batch_size = 1;
+	this->beta_initializer = new ::Initializer(0);
+	this->beta_optimizer = nullptr;
+	this->epsilon = epsilon;
+	this->gamma_initializer = new ::Initializer(1);
+	this->gamma_optimizer = nullptr;
+	this->layer = layer;
+	this->map_size = map_size;
+	this->momentum = momentum;
+	this->moving_mean_initializer = new ::Initializer(0);
+	this->moving_variance_initializer = new ::Initializer(1);
+	this->number_maps = number_maps;
+	this->number_nodes = number_maps * map_size;
+
+	cudaMalloc(&beta, sizeof(float) * number_maps);
+	cudaMalloc(&gamma, sizeof(float) * number_maps);
+	cudaMalloc(&mean, sizeof(float) * number_maps);
+	cudaMalloc(&variance, sizeof(float) * number_maps);
+	cudaMalloc(&moving_mean, sizeof(float) * number_maps);
+	cudaMalloc(&moving_variance, sizeof(float) * number_maps);
+
+	cudaMalloc(&error_backup, sizeof(float) * number_nodes);
+	cudaMalloc(&error_normalized, sizeof(float) * number_nodes);
+	cudaMalloc(&neuron_backup, sizeof(float) * number_nodes);
+	cudaMalloc(&neuron_normalized, sizeof(float) * number_nodes);
+}
+Batch_Normalization::~Batch_Normalization() {}
+
+void Batch_Normalization::Activate(float neuron[], bool training) {
+	::Activate << <number_maps, NUMBER_THREADS >> > (*this, neuron, training);
+}
+void Batch_Normalization::Adjust_Parameter(int iterations) {
+	::Adjust_Parameter << <number_maps, NUMBER_THREADS >> > (*this, *gamma_optimizer, *beta_optimizer, iterations);
+}
+void Batch_Normalization::Destruct() {
+	if (beta_optimizer) {
+		beta_optimizer->Destruct();
+		delete beta_optimizer;
+	}
+	if (gamma_optimizer) {
+		gamma_optimizer->Destruct();
+		delete gamma_optimizer;
+	}
+	cudaFree(beta);
+	cudaFree(gamma);
+	cudaFree(mean);
+	cudaFree(variance);
+	cudaFree(moving_mean);
+	cudaFree(moving_variance);
+
+	cudaFree(error_backup);
+	cudaFree(error_normalized);
+	cudaFree(neuron_backup);
+	cudaFree(neuron_normalized);
+
+	delete beta_initializer;
+	delete gamma_initializer;
+	delete moving_mean_initializer;
+	delete moving_variance_initializer;
+}
+void Batch_Normalization::Differentiate(float error[]) {
+	::Differentiate << <number_maps, NUMBER_THREADS >> > (*this, error);
+}
+void Batch_Normalization::Initialize() {
+	beta_initializer->Random(number_maps, beta, number_maps, number_maps);
+	gamma_initializer->Random(number_maps, gamma, number_maps, number_maps);
+	moving_mean_initializer->Random(number_maps, moving_mean, number_maps, number_maps);
+	moving_variance_initializer->Random(number_maps, moving_variance, number_maps, number_maps);
+}
+void Batch_Normalization::Optimizer(::Optimizer &optimizer) {
+	if (beta_optimizer) {
+		beta_optimizer->Destruct();
+		delete beta_optimizer;
+	}
+	if (gamma_optimizer) {
+		gamma_optimizer->Destruct();
+		delete gamma_optimizer;
+	}
+	beta_optimizer = optimizer.Copy(number_maps);
+	gamma_optimizer = optimizer.Copy(number_maps);
+}
+void Batch_Normalization::Resize_Memory(int batch_size) {
+	int memory_size = sizeof(float) * batch_size * number_nodes;
+
+	if (this->batch_size != batch_size) {
+		cudaFree(error_backup);
+		cudaFree(error_normalized);
+		cudaFree(neuron_backup);
+		cudaFree(neuron_normalized);
+
+		cudaMalloc(&error_backup, memory_size);
+		cudaMalloc(&error_normalized, memory_size);
+		cudaMalloc(&neuron_backup, memory_size);
+		cudaMalloc(&neuron_normalized, memory_size);
+
+		this->batch_size = batch_size;
+	}
+	cudaMemset(error_backup, 0, memory_size);
+	cudaMemset(error_normalized, 0, memory_size);
+	cudaMemset(neuron_backup, 0, memory_size);
+	cudaMemset(neuron_normalized, 0, memory_size);
+}
+
+Batch_Normalization* Batch_Normalization::Beta_Initializer(Initializer initializer) {
+	if (beta_initializer) {
+		delete beta_initializer;
+	}
+	beta_initializer = initializer.Copy();
+	return this;
+}
+Batch_Normalization* Batch_Normalization::Copy() {
+	Batch_Normalization *batch_normalization = new Batch_Normalization(number_maps, map_size, epsilon, momentum, layer);
+
+	batch_normalization->Beta_Initializer(*beta_initializer);
+	batch_normalization->Gamma_Initializer(*gamma_initializer);
+	batch_normalization->Moving_Mean_Initializer(*moving_mean_initializer);
+	batch_normalization->Moving_Variance_Initializer(*moving_variance_initializer);
+	batch_normalization->Optimizer(*gamma_optimizer);
+	batch_normalization->Resize_Memory(batch_size);
+	return batch_normalization;
+}
+Batch_Normalization* Batch_Normalization::Gamma_Initializer(Initializer initializer) {
+	if (gamma_initializer) {
+		delete gamma_initializer;
+	}
+	gamma_initializer = initializer.Copy();
+	return this;
+}
+Batch_Normalization* Batch_Normalization::Moving_Mean_Initializer(Initializer initializer) {
+	if (moving_mean_initializer) {
+		delete moving_mean_initializer;
+	}
+	moving_mean_initializer = initializer.Copy();
+	return this;
+}
+Batch_Normalization* Batch_Normalization::Moving_Variance_Initializer(Initializer initializer) {
+	if (moving_variance_initializer) {
+		delete moving_variance_initializer;
+	}
+	moving_variance_initializer = initializer.Copy();
+	return this;
+}
+
 
 Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 	unordered_map<int, int> weight_index;
@@ -437,7 +815,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 
 													index.prev_node = node_index[1];
 													index.next_node = node_index[0];
-													index.weight = 0;
+													index.weight = -1;
 
 													from_error[node_index[1]].push_back(index);
 													from_neuron[node_index[0]].push_back(index);
@@ -459,9 +837,19 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties) {
 			index.weight = -1;
 
 			for (int j = 0; j < parent_layer->number_nodes; j++) {
+				for (auto index = from_error[j].begin(); index != from_error[j].end(); index++) {
+					if (index->weight == -1) {
+						index->weight = from_error[j].size();
+					}
+				}
 				from_error[j].push_back(index);
 			}
 			for (int j = 0; j < layer->number_nodes; j++) {
+				for (auto index = from_neuron[j].begin(); index != from_neuron[j].end(); index++) {
+					if (index->weight == -1) {
+						index->weight = from_neuron[j].size();
+					}
+				}
 				from_neuron[j].push_back(index);
 			}
 			if (from_weight) {
@@ -837,6 +1225,9 @@ Layer::~Layer() {}
 void Layer::Activate(bool training) {
 	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
 
+	if (batch_normalization) {
+		batch_normalization->Activate(neuron, training);
+	}
 	if (dropout) {
 		if (training) {
 			dropout->Initialize_Mask();
@@ -848,6 +1239,10 @@ void Layer::Activate(bool training) {
 	}
 }
 void Layer::Adjust_Parameter(int iterations) {
+	if (batch_normalization) {
+		batch_normalization->Adjust_Parameter(iterations);
+	}
+
 	// adjust bias
 	if (bias) {
 		::Adjust_Bias << <number_nodes / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*this, *optimizer, iterations);
@@ -857,7 +1252,9 @@ void Layer::Adjust_Parameter(int iterations) {
 	for (int i = 0; i < connection.size(); i++) {
 		Connection *connection = this->connection[i];
 
-		::Adjust_Weight << <connection->number_weights / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*connection->layer, *connection->parent_layer, *connection, *connection->optimizer, iterations);
+		if (connection->properties[0] == 'W') {
+			::Adjust_Weight << <connection->number_weights / NUMBER_THREADS + 1, NUMBER_THREADS >> > (*connection->layer, *connection->parent_layer, *connection, *connection->optimizer, iterations);
+		}
 	}
 }
 void Layer::Backward() {
@@ -866,7 +1263,17 @@ void Layer::Backward() {
 
 		dim3 number_blocks(connection->parent_layer->batch_size, connection->parent_layer->number_nodes / NUMBER_THREADS + 1);
 
-		::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection);
+		if (connection->properties[0] == 'P' && strstr(connection->properties.c_str(), "average")) {
+			::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 0);
+			continue;
+		}
+		if (connection->properties[0] == 'P' && strstr(connection->properties.c_str(), "max")) {
+			::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 1);
+			continue;
+		}
+		if (connection->properties[0] == 'W') {
+			::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 2);
+		}
 	}
 }
 void Layer::Compile(::Optimizer *optimizer) {
@@ -883,6 +1290,7 @@ void Layer::Compile(::Optimizer *optimizer) {
 }
 void Layer::Construct() {
 	this->activation = Activation::linear;
+	this->batch_normalization = nullptr;
 	this->batch_size = 1;
 	this->initializer = nullptr;
 	this->map_size = map_depth * map_height * map_width;
@@ -920,9 +1328,16 @@ void Layer::Differentiate(int loss, float **y_batch) {
 		else {
 			::Differentiate << <number_blocks, NUMBER_THREADS >> > (*this);
 		}
+		if (batch_normalization) {
+			batch_normalization->Differentiate(error);
+		}
 	}
 }
 void Layer::Destruct() {
+	if (batch_normalization) {
+		batch_normalization->Destruct();
+		delete batch_normalization;
+	}
 	if (bias) {
 		cudaFree(bias);
 	}
@@ -941,22 +1356,40 @@ void Layer::Destruct() {
 		connection[i]->Destruct();
 		delete connection[i];
 	}
-	delete[] error;
-	delete[] neuron;
+	cudaFree(error);
+	cudaFree(neuron);
 }
 void Layer::Forward() {
 	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
 
 	for (int k = 0; k < connection.size(); k++) {
-		::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *connection[k]->parent_layer, *connection[k]);
+		Connection *connection = this->connection[k];
+
+		if (connection->properties[0] == 'P' && strstr(connection->properties.c_str(), "average")) {
+			::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 0);
+			continue;
+		}
+		if (connection->properties[0] == 'P' && strstr(connection->properties.c_str(), "max")) {
+			::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 1);
+			continue;
+		}
+		if (connection->properties[0] == 'W') {
+			::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *connection->parent_layer, *connection, 2);
+		}
 	}
 }
 void Layer::Initialize() {
+	if (batch_normalization) {
+		batch_normalization->Initialize();
+	}
 	if (bias) {
 		initializer->Random(number_maps, bias, 1, number_maps);
 	}
 }
 void Layer::Optimizer(::Optimizer *optimizer) {
+	if (batch_normalization) {
+		batch_normalization->Optimizer(*optimizer);
+	}
 	if (bias) {
 		if (this->optimizer) {
 			this->optimizer->Destruct();
@@ -976,11 +1409,21 @@ void Layer::Resize_Memory(int batch_size) {
 
 		this->batch_size = batch_size;
 	}
+	if (batch_normalization) {
+		batch_normalization->Resize_Memory(batch_size);
+	}
 	if (dropout) {
 		dropout->Resize_Memory(batch_size);
 	}
 	cudaMemset(error, 0, memory_size);
 	cudaMemset(neuron, 0, memory_size);
+}
+
+Batch_Normalization* Layer::Batch_Normalization(double epsilon, double momentum) {
+	if (batch_normalization) {
+		delete batch_normalization;
+	}
+	return (batch_normalization = new ::Batch_Normalization(number_maps, map_size, epsilon, momentum, this));
 }
 
 Connection* Layer::Search_Child_Connection(string properties) {
