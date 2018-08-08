@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import time
  
@@ -66,7 +67,12 @@ with tf.Session() as sess:
  
     iterations = 0
  
-    for step in range(epochs):        
+    for step in range(epochs):
+        # shuffle data
+        p = np.random.permutation(len(x_train))
+        x_train = x_train[p]
+        y_train = y_train[p]
+        
         score = [0, 0]
         loss = [0, 0]
  
