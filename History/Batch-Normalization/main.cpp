@@ -149,7 +149,7 @@ int main() {
 		float **_input = new float*[batch_size];
 		float **output = new float*[batch_size];
 
-		double loss[2] = { NN.Fit(x_train, y_train, number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
+		double loss[2] = { NN.Fit(NN.Shuffle(x_train, number_training), NN.Shuffle(y_train, number_training), number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
 
 		for (int h = 0; h < batch_size; h++) {
 			output[h] = new float[number_nodes[1]];
