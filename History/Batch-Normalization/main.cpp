@@ -123,7 +123,7 @@ int main() {
 	}
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 
-	srand(2);
+	srand(0);
 	omp_set_num_threads(number_threads);
 
 	NN.Add( 1, 28, 28);
