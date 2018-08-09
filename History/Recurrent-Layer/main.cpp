@@ -128,7 +128,7 @@ int main() {
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(2);
+	srand(3);
 
 	for (int h = 0; h < number_training + number_test; h++) {
 		memcpy(&y_data[h][(time_step - 1) * number_nodes[1]], y_data[h], sizeof(float) * number_nodes[1]);
@@ -144,7 +144,7 @@ int main() {
 	NN.Connect(1, 1, "W,recurrent");
 	NN.Connect(2, 1, "W");
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate, decay)));
+	NN.Compile(Loss::cross_entropy, Optimizer(SGD(learning_rate, decay)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
