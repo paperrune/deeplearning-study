@@ -6,7 +6,9 @@ from keras.models import Sequential
 from keras.optimizers import SGD
  
 batch_size = 128
-epochs = 60
+decay = 1e-6
+epochs = 100
+learning_rate = 0.05
 num_classes = 10
 time_step = 28
  
@@ -25,15 +27,14 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
 model.add(SimpleRNN(128,
-                    return_sequences=True,
+                    activation='relu',
                     input_shape=(time_step, 784 // time_step)))
-model.add(SimpleRNN(128))
 model.add(Dense(num_classes,
                 activation='softmax'))
 
 model.summary()
 model.compile(loss='categorical_crossentropy',
-              optimizer=SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True),
+              optimizer=SGD(lr=learning_rate, decay=decay),
               metrics=['accuracy'])
  
 history = model.fit(x_train,
