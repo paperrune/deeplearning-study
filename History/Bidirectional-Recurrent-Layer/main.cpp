@@ -121,12 +121,12 @@ int main() {
 
 	for (int h = 0; h < number_training + number_test; h++) {
 		x_data[h] = new float[number_nodes[0]];
-		y_data[h] = new float[number_nodes[1]];
+		memset(y_data[h] = new float[time_step * number_nodes[1]], 0, sizeof(float) * time_step * number_nodes[1]);
 	}
 	Read_MNIST(path + "train-images.idx3-ubyte", path + "train-labels.idx1-ubyte", path + "t10k-images.idx3-ubyte", path + "t10k-labels.idx1-ubyte", number_training, number_test, x_data, y_data);
 	omp_set_num_threads(number_threads);
 
-	srand(1);
+	srand(2);
 
 	NN.Add(Layer(time_step, number_nodes[0] / time_step));
 	NN.Add(RNN(time_step, 128))->Activation(Activation::relu)->Direction(+1);
@@ -152,7 +152,7 @@ int main() {
 	NN.Connect(4, 3, "copy");
 	NN.Connect(5, 4, "W");
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(SGD(learning_rate, decay)));
+	NN.Compile(Loss::cross_entropy, Optimizer(SGD(learning_rate, decay)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
@@ -163,7 +163,7 @@ int main() {
 		double loss[2] = { NN.Fit(NN.Shuffle(x_train, number_training), NN.Shuffle(y_train, number_training), number_training, batch_size), NN.Evaluate(x_test, y_test, number_test, batch_size) };
 
 		for (int h = 0; h < batch_size; h++) {
-			output[h] = new float[number_nodes[1]];
+			output[h] = new float[time_step * number_nodes[1]];
 		}
 		for (int h = 0, i = 0; i < number_training + number_test; i++) {
 			_input[h] = x_data[i];
