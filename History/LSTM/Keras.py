@@ -6,7 +6,10 @@ from keras.models import Sequential
 from keras.optimizers import SGD
  
 batch_size = 128
+decay = 1e-6
 epochs = 30
+learning_rate = 0.1
+momentum = 0.9
 num_classes = 10
 time_step = 28
  
@@ -35,7 +38,7 @@ model.add(Dense(num_classes,
 
 model.summary()
 model.compile(loss='categorical_crossentropy',
-              optimizer=SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True),
+              optimizer=SGD(lr=learning_rate, decay=decay, momentum=momentum, nesterov=True),
               metrics=['accuracy'])
  
 history = model.fit(x_train,
