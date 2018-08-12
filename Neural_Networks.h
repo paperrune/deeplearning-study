@@ -82,6 +82,10 @@ struct Connection {
 
 	string properties;
 
+	Index *from_error_device;
+	Index *from_neuron_device;
+	Index *from_weight_device;
+
 	Initializer *initializer;
 
 	Layer *layer;
@@ -97,7 +101,7 @@ struct Connection {
 
 	Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *time_connection, int type = 0);
 	~Connection();
-
+	
 	void Destruct();
 	void Initialize();
 	void Optimizer(Optimizer *optimizer);
@@ -117,6 +121,7 @@ struct Dropout {
 	Dropout(int number_nodes, double rate);
 	~Dropout();
 
+	void Destruct();
 	void Initialize_Mask(int seed = -1);
 	void Resize_Memory(int batch_size);
 };
@@ -128,6 +133,13 @@ struct Index {
 };
 
 struct Initializer {
+	struct Constant {
+		double value;
+
+		Constant(double value) {
+			this->value = value;
+		}
+	};
 	struct GlorotNormal {
 		int seed;
 
@@ -204,6 +216,50 @@ struct Initializer {
 			this->min = min;
 		}
 	};
+	struct Matrix {
+		int number_rows;
+		int number_columns;
+
+		double *data;
+
+		Matrix(int number_rows = 0, int number_columns = 0);
+		~Matrix();
+
+		Matrix(const Matrix& matrix) : Matrix(matrix.number_rows, matrix.number_columns) {
+			for (int i = 0; i < number_rows; i++) {
+				for (int j = 0; j < number_columns; j++) {
+					(*this)(i, j) = matrix(i, j);
+				}
+			}
+		}
+
+		double& operator() (int y, int x) {
+			return data[x + number_columns * y];
+		}
+		double operator() (int y, int x) const {
+			return data[x + number_columns * y];
+		}
+
+		Matrix& operator= (const Matrix &matrix) {
+			if (this != &matrix) {
+				number_columns = matrix.number_columns;
+				number_rows = matrix.number_rows;
+				memcpy(data = (double*)realloc(data, sizeof(double) * number_rows * number_columns), matrix.data, sizeof(double) * number_rows * number_columns);
+			}
+			return *this;
+		}
+		Matrix operator* (const Matrix &matrix) {
+			return Multiplication(*this, matrix);
+		}
+
+		void Gram_Schmidt_Process(double gain);
+		void Identity();
+		void LQ_Decomposition(Matrix &L, Matrix &Q);
+		void QR_Decomposition(Matrix &Q, Matrix &R);
+		void Transpose();
+
+		Matrix Multiplication(const Matrix &A, const Matrix &B);
+	};
 
 	int seed;
 	int type;
@@ -217,6 +273,7 @@ struct Initializer {
 	default_random_engine *generator;
 
 	Initializer(double value);
+	Initializer(Constant initializer);
 	Initializer(GlorotNormal initializer);
 	Initializer(GlorotUniform initializer);
 	Initializer(HeNormal initializer);
@@ -226,12 +283,12 @@ struct Initializer {
 	Initializer(RandomUniform initializer);
 	~Initializer();
 
-	void Destruct();
 	void Random(int memory_size, float memory[], int fan_in, int fan_out);
 
 	Initializer* Copy();
 };
 
+typedef Initializer::Constant Constant;
 typedef Initializer::GlorotNormal GlorotNormal;
 typedef Initializer::GlorotUniform GlorotUniform;
 typedef Initializer::HeNormal HeNormal;
@@ -286,8 +343,8 @@ struct Layer {
 	void Backward(int time_index);
 	void Compile(Optimizer *optimizer);
 	void Construct();
-	void Destruct();
 	void Differentiate(int time_index, Loss *loss = nullptr, float **y_batch = nullptr);
+	void Destruct();
 	void Forward(int time_index);
 	void Initialize();
 	void Optimizer(Optimizer *optimizer);
@@ -422,51 +479,6 @@ struct LSTM {
 	LSTM* Initializer(Initializer initializer, int type = -1);
 	LSTM* Recurrent_Activation(int activation);
 	LSTM* Time_Mask(bool time_mask[], int length_mask = 0);
-};
-
-struct Matrix {
-	int number_rows;
-	int number_columns;
-
-	double *data;
-
-	Matrix(int number_rows = 0, int number_columns = 0);
-	~Matrix();
-
-	Matrix(const Matrix& matrix) : Matrix(matrix.number_rows, matrix.number_columns) {
-		for (int i = 0; i < number_rows; i++) {
-			for (int j = 0; j < number_columns; j++) {
-				(*this)(i, j) = matrix(i, j);
-			}
-		}
-	}
-
-	double& operator() (int y, int x) {
-		return data[x + number_columns * y];
-	}
-	double operator() (int y, int x) const {
-		return data[x + number_columns * y];
-	}
-
-	Matrix& operator= (const Matrix &matrix) {
-		if (this != &matrix) {
-			number_columns = matrix.number_columns;
-			number_rows = matrix.number_rows;
-			memcpy(data = (double*)realloc(data, sizeof(double) * number_rows * number_columns), matrix.data, sizeof(double) * number_rows * number_columns);
-		}
-		return *this;
-	}
-	Matrix operator* (const Matrix &matrix) {
-		return Multiplication(*this, matrix);
-	}
-
-	void Gram_Schmidt_Process(double gain);
-	void Identity();
-	void LQ_Decomposition(Matrix &L, Matrix &Q);
-	void QR_Decomposition(Matrix &Q, Matrix &R);
-	void Transpose();
-
-	Matrix Multiplication(const Matrix &A, const Matrix &B);
 };
 
 struct Optimizer {
@@ -626,8 +638,8 @@ public:
 	~Neural_Networks();
 
 	void Compile(Loss loss, Optimizer optimizer);
-	void Load_Weights(string path);
-	void Save_Weights(string path);
+	void Load_Parameters(string path);
+	void Save_Parameters(string path);
 	void Predict(float input[], float output[]);
 	void Predict(float **input, float **output, int batch_size = 1);
 

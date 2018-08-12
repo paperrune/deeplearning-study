@@ -573,15 +573,12 @@ void Connection::Initialize() {
 
 		if (strstr(properties.c_str(), "depthwise") && layer->Search_Child_Connection("pointwise")) {
 			layer = layer->Search_Child_Connection("pointwise")->layer;
-			number_maps[1] = layer->number_maps / parent_layer->number_maps;
-			number_maps[0] = 1;
+			number_maps[1] = layer->number_maps;
 		}
 		if (strstr(properties.c_str(), "pointwise") && parent_layer->Search_Connection("depthwise")) {
 			kernel_size = parent_layer->Search_Connection("depthwise")->kernel_size;
 			parent_layer = parent_layer->Search_Connection("depthwise")->parent_layer;
-
-			number_maps[1] = layer->number_maps / parent_layer->number_maps;
-			number_maps[0] = 1;
+			number_maps[0] = parent_layer->number_maps;
 		}
 		if (parent_layer->connection.size() > 0 && parent_layer->Search_Connection("P")) {
 			pool_size[0] = parent_layer->Search_Connection("P")->kernel_size;
@@ -856,6 +853,11 @@ Initializer::Initializer(double value) {
 	this->value = value;
 	type = 0;
 }
+Initializer::Initializer(Constant initializer) {
+	generator = nullptr;
+	this->value = initializer.value;
+	type = 0;
+}
 Initializer::Initializer(GlorotNormal initializer) {
 	generator = initializer.generator;
 	seed = initializer.seed;
@@ -900,6 +902,15 @@ Initializer::~Initializer() {
 	if (generator) {
 		delete generator;
 	}
+}
+Initializer::Matrix::Matrix(int number_rows, int number_columns) {
+	this->number_columns = number_columns;
+	this->number_rows = number_rows;
+
+	memset(data = new double[number_rows * number_columns], 0, sizeof(double) * number_rows * number_columns);
+}
+Initializer::Matrix::~Matrix() {
+	delete[] data;
 }
 
 void Initializer::Random(int memory_size, float memory[], int fan_in, int fan_out) {
@@ -976,6 +987,133 @@ void Initializer::Random(int memory_size, float memory[], int fan_in, int fan_ou
 			}
 		}
 	}
+}
+void Initializer::Matrix::Gram_Schmidt_Process(double gain) {
+	// Make Orthogonal Vectors
+	for (int i = 0; i < number_columns; i++) {
+		double *sum = { new double[i] };
+
+		for (int j = 0; j < i; j++) {
+			double temp[2] = { 0, };
+
+			for (int k = 0; k < number_rows; k++) {
+				temp[0] += (*this)(k, j) * (*this)(k, i);
+				temp[1] += (*this)(k, j) * (*this)(k, j);
+			}
+			sum[j] = temp[0] / temp[1];
+		}
+		for (int j = 0; j < i; j++) {
+			for (int k = 0; k < number_rows; k++) {
+				(*this)(k, i) -= sum[j] * (*this)(k, j);
+			}
+		}
+		delete[] sum;
+	}
+
+	// Make Orthonormal Vectors
+	for (int i = 0; i < number_columns; i++) {
+		double sum = 0;
+
+		for (int j = 0; j < number_rows; j++) {
+			sum += (*this)(j, i) * (*this)(j, i);
+		}
+		sum = sqrt(sum);
+		for (int j = 0; j < number_rows; j++) {
+			(*this)(j, i) = gain * (*this)(j, i) / sum;
+		}
+	}
+}
+void Initializer::Matrix::Identity() {
+	for (int i = 0; i < number_rows; i++) {
+		for (int j = 0; j < number_columns; j++) {
+			(*this)(i, j) = (i == j);
+		}
+	}
+}
+void Initializer::Matrix::LQ_Decomposition(Matrix &L, Matrix &Q) {
+	Matrix A = (*this);
+
+	A.Transpose();
+	A.QR_Decomposition(Q, L);
+	Q.Transpose();
+	L.Transpose();
+}
+void Initializer::Matrix::QR_Decomposition(Matrix &Q, Matrix &R) {
+	int m = number_rows;
+	int n = number_columns;
+
+	double *u = new double[m];
+	double *v = new double[m];
+
+	Matrix P(m, m);
+
+	Q = Matrix(m, m);
+	Q.Identity();
+	R = (*this);
+
+	for (int i = 0; i < n && i < m - 1; i++) {
+		double sum[2] = { 0, };
+
+		memset(u, 0, sizeof(double) * m);
+		memset(v, 0, sizeof(double) * m);
+
+		for (int j = i; j < m; j++) {
+			u[j] = R(j, i);
+			sum[0] += u[j] * u[j];
+		}
+		if (u[i]) {
+			sum[0] = ((u[i] < 0) ? (-1) : (1)) * sqrt(sum[0]);
+		}
+
+		for (int j = i; j < m; j++) {
+			v[j] = (j == i) ? (u[j] + sum[0]) : (u[j]);
+			sum[1] += v[j] * v[j];
+		}
+		if (sum[1] = sqrt(sum[1])) {
+			for (int j = i; j < m; j++) {
+				v[j] /= sum[1];
+			}
+			for (int j = 0; j < m; j++) {
+				for (int k = 0; k < m; k++) {
+					P(j, k) = ((j == k) ? (1) : (0)) - 2 * v[k] * v[j];
+				}
+			}
+			R = P * R;
+			Q = Q * P;
+		}
+	}
+	delete[] u;
+	delete[] v;
+}
+void Initializer::Matrix::Transpose() {
+	Matrix T(number_columns, number_rows);
+
+	for (int i = 0; i < number_rows; i++) {
+		for (int j = 0; j < number_columns; j++) {
+			T(j, i) = (*this)(i, j);
+		}
+	}
+	(*this) = T;
+}
+
+Initializer::Matrix Initializer::Matrix::Multiplication(const Matrix &A, const Matrix &B) {
+	if (A.number_columns != B.number_rows) {
+		cerr << "[Multiplication], A(" << A.number_rows << "x" << A.number_columns << ") * B(" << B.number_rows << "x" << B.number_columns << ") failed." << endl;
+	}
+
+	Matrix C(A.number_rows, B.number_columns);
+
+	for (int i = 0; i < A.number_rows; i++) {
+		for (int j = 0; j < B.number_columns; j++) {
+			double sum = 0;
+
+			for (int k = 0; k < A.number_columns; k++) {
+				sum += A(i, k) * B(k, j);
+			}
+			C(i, j) = sum;
+		}
+	}
+	return C;
 }
 
 Initializer* Initializer::Copy() {
@@ -1077,8 +1215,6 @@ Layer::~Layer() {
 }
 
 void Layer::Activate(int time_index, bool training) {
-	int t = time_index;
-
 	if (lstm) {
 		lstm->Activate(time_index, training);
 	}
@@ -1086,6 +1222,8 @@ void Layer::Activate(int time_index, bool training) {
 		rnn->Activate(time_index, training);
 	}
 	else {
+		int t = time_index;
+
 		if (bias) {
 			#pragma omp parallel for
 			for (int h = 0; h < batch_size; h++) {
@@ -1101,7 +1239,7 @@ void Layer::Activate(int time_index, bool training) {
 		if (batch_normalization) {
 			batch_normalization->Activate(time_index, neuron, training);
 		}
-		if (dropout && training) {
+		if (dropout && training && t == 0) {
 			dropout->Initialize_Mask();
 		}
 
@@ -1220,8 +1358,6 @@ void Layer::Adjust_Parameter(int iterations) {
 	}
 }
 void Layer::Backward(int time_index) {
-	int t = time_index;
-
 	if (lstm) {
 		lstm->Backward(time_index);
 	}
@@ -1229,6 +1365,8 @@ void Layer::Backward(int time_index) {
 		rnn->Backward(time_index);
 	}
 	else {
+		int t = time_index;
+
 		for (int k = 0; k < connection.size(); k++) {
 			Connection *connection = this->connection[k];
 
@@ -1387,12 +1525,6 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 			}
 			Differentiate(t, loss);
 		}
-		else {
-			#pragma omp parallel for
-			for (int h = 0; h < batch_size; h++) {
-				memset(&error[(h * time_step + t) * number_nodes], 0, sizeof(float) * number_nodes);
-			}
-		}
 	}
 	else {
 		#pragma omp parallel for
@@ -1440,8 +1572,6 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 	}
 }
 void Layer::Forward(int time_index) {
-	int t = time_index;
-
 	if (lstm) {
 		lstm->Forward(time_index);
 	}
@@ -1449,6 +1579,8 @@ void Layer::Forward(int time_index) {
 		rnn->Forward(time_index);
 	}
 	else {
+		int t = time_index;
+
 		for (int k = 0; k < connection.size(); k++) {
 			Connection *connection = this->connection[k];
 
@@ -1791,49 +1923,50 @@ void LSTM::Adjust_Parameter(int iterations) {
 	for (int i = 0; i < layer->connection.size(); i++) {
 		Connection *connection = layer->connection[i];
 
-		if (connection->properties[0] == 'W' && strstr(connection->properties.c_str(), "recurrent")) {
-			#pragma omp parallel for
-			for (int j = 0; j < connection->number_weights; j++) {
-				double sum = 0;
+		if (connection->properties[0] == 'W'){
+			if (strstr(connection->properties.c_str(), "recurrent")) {
+				#pragma omp parallel for
+				for (int j = 0; j < connection->number_weights; j++) {
+					double sum = 0;
 
-				vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[j];
 
-				for (int h = 0; h < batch_size * time_step; h++) {
-					if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
-						float *error = &this->error[connection->type][1][h * number_nodes];
-						float *neuron = &layer->neuron[(h - direction) * number_nodes];
-
-						for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
-							sum += error[index->next_node] * neuron[index->prev_node];
-						}
-					}
-				}
-				connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
-			}
-		}
-
-		if (connection->properties[0] == 'W' && !strstr(connection->properties.c_str(), "recurrent")) {
-			#pragma omp parallel for
-			for (int j = 0; j < connection->number_weights; j++) {
-				double sum = 0;
-
-				vector<Index> &from_weight = connection->from_weight[j];
-				
-				Layer *parent_layer = connection->parent_layer;
-
-				for (int t = 0; t < time_step; t++) {
-					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
-						for (int h = 0; h < batch_size; h++) {
-							float *error = &this->error[connection->type][0][(h * time_step + t) * number_nodes];
-							float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+					for (int h = 0; h < batch_size * time_step; h++) {
+						if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
+							float *error = &this->error[connection->type][1][h * number_nodes];
+							float *neuron = &layer->neuron[(h - direction) * number_nodes];
 
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								sum += error[index->next_node] * neuron[index->prev_node];
 							}
 						}
 					}
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 				}
-				connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+			}
+			else {
+				#pragma omp parallel for
+				for (int j = 0; j < connection->number_weights; j++) {
+					double sum = 0;
+
+					vector<Index> &from_weight = connection->from_weight[j];
+
+					Layer *parent_layer = connection->parent_layer;
+
+					for (int t = 0; t < time_step; t++) {
+						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
+							for (int h = 0; h < batch_size; h++) {
+								float *error = &this->error[connection->type][0][(h * time_step + t) * number_nodes];
+								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+
+								for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
+									sum += error[index->next_node] * neuron[index->prev_node];
+								}
+							}
+						}
+					}
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+				}
 			}
 		}
 	}
@@ -2172,7 +2305,7 @@ double LSTM::Derivation(double x, int activation) {
 		double slope = 0.2;
 		double shift = 0.5;
 
-		y = ((x == 0 || x == 1) ? (0) : (slope));
+		y = (x == 0 || x == 1) ? (0) : (slope);
 	}
 	else if (activation == Activation::relu) {
 		y = (x > 0);
@@ -2233,145 +2366,6 @@ LSTM* LSTM::Time_Mask(bool time_mask[], int length_mask) {
 	memset(this->time_mask = new bool[time_step], 0, time_step);
 	memcpy(this->time_mask, time_mask, length_mask);
 	return this;
-}
-
-
-Matrix::Matrix(int number_rows, int number_columns) {
-	this->number_columns = number_columns;
-	this->number_rows = number_rows;
-
-	memset(data = new double[number_rows * number_columns], 0, sizeof(double) * number_rows * number_columns);
-}
-Matrix::~Matrix() {
-	delete[] data;
-}
-
-void Matrix::Gram_Schmidt_Process(double gain) {
-	// Make Orthogonal Vectors
-	for (int i = 0; i < number_columns; i++) {
-		double *sum = { new double[i] };
-
-		for (int j = 0; j < i; j++) {
-			double temp[2] = { 0, };
-
-			for (int k = 0; k < number_rows; k++) {
-				temp[0] += (*this)(k, j) * (*this)(k, i);
-				temp[1] += (*this)(k, j) * (*this)(k, j);
-			}
-			sum[j] = temp[0] / temp[1];
-		}
-		for (int j = 0; j < i; j++) {
-			for (int k = 0; k < number_rows; k++) {
-				(*this)(k, i) -= sum[j] * (*this)(k, j);
-			}
-		}
-		delete[] sum;
-	}
-
-	// Make Orthonormal Vectors
-	for (int i = 0; i < number_columns; i++) {
-		double sum = 0;
-
-		for (int j = 0; j < number_rows; j++) {
-			sum += (*this)(j, i) * (*this)(j, i);
-		}
-		sum = sqrt(sum);
-		for (int j = 0; j < number_rows; j++) {
-			(*this)(j, i) = gain * (*this)(j, i) / sum;
-		}
-	}
-}
-void Matrix::Identity() {
-	for (int i = 0; i < number_rows; i++) {
-		for (int j = 0; j < number_columns; j++) {
-			(*this)(i, j) = (i == j);
-		}
-	}
-}
-void Matrix::LQ_Decomposition(Matrix &L, Matrix &Q) {
-	Matrix A = (*this);
-
-	A.Transpose();
-	A.QR_Decomposition(Q, L);
-	Q.Transpose();
-	L.Transpose();
-}
-void Matrix::QR_Decomposition(Matrix &Q, Matrix &R) {
-	int m = number_rows;
-	int n = number_columns;
-
-	double *u = new double[m];
-	double *v = new double[m];
-
-	Matrix P(m, m);
-
-	Q = Matrix(m, m);
-	Q.Identity();
-	R = (*this);
-
-	for (int i = 0; i < n && i < m - 1; i++) {
-		double sum[2] = { 0, };
-
-		memset(u, 0, sizeof(double) * m);
-		memset(v, 0, sizeof(double) * m);
-
-		for (int j = i; j < m; j++) {
-			u[j] = R(j, i);
-			sum[0] += u[j] * u[j];
-		}
-		if (u[i]) {
-			sum[0] = ((u[i] < 0) ? (-1) : (1)) * sqrt(sum[0]);
-		}
-
-		for (int j = i; j < m; j++) {
-			v[j] = (j == i) ? (u[j] + sum[0]) : (u[j]);
-			sum[1] += v[j] * v[j];
-		}
-		if (sum[1] = sqrt(sum[1])) {
-			for (int j = i; j < m; j++) {
-				v[j] /= sum[1];
-			}
-			for (int j = 0; j < m; j++) {
-				for (int k = 0; k < m; k++) {
-					P(j, k) = ((j == k) ? (1) : (0)) - 2 * v[k] * v[j];
-				}
-			}
-			R = P * R;
-			Q = Q * P;
-		}
-	}
-	delete[] u;
-	delete[] v;
-}
-void Matrix::Transpose() {
-	Matrix T(number_columns, number_rows);
-
-	for (int i = 0; i < number_rows; i++) {
-		for (int j = 0; j < number_columns; j++) {
-			T(j, i) = (*this)(i, j);
-		}
-	}
-	(*this) = T;
-}
-
-Matrix Matrix::Multiplication(const Matrix &A, const Matrix &B) {
-	if (A.number_columns != B.number_rows) {
-		cerr << "[Multiplication], A(" << A.number_rows << "x" << A.number_columns << ") * B(" << B.number_rows << "x" << B.number_columns << ") failed." << endl;
-	}
-
-	Matrix C(A.number_rows, B.number_columns);
-
-	for (int i = 0; i < A.number_rows; i++) {
-		for (int j = 0; j < B.number_columns; j++) {
-			double sum = 0;
-
-			for (int k = 0; k < A.number_columns; k++) {
-				sum += A(i, k) * B(k, j);
-			}
-			C(i, j) = sum;
-		}
-	}
-	return C;
 }
 
 
@@ -2611,49 +2605,48 @@ void RNN::Adjust_Parameter(int iterations) {
 	for (int i = 0; i < layer->connection.size(); i++) {
 		Connection *connection = layer->connection[i];
 
-		if (connection->properties[0] == 'W' && strstr(connection->properties.c_str(), "recurrent")) {
-			#pragma omp parallel for
-			for (int j = 0; j < connection->number_weights; j++) {
-				double sum = 0;
+		if (connection->properties[0] == 'W'){
+			if (strstr(connection->properties.c_str(), "recurrent")) {
+				for (int j = 0; j < connection->number_weights; j++) {
+					double sum = 0;
 
-				vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[j];
 
-				for (int h = 0; h < batch_size * time_step; h++) {
-					if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
-						float *error = &this->error[1][h * number_nodes];
-						float *neuron = &this->neuron[0][(h - direction) * number_nodes];
-
-						for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
-							sum += error[index->next_node] * neuron[index->prev_node];
-						}
-					}
-				}
-				connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
-			}
-		}
-
-		if (connection->properties[0] == 'W' && !strstr(connection->properties.c_str(), "recurrent")) {
-			#pragma omp parallel for
-			for (int j = 0; j < connection->number_weights; j++) {
-				double sum = 0;
-
-				vector<Index> &from_weight = connection->from_weight[j];
-				
-				Layer *parent_layer = connection->parent_layer;
-
-				for (int t = 0; t < time_step; t++) {
-					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
-						for (int h = 0; h < batch_size; h++) {
-							float *error = &this->error[0][(h * time_step + t) * number_nodes];
-							float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+					for (int h = 0; h < batch_size * time_step; h++) {
+						if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
+							float *error = &this->error[1][h * number_nodes];
+							float *neuron = &this->neuron[0][(h - direction) * number_nodes];
 
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								sum += error[index->next_node] * neuron[index->prev_node];
 							}
 						}
 					}
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
 				}
-				connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+			}
+			else {
+				for (int j = 0; j < connection->number_weights; j++) {
+					double sum = 0;
+
+					vector<Index> &from_weight = connection->from_weight[j];
+
+					Layer *parent_layer = connection->parent_layer;
+
+					for (int t = 0; t < time_step; t++) {
+						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
+							for (int h = 0; h < batch_size; h++) {
+								float *error = &this->error[0][(h * time_step + t) * number_nodes];
+								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+
+								for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
+									sum += error[index->next_node] * neuron[index->prev_node];
+								}
+							}
+						}
+					}
+					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+				}
 			}
 		}
 	}
@@ -2793,9 +2786,8 @@ void RNN::Differentiate(int time_index) {
 				error[0][j] *= (1 - neuron[0][j]) * (1 + neuron[0][j]);
 			}
 		}
-		memcpy(&this->error[1][(h * time_step + t) * number_nodes], &this->error[0][(h * time_step + t) * number_nodes], sizeof(float) * number_nodes);
+		memcpy(error[1], error[0], sizeof(float) * number_nodes);
 	}
-
 	if (batch_normalization[0]) {
 		batch_normalization[0]->Differentiate(t, error[0]);
 	}
@@ -3031,6 +3023,8 @@ double Neural_Networks::Calculate_Loss(Layer *layer, float **y_batch, vector<str
 	for (int h = 0; h < batch_size; h++) {
 		sum += batch_sum[h];
 	}
+	delete[] batch_sum;
+
 	return sum;
 }
 double Neural_Networks::Evaluate(float **x_test, float **y_test, vector<string> hypothesis[], int sequence_length[], int test_size, int batch_size) {
@@ -3187,7 +3181,6 @@ Neural_Networks::Neural_Networks() {
 }
 Neural_Networks::~Neural_Networks() {
 	if (loss) {
-		loss->Destruct();
 		delete loss;
 	}
 	if (optimizer) {
@@ -3212,7 +3205,7 @@ void Neural_Networks::Compile(Loss loss, Optimizer optimizer) {
 		layer[i]->Compile(optimizer.Copy());
 	}
 }
-void Neural_Networks::Load_Weights(string path) {
+void Neural_Networks::Load_Parameters(string path) {
 	ifstream file(path);
 
 	if (file.is_open()) {
@@ -3245,7 +3238,7 @@ void Neural_Networks::Load_Weights(string path) {
 		cerr << "[Load_Weights], " + path + " not found" << endl;
 	}
 }
-void Neural_Networks::Save_Weights(string path) {
+void Neural_Networks::Save_Parameters(string path) {
 	ofstream file(path);
 
 	for (int i = 0; i < layer.size(); i++) {
@@ -3317,17 +3310,17 @@ float** Neural_Networks::Shuffle(float **data, int data_size, int seed) {
 	return data;
 }
 
-double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, int batch_size) {
-	return Fit(x_train, y_train, nullptr, nullptr, train_size, batch_size);
-}
-double Neural_Networks::Fit(float **x_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size) {
-	return Fit(x_train, nullptr, reference, sequence_length, train_size, batch_size);
-}
 double Neural_Networks::Evaluate(float **x_test, float **y_test, int test_size, int batch_size) {
 	return Evaluate(x_test, y_test, nullptr, nullptr, test_size, batch_size);
 }
 double Neural_Networks::Evaluate(float **x_test, vector<string> hypothesis[], int sequence_length[], int test_size, int batch_size) {
 	return Evaluate(x_test, nullptr, hypothesis, sequence_length, test_size, batch_size);
+}
+double Neural_Networks::Fit(float **x_train, float **y_train, int train_size, int batch_size) {
+	return Fit(x_train, y_train, nullptr, nullptr, train_size, batch_size);
+}
+double Neural_Networks::Fit(float **x_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size) {
+	return Fit(x_train, nullptr, reference, sequence_length, train_size, batch_size);
 }
 
 vector<string>* Neural_Networks::Shuffle(vector<string> *data, int data_size, int seed) {
