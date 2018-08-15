@@ -2594,7 +2594,7 @@ void LSTM::Construct(Layer *layer) {
 		direction = 1;
 		map_size = map_depth * map_height * map_width;
 		number_nodes = number_maps * map_size;
-		recurrent_activation = Activation::hard_sigmoid;
+		recurrent_activation = Activation::sigmoid;
 		time_mask = nullptr;
 
 		for (int i = 0; i < number_node_types; i++) {
