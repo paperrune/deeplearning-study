@@ -2,37 +2,47 @@
 #define Neural_Networks_H
 
 #include <random>
-#include <string>
 #include <unordered_map>
 #include <vector>
 
 using namespace std;
 
-typedef struct Index {
-	int next_node;
-	int prev_node;
-	int weight;
-} Index;
+struct Index;
+struct Initializer;
+struct Layer;
+struct Loss;
+struct LSTM;
+struct Optimizer;
+struct RNN;
 
-class Layer;
-class LSTM_Node;
-class LSTM_Weight;
-class Optimizer;
+struct Attention {
+	int batch_size;
+	int number_nodes;
+	int number_weights;
+	int time_step;
 
-class Batch_Normalization {
-public:
+	float *context_vector;
+	float *weight;
+
+	Attention(Layer *layer, Layer *parent_layer);
+	~Attention();
+
+	void Resize_Memory(int batch_size);
+};
+
+struct Batch_Normalization {
 	int batch_size;
 	int map_size;
 	int number_maps;
 	int number_nodes;
 	int time_step;
 
-	float *beta;
 	float *gamma;
+	float *beta;
 	float *mean;
 	float *variance;
-	float *sum_mean;
-	float *sum_variance;
+	float *moving_mean;
+	float *moving_variance;
 
 	float *error_backup;
 	float *error_normalized;
@@ -42,289 +52,638 @@ public:
 	double epsilon;
 	double momentum;
 
+	Initializer *gamma_initializer;
+	Initializer *beta_initializer;
+	Initializer *moving_mean_initializer;
+	Initializer *moving_variance_initializer;
+
+	Layer *layer;
+
 	Optimizer *gamma_optimizer;
 	Optimizer *beta_optimizer;
 
-	Batch_Normalization(int number_maps, int map_size, double momentum);
+	Batch_Normalization(int time_step, int number_maps, int map_size, double epsilon, double momentum, Layer *layer = nullptr);
 	~Batch_Normalization();
 
-	void Activate(string phase, float neuron[], int time_index);
-	void Adjust_Parameter(double gradient_clip, double learning_rate);
-	void Destroy();
-	void Differentiate(float error[], int time_index);
-	void Initialize(double gamma);
+	void Activate(int time_index, float neuron[], bool training);
+	void Adjust_Parameter(int iterations);
+	void Destruct();
+	void Differentiate(int time_index, float error[]);
+	void Initialize();
 	void Load(ifstream &file);
-	void Resize_Memory(int batch_size, int time_step);
+	void Optimizer(Optimizer &optimizer);
+	void Resize_Memory(int batch_size);
 	void Save(ofstream &file);
-	void Set_Optimizer(Optimizer *optimizer);
 
-	double Calculate_Gradient(int weight_decay_type, double weight_decay_rate, double learning_rate);
-	double Calculate_Sum_Parameters(int weight_decay_type);
+	Batch_Normalization* Beta_Initializer(Initializer initializer);
+	Batch_Normalization* Copy();
+	Batch_Normalization* Gamma_Initializer(Initializer initializer);
+	Batch_Normalization* Moving_Mean_Initializer(Initializer initializer);
+	Batch_Normalization* Moving_Variance_Initializer(Initializer initializer);
 };
 
-class Connection {
-public:
-	int kernel_depth;
-	int kernel_height;
-	int kernel_size;
+struct Connection {
 	int kernel_width;
-	int number_maps;
-	int number_nodes;
+	int kernel_height;
+	int kernel_depth;
+	int kernel_size;
 	int number_weights;
-	int stride_depth;
-	int stride_height;
 	int stride_width;
+	int stride_height;
+	int stride_depth;
+	int type;
 
 	float *weight;
 
 	string properties;
 
-	vector<Index> *from_error;
-	vector<Index> *from_neuron;
-	vector<Index> *from_weight;
+	Attention *attention;
 
-	Index *from_errors;
-	Index *from_neurons;
-	Index *from_weights;
+	Index *from_error_device;
+	Index *from_neuron_device;
+	Index *from_weight_device;
+
+	Initializer *initializer;
 
 	Layer *layer;
 	Layer *parent_layer;
 
-	LSTM_Weight *LSTM_weight;
+	Optimizer *optimizer;
+
+	vector<int> *time_connection[2];
+
+	vector<Index> *from_error;
+	vector<Index> *from_neuron;
+	vector<Index> *from_weight;
+
+	Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *time_connection, int type = 0);
+	~Connection();
+
+	void Destruct();
+	void Initialize();
+	void Optimizer(Optimizer *optimizer);
+
+	Connection* Copy(int type = 0);
+	Connection* Initializer(Initializer initializer);
+};
+
+struct Dropout {
+	bool *mask;
+
+	int batch_size;
+	int number_nodes;
+
+	double rate;
+
+	Dropout(int number_nodes, double rate);
+	~Dropout();
+
+	void Destruct();
+	void Initialize_Mask(int seed = -1);
+	void Resize_Memory(int batch_size);
+};
+
+struct Index {
+	int next_node;
+	int prev_node;
+	int weight;
+};
+
+struct Initializer {
+	struct Constant {
+		double value;
+
+		Constant(double value) {
+			this->value = value;
+		}
+	};
+	struct GlorotNormal {
+		int seed;
+
+		default_random_engine *generator;
+
+		GlorotNormal(int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+		}
+	};
+	struct GlorotUniform {
+		int seed;
+
+		default_random_engine *generator;
+
+		GlorotUniform(int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+		}
+	};
+	struct HeNormal {
+		int seed;
+
+		default_random_engine *generator;
+
+		HeNormal(int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+		}
+	};
+	struct HeUniform {
+		int seed;
+
+		default_random_engine *generator;
+
+		HeUniform(int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+		}
+	};
+	struct Orthogonal {
+		int seed;
+
+		double gain;
+
+		default_random_engine *generator;
+
+		Orthogonal(double gain = 1.0, int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			this->gain = gain;
+		}
+	};
+	struct RandomNormal {
+		int seed;
+
+		double mean;
+		double stdv;
+
+		default_random_engine *generator;
+
+		RandomNormal(double stdv, double mean = 0, int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			this->mean = mean;
+			this->stdv = stdv;
+		}
+	};
+	struct RandomUniform {
+		int seed;
+
+		double max;
+		double min;
+
+		default_random_engine *generator;
+
+		RandomUniform(double min, double max, int seed = -1) {
+			generator = ((this->seed = seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
+			this->max = max;
+			this->min = min;
+		}
+	};
+	struct Matrix {
+		int number_rows;
+		int number_columns;
+
+		double *data;
+
+		Matrix(int number_rows = 0, int number_columns = 0);
+		~Matrix();
+
+		Matrix(const Matrix& matrix) : Matrix(matrix.number_rows, matrix.number_columns) {
+			for (int i = 0; i < number_rows; i++) {
+				for (int j = 0; j < number_columns; j++) {
+					(*this)(i, j) = matrix(i, j);
+				}
+			}
+		}
+
+		double& operator() (int y, int x) {
+			return data[x + number_columns * y];
+		}
+		double operator() (int y, int x) const {
+			return data[x + number_columns * y];
+		}
+
+		Matrix& operator= (const Matrix &matrix) {
+			if (this != &matrix) {
+				number_columns = matrix.number_columns;
+				number_rows = matrix.number_rows;
+				memcpy(data = (double*)realloc(data, sizeof(double) * number_rows * number_columns), matrix.data, sizeof(double) * number_rows * number_columns);
+			}
+			return *this;
+		}
+		Matrix operator* (const Matrix &matrix) {
+			return Multiplication(*this, matrix);
+		}
+
+		void Gram_Schmidt_Process(double gain);
+		void Identity();
+		void LQ_Decomposition(Matrix &L, Matrix &Q);
+		void QR_Decomposition(Matrix &Q, Matrix &R);
+		void Transpose();
+
+		Matrix Multiplication(const Matrix &A, const Matrix &B);
+	};
+
+	int seed;
+	int type;
+
+	double max;
+	double min;
+	double mean;
+	double stdv;
+	double value;
+
+	default_random_engine *generator;
+
+	Initializer(double value);
+	Initializer(Constant initializer);
+	Initializer(GlorotNormal initializer);
+	Initializer(GlorotUniform initializer);
+	Initializer(HeNormal initializer);
+	Initializer(HeUniform initializer);
+	Initializer(Orthogonal initializer);
+	Initializer(RandomNormal initializer);
+	Initializer(RandomUniform initializer);
+	~Initializer();
+
+	void Random(int memory_size, float memory[], int fan_in, int fan_out);
+
+	Initializer* Copy();
+};
+
+typedef Initializer::Constant Constant;
+typedef Initializer::GlorotNormal GlorotNormal;
+typedef Initializer::GlorotUniform GlorotUniform;
+typedef Initializer::HeNormal HeNormal;
+typedef Initializer::HeUniform HeUniform;
+typedef Initializer::Orthogonal Orthogonal;
+typedef Initializer::RandomNormal RandomNormal;
+typedef Initializer::RandomUniform RandomUniform;
+
+struct Layer {
+	bool *time_mask;
+
+	int activation;
+	int batch_size;
+	int map_width;
+	int map_height;
+	int map_depth;
+	int map_size;
+	int number_maps;
+	int number_nodes;
+	int time_step;
+
+	float *bias;
+	float *error;
+	float *neuron;
+
+	string properties;
+
+	vector<Connection*> connection;
+	vector<Connection*> child_connection;
+
+	Batch_Normalization *batch_normalization;
+
+	Dropout *dropout;
+
+	Initializer *initializer;
+
+	LSTM *lstm;
 
 	Optimizer *optimizer;
 
-	Connection(string properties);
-	~Connection();
+	RNN *rnn;
 
-	void Adjust_Parameter(double gradient_clip, double learning_rate);
-	void Destroy();
-	void Initialize(string type, double scale = 0);
-	void Load(ifstream &file);
-	void Load(string path);
-	void Save(ofstream &file);
-	void Save(string path);
-	void Set_Optimizer(Optimizer *optimier);
+	Layer(int number_maps, string properties = "");
+	Layer(int time_step, int number_maps, string properties = "");
+	Layer(int time_step, int number_maps, int map_width, string properties = "");
+	Layer(int time_step, int number_maps, int map_width, int map_height, string properties = "");
+	Layer(int time_step, int number_maps, int map_width, int map_height, int map_depth, string properties = "");
+	~Layer();
 
-	double Calculate_Sum_Parameters(int weight_decay_type);
+	void Activate(int time_index, bool training = false);
+	void Adjust_Parameter(int iterations);
+	void Backward(int time_index);
+	void Compile(Optimizer *optimizer);
+	void Construct();
+	void Differentiate(int time_index, Loss *loss = nullptr, float **y_batch = nullptr);
+	void Destruct();
+	void Forward(int time_index);
+	void Initialize();
+	void Optimizer(Optimizer *optimizer);
+	void Resize_Memory(int batch_size);
+
+	Batch_Normalization* Batch_Normalization(double epsilon = 0.001, double momentum = 0.99);
+
+	Connection* Search_Child_Connection(string properties);
+	Connection* Search_Connection(string properties);
+
+	Layer* Activation(int activation);
+	Layer* Copy();
+	Layer* Initializer(Initializer initializer);
+	Layer* Time_Mask(bool time_mask[], int length_mask = 0);
 };
 
-class Connectionist_Temporal_Classification {
-private:
-	unordered_map<string, int> label_index;
+struct Loss {
+	enum { connectionist_temporal_classification, cross_entropy, mean_squared_error };
 
-	int Search_Label(string label);
+	struct CTC {
+		int number_labels;
 
-	double Backward_Algorithm(vector<string> &reference, int length_event, double **beta, float likelihood[]);
-	double Forward_Algorithm(vector<string> &reference, int length_event, double **alpha, float likelihood[]);
-	double Log_Add(double a, double b);
+		string blank, *label;
 
-	double *Get_Probability(string label, unordered_map<string, double> &probability);
-public:
-	int number_labels;
+		unordered_map<string, int> label_index;
 
-	string blank;
-	string space;
-	string *label;
+		CTC(int number_labels, string label[], string blank = "");
+		~CTC();
 
-	Connectionist_Temporal_Classification(int number_labels, string label[], string blank = "", string space = " ");
-	~Connectionist_Temporal_Classification();
+		void Decode(vector<string> &hypothesis, int sequence_length, float likelihood[]);
 
-	void Best_Path_Decoding(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels = false);
-	void Calculate_Error(vector<string> reference[], int batch_size, int time_step, int length_event[], float error[], float likelihood[], double log_likelihood[]);
-	void Prefix_Search_Decoding(int length_event, float likelihood[], vector<string> &hypothesis, int k, bool space_between_labels = false);
+		int Search_Label(string label);
 
-	double Calculate_Error(vector<string> &reference, int length_event, float error[], float likelihood[]);
+		double Backward_Algorithm(vector<string> &reference, int sequence_length, float _likelihood[], double **beta);
+		double Calculate_Error(vector<string> &reference, int sequence_length, float *error, float *likelihood);
+		double Forward_Algorithm(vector<string> &reference, int sequence_length, float _likelihood[], double **alpha);
+		double Log_Add(double a, double b);
+
+		CTC *Copy();
+	};
+
+	int type;
+
+	CTC *ctc;
+
+	Loss(int type) {
+		this->ctc = nullptr;
+		this->type = type;
+	}
+	Loss(CTC ctc) {
+		this->ctc = ctc.Copy();
+		this->type = connectionist_temporal_classification;
+		ctc.label = nullptr;
+	}
+	~Loss() {}
+
+	void Destruct() {
+		if (ctc) {
+			delete ctc;
+		}
+	}
+
+	Loss* Copy() {
+		Loss *loss = new Loss(type);
+
+		if (type == connectionist_temporal_classification) {
+			loss->ctc = ctc->Copy();
+		}
+		return loss;
+	}
 };
 
-class Layer {
-public:
-	bool *dropout_mask;
+typedef Loss::CTC CTC;
+
+struct LSTM {
+	enum { forget = 0, input = 1, output = 2, cell = 3, cell_output = 4, number_node_types = 5, number_weight_types = 4 };
+
 	bool *time_mask;
-	bool *time_mask_device;
 
+	int activation;
 	int batch_size;
-	int index[2];
-	int map_depth;
-	int map_height;
-	int map_size;
+	int direction;
 	int map_width;
-	int number_connections;
+	int map_height;
+	int map_depth;
+	int map_size;
+	int number_maps;
+	int number_nodes;
+	int recurrent_activation;
+	int time_step;
+
+	float *bias[number_weight_types];
+	float *error[number_node_types][2];
+	float *neuron[number_node_types][2];
+
+	string properties;
+
+	Batch_Normalization *batch_normalization[number_node_types][2];
+
+	Initializer *initializer[number_weight_types];
+
+	Layer *layer;
+
+	Optimizer *optimizer[number_weight_types];
+
+	LSTM(int time_step, int number_nodes, string properties = "", Layer *layer = nullptr);
+	LSTM(int time_step, int number_maps, int map_width, string properties = "", Layer *layer = nullptr);
+	LSTM(int time_step, int number_maps, int map_width, int map_height, string properties = "", Layer *layer = nullptr);
+	LSTM(int time_step, int number_maps, int map_width, int map_height, int map_depth, string properties = "", Layer *layer = nullptr);
+	~LSTM();
+
+	void Activate(int time_index, bool training);
+	void Adjust_Parameter(int iterations);
+	void Backward(int time_index);
+	void Compile(Optimizer *optimizer);
+	void Construct(Layer *layer);
+	void Destruct();
+	void Differentiate(int time_index);
+	void Forward(int time_index);
+	void Initialize();
+	void Optimizer(Optimizer *optimizer);
+	void Resize_Memory(int batch_size);
+
+	double Activation(double x, int activation);
+	double Derivation(double x, int activation);
+
+	Batch_Normalization* Batch_Normalization(double epsilon, double momentum);
+
+	LSTM* Activation(int activation);
+	LSTM* Copy(Layer *layer = nullptr);
+	LSTM* Direction(int direction);
+	LSTM* Initializer(Initializer initializer, int type = -1);
+	LSTM* Recurrent_Activation(int activation);
+	LSTM* Time_Mask(bool time_mask[], int length_mask = 0);
+};
+
+struct Optimizer {
+	struct Adam {
+		double decay;
+		double epsilon;
+		double momentum[2];
+		double learning_rate;
+
+		Adam(double learning_rate, double decay = 0, double epsilon = 0.00000001, double momentum_1 = 0.9, double momentum_2 = 0.999) {
+			this->decay = decay;
+			this->epsilon = epsilon;
+			this->learning_rate = learning_rate;
+			this->momentum[0] = momentum_1;
+			this->momentum[1] = momentum_2;
+		}
+	};
+	struct SGD {
+		double decay;
+		double learning_rate;
+
+		SGD(double learning_rate, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+		}
+	};
+	struct Momentum {
+		double decay;
+		double learning_rate;
+		double momentum;
+
+		Momentum(double learning_rate, double momentum, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+			this->momentum = momentum;
+		}
+	};
+	struct Nesterov {
+		double decay;
+		double learning_rate;
+		double momentum;
+
+		Nesterov(double learning_rate, double momentum, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+			this->momentum = momentum;
+		}
+	};
+
+	int type;
+
+	float *gradient;
+	float *memory[2];
+
+	double decay;
+	double epsilon;
+	double learning_rate;
+	double momentum[2];
+
+	Optimizer(int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
+	Optimizer(SGD SGD);
+	Optimizer(Momentum Momentum);
+	Optimizer(Nesterov Nesterov);
+	Optimizer(Adam Adam);
+	~Optimizer();
+
+	void Construct(int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
+	void Destruct();
+
+	double Calculate_Gradient(int index, double gradient, int iterations);
+
+	Optimizer* Copy(int number_parameters = 0);
+};
+
+typedef Optimizer::SGD SGD;
+typedef Optimizer::Momentum Momentum;
+typedef Optimizer::Nesterov Nesterov;
+typedef Optimizer::Adam Adam;
+
+struct RNN {
+	bool *time_mask;
+
+	int activation;
+	int batch_size;
+	int direction;
+	int map_width;
+	int map_height;
+	int map_depth;
+	int map_size;
 	int number_maps;
 	int number_nodes;
 	int time_step;
 
 	float *bias;
 	float *error[2];
-	float *slope;
-	float *neuron[3];
+	float *neuron[2];
 
 	string properties;
 
-	vector<Connection*> connection;
-
 	Batch_Normalization *batch_normalization[2];
 
-	LSTM_Node *LSTM_node;
+	Initializer *initializer;
 
-	Optimizer *bias_optimizer;
-	Optimizer *slope_optimizer;
+	Layer *layer;
 
-	Layer(string properties, int number_maps, int map_width = 1, int map_height = 1, int map_depth = 1);
-	~Layer();
+	Optimizer *optimizer;
 
-	void Activate(string phase, int time_index, bool backward = false);
-	void Adjust_Parameter(double gradient_clip, double learning_rate);
-	void Backpropagate(int time_index, bool backward = false);
-	void Construct();
-	void Destroy();
-	void Disconnect(Connection *connection);
-	void Feedforward(int time_index, bool backward = false);
-	void Initialize(double scale, double gamma = 1);
-	void Load(ifstream &file);
-	void Load(string path);
-	void Resize_Memory(int batch_size, int time_step);
-	void Save(ofstream &file);
-	void Save(string path);
-	void Set_Epsilon(double epsilon);
-	void Set_Optimizer(Optimizer *optimizer);
-	void Set_Time_Mask(bool time_mask[]);
+	RNN(int time_step, int number_nodes, string properties = "", Layer *layer = nullptr);
+	RNN(int time_step, int number_maps, int map_width, string properties = "", Layer *layer = nullptr);
+	RNN(int time_step, int number_maps, int map_width, int map_height, string properties = "", Layer *layer = nullptr);
+	RNN(int time_step, int number_maps, int map_width, int map_height, int map_depth, string properties = "", Layer *layer = nullptr);
+	~RNN();
 
-	bool Check_Mask(int time_index);
+	void Activate(int time_index, bool training);
+	void Adjust_Parameter(int iterations);
+	void Backward(int time_index);
+	void Compile(Optimizer *optimizer);
+	void Construct(Layer *layer);
+	void Destruct();
+	void Differentiate(int time_index);
+	void Forward(int time_index);
+	void Initialize();
+	void Optimizer(Optimizer *optimizer);
+	void Resize_Memory(int batch_size);
 
-	double Calculate_Gradient(int weight_decay_type, double weight_decay_rate, double learning_rate);
-	double Calculate_Sum_Parameters(int type);
-	double Differentiate(int time_index, float target_output[], bool backward = false);
-	double Differentiate(int length_data[], vector<string> _reference[], Connectionist_Temporal_Classification *CTC);
+	Batch_Normalization* Batch_Normalization(double epsilon, double momentum);
 
-	Connection* Connect(Layer *parent_layer, string properties);
-};
-
-class LSTM_Node {
-public:
-	enum LSTM { input = 0, forget = 1, output = 2, cell = 3, cell_output = 4, number_node_types = 5, number_weight_types = 4 };
-
-	int batch_size;
-	int map_size;
-	int number_maps;
-	int number_nodes;
-	int time_step;
-
-	float *bias[number_weight_types];
-	float *error[number_node_types][2];
-	float *neuron[number_node_types][2];
-	float *peephole[number_weight_types - 1];
-
-	Batch_Normalization *batch_normalization[number_node_types][2];
-
-	Optimizer *bias_optimizer[number_weight_types];
-	Optimizer *peephole_optimizer[number_weight_types - 1];
-
-	LSTM_Node(int number_maps, int map_size, bool batch_normalization, double momentum);
-	~LSTM_Node();
-
-	void Activate(Layer *layer, string phase, int time_index, bool backward);
-	void Adjust_Parameter(double gradient_clip, double learning_rate);
-	void Destroy();
-	void Differentiate(Layer *layer, int time_index, bool backward);
-	void Resize_Memory(int batch_size, int time_step);
-
-	double Calculate_Sum_Parameters(int weight_decay_type);
-};
-
-class LSTM_Weight {
-public:
-	enum LSTM { input = 0, forget = 1, output = 2, cell = 3, cell_output = 4, number_node_types = 5, number_weight_types = 4 };
-
-	int number_weights;
-
-	float *weight[number_weight_types];
-
-	Optimizer *optimizer[number_weight_types];
-
-	LSTM_Weight(int number_weight);
-	~LSTM_Weight();
-
-	void Destroy();
+	RNN* Activation(int activation);
+	RNN* Copy(Layer *layer = nullptr);
+	RNN* Direction(int direction);
+	RNN* Initializer(Initializer initializer);
+	RNN* Time_Mask(bool time_mask[], int length_mask = 0);
 };
 
 class Neural_Networks {
 private:
 	int batch_size;
-	int weight_decay_type;
+	int iterations;
 
-	double epsilon;
-	double gradient_threshold;
-	double weight_decay_rate;
+	vector<Layer*> layer;
 
-	Connectionist_Temporal_Classification *CTC;
+	Loss *loss;
 
-	void FloatToNode(float **memory, vector<Layer*> &layer);
-	void FloatToNode(float ***memory, vector<Layer*> &layer, int length_data[] = nullptr);
-	void NodeToFloat(vector<Layer*> &layer, float ***memory);
-	void Resize_Memory(int batch_size, int time_step = 0);
-	void Zero_Memory();
+	Optimizer *optimizer;
+
+	void Resize_Memory(int batch_size);
+
+	double Calculate_Loss(Layer *layer, float **y_batch, vector<string> label[], int sequence_length_batch[], bool training = false);
+	double Evaluate(float **x_data, float **y_data, vector<string> reference[], int sequence_length[], int data_size, int batch_size);
+	double Fit(float **x_train, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size);
 public:
-	enum optimizer { SGD = 0, momentum = 1, nesterov = 2, adagrad = 3, rmsprop = 4, adadelta = 5, adam = 6 };
+	struct Activation {
+		enum { linear, hard_sigmoid, relu, sigmoid, softmax, tanh };
+	};
 
-	int layer_height;
-	int time_step;
-
-	vector<vector<Layer*>> layer;
-
-	Neural_Networks(string path);
-	Neural_Networks(int time_step = 1);
+	Neural_Networks();
 	~Neural_Networks();
 
-	void Decode(int length_event, float likelihood[], vector<string> &hypothesis, bool space_between_labels = false);
-	void Decode(int length_event, float likelihood[], vector<string> &hypothesis, int k = 0, bool space_between_labels = false);
-	void Initialize_Connections(string type, double scale = 0);
-	void Initialize_Layers(double scale, double gamma = 1);
-	void Save(string path);
-	void Set_CTC_Loss(int number_labels, string label[], string blank = "", string space = " ");
-	void Set_Epsilon(double epsilon);
-	void Set_Gradient_Threshold(double gradient_threshold);
-	void Set_Optimizer(Optimizer *optimizer);
-	void Test(float input[], float output[], int length_data = 0);
-	void Test(int batch_size, float **input, float **output, int length_data[] = nullptr);
-	void Test(int batch_size, float ***input, float ***output, int length_data[] = nullptr);
+	void Compile(Loss loss, Optimizer optimizer);
+	void Load_Parameters(string path);
+	void Save_Parameters(string path);
+	void Predict(float input[], float output[]);
+	void Predict(float **input, float **output, int batch_size = 1);
 
-	double Train(int batch_size, int number_training, float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, int length_data[], float **input, float **target_output, double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, float **input, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, int length_data[], float **input, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
-	double Train(int batch_size, int number_training, int length_data[], float ***input, float ***target_output, vector<string> reference[], double learning_rate, double epsilon = 0, double noise_standard_deviation = 0);
+	int* Shuffle(int *data, int data_size, int seed = 0);
 
-	Layer* Add(Layer *layer, int coordinate_y = -1);
-	Layer* Get_Layer(int coordinate_y = 0, int coordinate_x = 0);
+	float** Shuffle(float **data, int data_size, int seed = 0);
+
+	double Evaluate(float **x_data, float **y_data, int data_size, int batch_size = 1);
+	double Evaluate(float **x_data, vector<string> hypothesis[], int sequence_length[], int data_size, int batch_size = 1);
+	double Fit(float **x_train, float **y_train, int train_size, int batch_size = 1);
+	double Fit(float **x_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size = 1);
+
+	vector<string>* Shuffle(vector<string> *data, int data_size, int seed = 0);
+
+	Connection* Connect(int from, int to, string properties, unordered_multimap<int, int> *time_connection = nullptr);
+
+	Layer* Add(int number_nodes, string properties = "");
+	Layer* Add(int number_maps, int map_width, string properties = "");
+	Layer* Add(int number_maps, int map_width, int map_height, string properties = "");
+	Layer* Add(int number_maps, int map_width, int map_height, int map_depth, string properties = "");
+	Layer* Add(Layer layer);
+
+	LSTM* Add(LSTM LSTM);
+
+	RNN* Add(RNN RNN);
 };
 
-class Optimizer {
-public:
-	int type = 0;
-
-	float *gradient;
-	float *momentum;
-	float *velocity;
-	float *weight_decay;
-
-	double factor_1;
-	double factor_2;
-	double epsilon;
-
-	void Initialize(string type, double epsilon, double factor_1, double factor_2);
-
-	Optimizer();
-	Optimizer(string type, double factor);
-	Optimizer(string type, double epsilon, double factor_1, double factor_2 = 0.999);
-	~Optimizer();
-
-	void Destroy();
-	void Resize_Memory(int number_parameters);
-
-	float Calculate_Gradient(int parameter_index, double gradient, double learning_rate, double weight_decay, bool update = false);
-
-	Optimizer* Copy(int number_parameters = 0);
-};
+typedef Neural_Networks::Activation Activation;
 
 #endif
