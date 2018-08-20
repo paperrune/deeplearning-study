@@ -96,7 +96,7 @@ void Read_MNIST(string training_set_images, string training_set_labels, string t
 int main() {
 	int batch_size = 128;
 	int epochs = 30;
-	int number_threads = 6;
+	int number_threads = 4;
 	int number_training = 60000;
 	int number_test = 10000;
 	int number_nodes[] = { 784, 10 };
@@ -127,16 +127,16 @@ int main() {
 
 	srand(0);
 
-	NN.Add( 1, 28, 28);
+	NN.Add(1, 28, 28);
 	NN.Add(24, 12, 12)->Activation(Activation::relu);
 	NN.Add(512)->Activation(Activation::relu);
 	NN.Add(number_nodes[1])->Activation(Activation::softmax);
 
-	NN.Connect(1, 0, "W,kernel(5x5),stride(2x2)")->Initialize(0.1);
-	NN.Connect(2, 1, "W")->Initialize(0.01);
-	NN.Connect(3, 2, "W")->Initialize(0.01);
+	NN.Connect(1, 0, "W,kernel(5x5),stride(2x2)")->Initializer(RandomUniform(-0.1, 0.1));
+	NN.Connect(2, 1, "W")->Initializer(RandomUniform(-0.01, 0.01));
+	NN.Connect(3, 2, "W")->Initializer(RandomUniform(-0.01, 0.01));
 
-	NN.Compile(Loss::cross_entropy, new Optimizer(Optimizer::Nesterov(learning_rate, momentum)));
+	NN.Compile(Loss::cross_entropy, Optimizer(Nesterov(learning_rate, momentum)));
 
 	for (int e = 0, time = clock(); e < epochs; e++) {
 		int score[2] = { 0, };
@@ -169,7 +169,7 @@ int main() {
 			}
 		}
 		printf("loss: %.4f / %.4f	accuracy: %.4f / %.4f	step %d  %.2f sec\n", loss[0], loss[1], 1.0 * score[0] / number_training, 1.0 * score[1] / number_test, e + 1, (double)(clock() - time) / CLOCKS_PER_SEC);
-		
+
 		for (int h = 0; h < batch_size; h++) {
 			delete[] output[h];
 		}
