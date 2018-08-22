@@ -339,6 +339,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	this->attention = nullptr;
 	this->channel_connection[0] = new vector<int>[layer->number_maps];
 	this->channel_connection[1] = new vector<int>[parent_layer->number_maps];
+	this->depthwise = (strstr(properties.c_str(), "depthwise")) ? (true) : (false);
 	this->from_error = nullptr;
 	this->from_neuron = nullptr;
 	this->from_weight = nullptr;
@@ -452,7 +453,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 		if (properties[0] == 'W') {
 			for (int j = 0; j < layer->number_maps; j++) {
 				for (int k = 0; k < parent_layer->number_maps; k++) {
-					if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == k) {
+					if (depthwise == false || j % parent_layer->number_maps == k) {
 						this->channel_connection[0][j].push_back(k);
 						this->channel_connection[1][k].push_back(j);
 					}
@@ -1412,7 +1413,7 @@ void Layer::Adjust_Parameter(int iterations) {
 					
 					Layer *parent_layer = connection->parent_layer;	
 
-					for (int t = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % parent_layer->number_maps ; t < time_step; t++) {
+					for (int t = 0, j = l / connection->number_weights_per_map, k = ((connection->depthwise) ? (j * number_maps / parent_layer->number_maps) : ((l / connection->kernel_size) % parent_layer->number_maps)); t < time_step; t++) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (int h = 0; h < batch_size; h++) {
 								float *error = &this->error[(h * time_step + t) * number_nodes + j * map_size];
@@ -1498,21 +1499,17 @@ void Layer::Backward(int time_index) {
 						float *error = &this->error[(h * time_step + t) * number_nodes];
 						float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-						for (int l = 0; l < parent_layer->number_nodes; l++) {
-							int k = l / parent_layer->map_size;
-
-							float *weight = &connection->weight[k * connection->kernel_size];
-
+						for (int j = 0, k; j < parent_layer->number_nodes; j++) {
 							double sum = 0;
 
-							vector<Index> &from_error = connection->from_error[l % parent_layer->map_size];
+							vector<Index> &from_error = connection->from_error[j % parent_layer->map_size];
 
-							for (auto j = connection->channel_connection[1][k].begin(); j != connection->channel_connection[1][k].end(); j++) {
+							for (auto l = connection->channel_connection[1][k = j / parent_layer->map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
 								for (auto index = from_error.begin(); index != from_error.end(); index++) {
-									sum += error[(*j) * map_size + index->next_node] * weight[(*j) * connection->number_weights_per_map + index->weight];
+									sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + ((connection->depthwise) ? (0) : (k * connection->kernel_size)) + index->weight];
 								}
 							}
-							prev_error[l] += sum;
+							prev_error[j] += sum;
 						}
 					}
 				}
@@ -1703,7 +1700,7 @@ void Layer::Forward(int time_index) {
 					if (strstr(connection->properties.c_str(), "average")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							for (int j = 0; j < number_maps; j++) {
+							for (int j = 0; j < number_nodes; j++) {
 								float *neuron = &this->neuron[(h * time_step + t) * number_nodes + j * map_size];
 								float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
@@ -1749,18 +1746,14 @@ void Layer::Forward(int time_index) {
 						float *neuron = &this->neuron[(h * time_step + t) * number_nodes];
 						float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-						for (int j = 0; j < number_nodes; j++) {
-							int k = j / map_size;
-							
-							float *weight = &connection->weight[k * connection->number_weights_per_map];
-
+						for (int j = 0, k; j < number_nodes; j++) {
 							double sum = 0;
 
 							vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-							for (auto l = connection->channel_connection[0][k].begin(); l != connection->channel_connection[0][k].end(); l++) {
+							for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
 								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-									sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * weight[(*l) * connection->kernel_size + index->weight];
+									sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + ((connection->depthwise) ? (0) : ((*l) * connection->kernel_size)) + index->weight];
 								}
 							}
 							neuron[j] += sum;
@@ -2048,38 +2041,38 @@ void LSTM::Adjust_Parameter(int iterations) {
 		if (connection->properties[0] == 'W'){
 			if (strstr(connection->properties.c_str(), "recurrent")) {
 				#pragma omp parallel for
-				for (int j = 0; j < connection->number_weights; j++) {
+				for (int l = 0; l < connection->number_weights; l++) {
 					double sum = 0;
 
-					vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[l % connection->kernel_size];
 
-					for (int h = 0; h < batch_size * time_step; h++) {
+					for (int h = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % number_maps; h < batch_size * time_step; h++) {
 						if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
-							float *error = &this->error[connection->type][1][h * number_nodes];
-							float *neuron = &layer->neuron[(h - direction) * number_nodes];
+							float *error = &this->error[connection->type][1][h * number_nodes + j * map_size];
+							float *neuron = &layer->neuron[(h - direction) * number_nodes + k * map_size];
 
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								sum += error[index->next_node] * neuron[index->prev_node];
 							}
 						}
 					}
-					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+					connection->weight[l] += connection->optimizer->Calculate_Gradient(l, sum, iterations);
 				}
 			}
 			else {
 				#pragma omp parallel for
-				for (int j = 0; j < connection->number_weights; j++) {
+				for (int l = 0; l < connection->number_weights; l++) {
 					double sum = 0;
 
-					vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[l % connection->kernel_size];
 
 					Layer *parent_layer = connection->parent_layer;
 
-					for (int t = 0; t < time_step; t++) {
+					for (int t = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % parent_layer->number_maps; t < time_step; t++) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (int h = 0; h < batch_size; h++) {
-								float *error = &this->error[connection->type][0][(h * time_step + t) * number_nodes];
-								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+								float *error = &this->error[connection->type][0][(h * time_step + t) * number_nodes + j * map_size];
+								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + k * parent_layer->map_size];
 
 								for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 									sum += error[index->next_node] * neuron[index->prev_node];
@@ -2087,7 +2080,7 @@ void LSTM::Adjust_Parameter(int iterations) {
 							}
 						}
 					}
-					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+					connection->weight[l] += connection->optimizer->Calculate_Gradient(l, sum, iterations);
 				}
 			}
 		}
@@ -2108,13 +2101,15 @@ void LSTM::Backward(int time_index) {
 					float *error = &this->error[connection->type][1][(h * time_step + t) * number_nodes];
 					float *prev_error = &layer->error[(h * time_step + t - direction) * number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_error = connection->from_error[j];
+						vector<Index> &from_error = connection->from_error[j % map_size];
 
-						for (auto index = from_error.begin(); index != from_error.end(); index++) {
-							sum += error[index->next_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[1][k = j / map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
+							for (auto index = from_error.begin(); index != from_error.end(); index++) {
+								sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + k * connection->kernel_size + index->weight];
+							}
 						}
 						prev_error[j] += sum;
 					}
@@ -2128,13 +2123,15 @@ void LSTM::Backward(int time_index) {
 					float *error = &this->error[connection->type][0][(h * time_step + t) * number_nodes];
 					float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					for (int j = 0; j < parent_layer->number_nodes; j++) {
+					for (int j = 0, k; j < parent_layer->number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_error = connection->from_error[j];
+						vector<Index> &from_error = connection->from_error[j % map_size];
 
-						for (auto index = from_error.begin(); index != from_error.end(); index++) {
-							sum += error[index->next_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[1][k = j / map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
+							for (auto index = from_error.begin(); index != from_error.end(); index++) {
+								sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + k * connection->kernel_size + index->weight];
+							}
 						}
 						prev_error[j] += sum;
 					}
@@ -2286,13 +2283,15 @@ void LSTM::Forward(int time_index) {
 					float *neuron = &this->neuron[connection->type][1][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &layer->neuron[(h * time_step + t - direction) * number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_neuron = connection->from_neuron[j];
+						vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							sum += prev_neuron[index->prev_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
+							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+								sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + (*l) * connection->kernel_size + index->weight];
+							}
 						}
 						neuron[j] += sum;
 					}
@@ -2306,13 +2305,15 @@ void LSTM::Forward(int time_index) {
 					float *neuron = &this->neuron[connection->type][0][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_neuron = connection->from_neuron[j];
+						vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							sum += prev_neuron[index->prev_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
+							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+								sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + (*l) * connection->kernel_size + index->weight];
+							}
 						}
 						neuron[j] += sum;
 					}
@@ -2729,37 +2730,39 @@ void RNN::Adjust_Parameter(int iterations) {
 
 		if (connection->properties[0] == 'W'){
 			if (strstr(connection->properties.c_str(), "recurrent")) {
-				for (int j = 0; j < connection->number_weights; j++) {
+				#pragma omp parallel for
+				for (int l = 0; l < connection->number_weights; l++) {
 					double sum = 0;
 
-					vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[l % connection->kernel_size];
 
-					for (int h = 0; h < batch_size * time_step; h++) {
+					for (int h = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % number_maps; h < batch_size * time_step; h++) {
 						if ((direction == 1 && h % time_step > 0) || (direction == -1 && h % time_step < time_step - 1)) {
-							float *error = &this->error[1][h * number_nodes];
-							float *neuron = &this->neuron[0][(h - direction) * number_nodes];
+							float *error = &this->error[1][h * number_nodes + j * map_size];
+							float *neuron = &this->neuron[0][(h - direction) * number_nodes + k * map_size];
 
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								sum += error[index->next_node] * neuron[index->prev_node];
 							}
 						}
 					}
-					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+					connection->weight[l] += connection->optimizer->Calculate_Gradient(l, sum, iterations);
 				}
 			}
 			else {
-				for (int j = 0; j < connection->number_weights; j++) {
+				#pragma omp parallel for
+				for (int l = 0; l < connection->number_weights; l++) {
 					double sum = 0;
 
-					vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[l % connection->kernel_size];
 
 					Layer *parent_layer = connection->parent_layer;
 
-					for (int t = 0; t < time_step; t++) {
+					for (int t = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % parent_layer->number_maps; t < time_step; t++) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (int h = 0; h < batch_size; h++) {
-								float *error = &this->error[0][(h * time_step + t) * number_nodes];
-								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+								float *error = &this->error[0][(h * time_step + t) * number_nodes + j * map_size];
+								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + k * parent_layer->map_size];
 
 								for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 									sum += error[index->next_node] * neuron[index->prev_node];
@@ -2767,7 +2770,7 @@ void RNN::Adjust_Parameter(int iterations) {
 							}
 						}
 					}
-					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+					connection->weight[l] += connection->optimizer->Calculate_Gradient(l, sum, iterations);
 				}
 			}
 		}
@@ -2788,13 +2791,15 @@ void RNN::Backward(int time_index) {
 					float *error = &this->error[1][(h * time_step + t) * number_nodes];
 					float *prev_error = &this->error[0][(h * time_step + t - direction) * number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_error = connection->from_error[j];
+						vector<Index> &from_error = connection->from_error[j % map_size];
 
-						for (auto index = from_error.begin(); index != from_error.end(); index++) {
-							sum += error[index->next_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[1][k = j / map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
+							for (auto index = from_error.begin(); index != from_error.end(); index++) {
+								sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + k * connection->kernel_size + index->weight];
+							}
 						}
 						prev_error[j] += sum;
 					}
@@ -2808,13 +2813,15 @@ void RNN::Backward(int time_index) {
 					float *error = &this->error[0][(h * time_step + t) * number_nodes];
 					float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					for (int j = 0; j < parent_layer->number_nodes; j++) {
+					for (int j = 0, k; j < parent_layer->number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_error = connection->from_error[j];
+						vector<Index> &from_error = connection->from_error[j % parent_layer->map_size];
 
-						for (auto index = from_error.begin(); index != from_error.end(); index++) {
-							sum += error[index->next_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[1][k = j / parent_layer->map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
+							for (auto index = from_error.begin(); index != from_error.end(); index++) {
+								sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + k * connection->kernel_size + index->weight];
+							}
 						}
 						prev_error[j] += sum;
 					}
@@ -2932,13 +2939,15 @@ void RNN::Forward(int time_index) {
 					float *neuron = &this->neuron[1][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &this->neuron[0][(h * time_step + t - direction) * number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_neuron = connection->from_neuron[j];
+						vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							sum += prev_neuron[index->prev_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
+							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+								sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + (*l) * connection->kernel_size + index->weight];
+							}
 						}
 						neuron[j] += sum;
 					}
@@ -2952,13 +2961,15 @@ void RNN::Forward(int time_index) {
 					float *neuron = &this->neuron[0][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					for (int j = 0; j < number_nodes; j++) {
+					for (int j = 0, k; j < number_nodes; j++) {
 						double sum = 0;
 
-						vector<Index> &from_neuron = connection->from_neuron[j];
+						vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-						for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-							sum += prev_neuron[index->prev_node] * connection->weight[index->weight];
+						for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
+							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+								sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + (*l) * connection->kernel_size + index->weight];
+							}
 						}
 						neuron[j] += sum;
 					}
@@ -3461,7 +3472,7 @@ Connection* Neural_Networks::Connect(int from, int to, string properties, unorde
 	Connection *connection = new Connection(layer[from], layer[to], properties, channel_connection, time_connection);
 
 	if (properties[0] == 'W') {
-		if (!strstr(properties.c_str(), "depthwise") && !layer[from]->rnn && layer[from]->bias == nullptr) {
+		if (connection->depthwise == false && layer[from]->bias == nullptr) {
 			Layer *layer = this->layer[from];
 
 			layer->bias = new float[layer->number_maps];

@@ -83,6 +83,8 @@ struct Batch_Normalization {
 };
 
 struct Connection {
+	bool depthwise;
+
 	int kernel_width;
 	int kernel_height;
 	int kernel_depth;
