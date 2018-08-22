@@ -144,11 +144,11 @@ int main() {
 		unordered_multimap<int, int> time_connection;
 
 		time_connection.insert(pair<int, int>(0, time_step - 1));
-		NN.Connect(3, 1, "copy", &time_connection);
+		NN.Connect(3, 1, "copy", nullptr, &time_connection);
 
 		time_connection.clear();
 		time_connection.insert(pair<int, int>(1, 0));
-		NN.Connect(3, 2, "copy", &time_connection);
+		NN.Connect(3, 2, "copy", nullptr, &time_connection);
 	}
 	NN.Connect(4, 3, "copy");
 	NN.Connect(5, 4, "W");
