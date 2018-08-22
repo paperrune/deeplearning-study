@@ -88,6 +88,7 @@ struct Connection {
 	int kernel_depth;
 	int kernel_size;
 	int number_weights;
+	int number_weights_per_map;
 	int stride_width;
 	int stride_height;
 	int stride_depth;
@@ -110,13 +111,14 @@ struct Connection {
 
 	Optimizer *optimizer;
 
+	vector<int> *channel_connection[2];
 	vector<int> *time_connection[2];
 
 	vector<Index> *from_error;
 	vector<Index> *from_neuron;
 	vector<Index> *from_weight;
 
-	Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *time_connection, int type = 0);
+	Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *channel_connection, unordered_multimap<int, int> *time_connection, int type = 0);
 	~Connection();
 
 	void Destruct();
@@ -671,7 +673,7 @@ public:
 
 	vector<string>* Shuffle(vector<string> *data, int data_size, int seed = 0);
 
-	Connection* Connect(int from, int to, string properties, unordered_multimap<int, int> *time_connection = nullptr);
+	Connection* Connect(int from, int to, string properties, unordered_multimap<int, int> *channel_connection = nullptr, unordered_multimap<int, int> *time_connection = nullptr);
 
 	Layer* Add(int number_nodes, string properties = "");
 	Layer* Add(int number_maps, int map_width, string properties = "");

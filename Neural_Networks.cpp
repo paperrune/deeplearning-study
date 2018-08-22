@@ -333,10 +333,12 @@ Batch_Normalization* Batch_Normalization::Moving_Variance_Initializer(Initialize
 }
 
 
-Connection::Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *time_connection, int type) {
+Connection::Connection(Layer *layer, Layer *parent_layer, string properties, unordered_multimap<int, int> *channel_connection, unordered_multimap<int, int> *time_connection, int type) {
 	unordered_map<int, int> weight_index;
 
 	this->attention = nullptr;
+	this->channel_connection[0] = new vector<int>[layer->number_maps];
+	this->channel_connection[1] = new vector<int>[parent_layer->number_maps];
 	this->from_error = nullptr;
 	this->from_neuron = nullptr;
 	this->from_weight = nullptr;
@@ -446,6 +448,27 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 		attention = new Attention(layer, parent_layer);
 	}
 
+	if (channel_connection == nullptr){
+		if (properties[0] == 'W') {
+			for (int j = 0; j < layer->number_maps; j++) {
+				for (int k = 0; k < parent_layer->number_maps; k++) {
+					if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == k) {
+						this->channel_connection[0][j].push_back(k);
+						this->channel_connection[1][k].push_back(j);
+					}
+				}
+			}
+		}
+	}
+	else {
+		for (int j = 0; j < layer->number_maps; j++) {
+			for (auto k = channel_connection->find(j); k != time_connection->end(); k++) {
+				this->time_connection[0][j].push_back(k->second);
+				this->time_connection[1][k->second].push_back(j);
+			}
+		}
+	}
+
 	if (time_connection == nullptr) {
 		if (strstr(properties.c_str(), "attention")) {
 			for (int t = 0; t < layer->time_step; t++) {
@@ -483,13 +506,14 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	// allocate memory for the weight, if necessary
 	if (properties[0] == 'W') {
 		for (int j = 0, index = 0; j < layer->number_maps; j++) {
-			for (int k = 0; k < parent_layer->number_maps; k++) {
-				if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == k) {
-					for (int l = 0; l < kernel_size; l++) {
-						weight_index.insert(pair<int, int>(j * parent_layer->number_maps * kernel_size + k * kernel_size + l, index++));
-					}
-					number_weights += kernel_size;
+			for (auto k = this->channel_connection[0][j].begin(); k != this->channel_connection[0][j].end(); k++) {
+				for (int l = 0; l < kernel_size; l++) {
+					weight_index.insert(pair<int, int>(j * parent_layer->number_maps * kernel_size + (*k) * kernel_size + l, index++));
 				}
+				number_weights += kernel_size;
+			}
+			if (j == 0) {
+				number_weights_per_map = number_weights;
 			}
 		}
 		memset(weight = new float[number_weights], 0, sizeof(float) * number_weights);
@@ -498,72 +522,66 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	if (properties[0] == 'P' || properties[0] == 'W') {
 		int offset[3] = { kernel_depth - (abs(layer->map_depth * stride_depth - parent_layer->map_depth) + 1), kernel_height - (abs(layer->map_height * stride_height - parent_layer->map_height) + 1), kernel_width - (abs(layer->map_width * stride_width - parent_layer->map_width) + 1) };
 
-		from_error = new vector<Index>[parent_layer->number_nodes];
-		from_neuron = new vector<Index>[layer->number_nodes];
-		from_weight = (number_weights) ? (new vector<Index>[number_weights]) : (nullptr);
+		from_error = new vector<Index>[parent_layer->map_size];
+		from_neuron = new vector<Index>[layer->map_size];
+		from_weight = (number_weights) ? (new vector<Index>[kernel_size]) : (nullptr);
 
-		for (int j = 0; j < layer->number_maps; j++) {
-			for (int k = 0; k < layer->map_depth; k++) {
-				for (int l = 0; l < layer->map_height; l++) {
-					for (int m = 0; m < layer->map_width; m++) {
-						int node_index[2] = { j * layer->map_size + k * layer->map_height * layer->map_width + l * layer->map_width + m, };
+		for (int k = 0; k < layer->map_depth; k++) {
+			for (int l = 0; l < layer->map_height; l++) {
+				for (int m = 0; m < layer->map_width; m++) {
+					int node_index[2] = { k * layer->map_height * layer->map_width + l * layer->map_width + m, };
 
-						if (properties[0] == 'W') {
-							for (int n = 0; n < parent_layer->number_maps; n++) {
-								if (!strstr(properties.c_str(), "depthwise") || j % parent_layer->number_maps == n) {
-									int distance[3];
+					if (properties[0] == 'W') {
+						int distance[3];
 
-									for (int o = 0; o < parent_layer->map_depth; o++) {
-										distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
-										if (-offset[0] <= distance[0] && distance[0] < kernel_depth - offset[0]) {
-											for (int p = 0; p < parent_layer->map_height; p++) {
-												distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
-												if (-offset[1] <= distance[1] && distance[1] < kernel_height - offset[1]) {
-													for (int q = 0; q < parent_layer->map_width; q++) {
-														distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
-														if (-offset[2] <= distance[2] && distance[2] < kernel_width - offset[2]) {
-															Index index;
+						for (int o = 0; o < parent_layer->map_depth; o++) {
+							distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
+							if (-offset[0] <= distance[0] && distance[0] < kernel_depth - offset[0]) {
+								for (int p = 0; p < parent_layer->map_height; p++) {
+									distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
+									if (-offset[1] <= distance[1] && distance[1] < kernel_height - offset[1]) {
+										for (int q = 0; q < parent_layer->map_width; q++) {
+											distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
+											if (-offset[2] <= distance[2] && distance[2] < kernel_width - offset[2]) {
+												Index index;
 
-															node_index[1] = n * parent_layer->map_size + o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
+												node_index[1] = o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
 
-															index.prev_node = node_index[1];
-															index.next_node = node_index[0];
-															index.weight = weight_index.find(j * parent_layer->number_maps * kernel_size + n * kernel_size + (distance[0] + offset[0]) * kernel_height * kernel_width + (distance[1] + offset[1]) * kernel_width + (distance[2] + offset[2]))->second;
+												index.prev_node = node_index[1];
+												index.next_node = node_index[0];
+												index.weight = weight_index.find((distance[0] + offset[0]) * kernel_height * kernel_width + (distance[1] + offset[1]) * kernel_width + (distance[2] + offset[2]))->second;
 
-															from_error[node_index[1]].push_back(index);
-															from_neuron[node_index[0]].push_back(index);
-															from_weight[index.weight].push_back(index);
-														}
-													}
-												}
+												from_error[node_index[1]].push_back(index);
+												from_neuron[node_index[0]].push_back(index);
+												from_weight[index.weight].push_back(index);
 											}
 										}
 									}
 								}
 							}
 						}
-						else if (properties[0] == 'P') {
-							int distance[3];
+					}
+					else if (properties[0] == 'P') {
+						int distance[3];
 
-							for (int o = 0; o < parent_layer->map_depth; o++) {
-								distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
-								if (0 <= distance[0] && distance[0] < kernel_depth) {
-									for (int p = 0; p < parent_layer->map_height; p++) {
-										distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
-										if (0 <= distance[1] && distance[1] < kernel_height) {
-											for (int q = 0; q < parent_layer->map_width; q++) {
-												distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
-												if (0 <= distance[2] && distance[2] < kernel_width) {
-													Index index;
+						for (int o = 0; o < parent_layer->map_depth; o++) {
+							distance[0] = (layer->map_depth < parent_layer->map_depth) ? (o - k * stride_depth) : (k - o * stride_depth);
+							if (0 <= distance[0] && distance[0] < kernel_depth) {
+								for (int p = 0; p < parent_layer->map_height; p++) {
+									distance[1] = (layer->map_height < parent_layer->map_height) ? (p - l * stride_height) : (l - p * stride_height);
+									if (0 <= distance[1] && distance[1] < kernel_height) {
+										for (int q = 0; q < parent_layer->map_width; q++) {
+											distance[2] = (layer->map_width < parent_layer->map_width) ? (q - m * stride_width) : (m - q * stride_width);
+											if (0 <= distance[2] && distance[2] < kernel_width) {
+												Index index;
 
-													node_index[1] = j * parent_layer->map_size + o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
+												node_index[1] = o * parent_layer->map_height * parent_layer->map_width + p * parent_layer->map_width + q;
 
-													index.prev_node = node_index[1];
-													index.next_node = node_index[0];
+												index.prev_node = node_index[1];
+												index.next_node = node_index[0];
 
-													from_error[node_index[1]].push_back(index);
-													from_neuron[node_index[0]].push_back(index);
-												}
+												from_error[node_index[1]].push_back(index);
+												from_neuron[node_index[0]].push_back(index);
 											}
 										}
 									}
@@ -596,6 +614,8 @@ Connection::~Connection() {
 		optimizer->Destruct();
 		delete optimizer;
 	}
+	delete[] channel_connection[0];
+	delete[] channel_connection[1];
 	delete[] time_connection[0];
 	delete[] time_connection[1];
 	delete[] weight;
@@ -637,7 +657,21 @@ void Connection::Optimizer(::Optimizer *optimizer) {
 }
 
 Connection *Connection::Copy(int type) {
-	Connection *connection = new Connection(layer, parent_layer, properties, nullptr, type);
+	Connection *connection = new Connection(layer, parent_layer, properties, nullptr, nullptr, type);
+
+	connection->channel_connection[0] = new vector<int>[layer->number_maps];
+	connection->channel_connection[1] = new vector<int>[parent_layer->number_maps];
+
+	for (int j = 0; j < layer->number_maps; j++) {
+		for (int i = 0; i < channel_connection[0][j].size(); i++) {
+			connection->channel_connection[0][j].push_back(channel_connection[0][j][i]);
+		}
+	}
+	for (int j = 0; j < parent_layer->number_maps; j++) {
+		for (int i = 0; i < channel_connection[1][j].size(); i++) {
+			connection->channel_connection[1][j].push_back(channel_connection[1][j][i]);
+		}
+	}
 
 	connection->time_connection[0] = new vector<int>[layer->time_step];
 	connection->time_connection[1] = new vector<int>[parent_layer->time_step];
@@ -1371,18 +1405,18 @@ void Layer::Adjust_Parameter(int iterations) {
 
 			if (connection->properties[0] == 'W') {
 				#pragma omp parallel for
-				for (int j = 0; j < connection->number_weights; j++) {
+				for (int l = 0; l < connection->number_weights; l++) {
 					double sum = 0;
 
-					vector<Index> &from_weight = connection->from_weight[j];
+					vector<Index> &from_weight = connection->from_weight[l % connection->kernel_size];
 					
 					Layer *parent_layer = connection->parent_layer;	
 
-					for (int t = 0; t < time_step; t++) {
+					for (int t = 0, j = l / connection->number_weights_per_map, k = (l / connection->kernel_size) % parent_layer->number_maps ; t < time_step; t++) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (int h = 0; h < batch_size; h++) {
-								float *error = &this->error[(h * time_step + t) * number_nodes];
-								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+								float *error = &this->error[(h * time_step + t) * number_nodes + j * map_size];
+								float *neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + k * parent_layer->map_size];
 
 								for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 									sum += error[index->next_node] * neuron[index->prev_node];
@@ -1390,7 +1424,7 @@ void Layer::Adjust_Parameter(int iterations) {
 							}
 						}
 					}
-					connection->weight[j] += connection->optimizer->Calculate_Gradient(j, sum, iterations);
+					connection->weight[l] += connection->optimizer->Calculate_Gradient(l, sum, iterations);
 				}
 			}
 		}
@@ -1416,40 +1450,44 @@ void Layer::Backward(int time_index) {
 					if (strstr(connection->properties.c_str(), "average")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							float *error = &this->error[(h * time_step + t) * number_nodes];
-							float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+							for(int j = 0;j < parent_layer->number_maps;j++) {
+								float *error = &this->error[(h * time_step + t) * number_nodes + j * map_size];
+								float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
-							for (int j = 0; j < parent_layer->number_nodes; j++) {
-								double sum = 0;
+								for (int k = 0; k < parent_layer->map_size; k++) {
+									double sum = 0;
 
-								vector<Index> &from_error = connection->from_error[j];
+									vector<Index> &from_error = connection->from_error[k];
 
-								for (auto index = from_error.begin(); index != from_error.end(); index++) {
-									sum += error[index->next_node] / connection->from_neuron[index->next_node].size();
+									for (auto index = from_error.begin(); index != from_error.end(); index++) {
+										sum += error[index->next_node] / connection->from_neuron[index->next_node].size();
+									}
+									prev_error[k] += sum;
 								}
-								prev_error[j] += sum;
 							}
 						}
 					}
 					else if (strstr(connection->properties.c_str(), "max")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							float *error = &this->error[(h * time_step + t) * number_nodes];
-							float *neuron = &this->neuron[(h * time_step + t) * number_nodes];
-							float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
-							float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+							for (int j = 0; j < parent_layer->number_maps; j++) {
+								float *error = &this->error[(h * time_step + t) * number_nodes + j * map_size];
+								float *neuron = &this->neuron[(h * time_step + t) * number_nodes + j * map_size];
+								float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
+								float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
-							for (int j = 0; j < parent_layer->number_nodes; j++) {
-								double sum = 0;
+								for (int k = 0; k < parent_layer->map_size; k++) {
+									double sum = 0;
 
-								vector<Index> &from_error = connection->from_error[j];
+									vector<Index> &from_error = connection->from_error[k];
 
-								for (auto index = from_error.begin(); index != from_error.end(); index++) {
-									if (prev_neuron[j] == neuron[index->next_node]) {
-										sum += error[index->next_node];
+									for (auto index = from_error.begin(); index != from_error.end(); index++) {
+										if (prev_neuron[k] == neuron[index->next_node]) {
+											sum += error[index->next_node];
+										}
 									}
+									prev_error[k] += sum;
 								}
-								prev_error[j] += sum;
 							}
 						}
 					}
@@ -1460,15 +1498,21 @@ void Layer::Backward(int time_index) {
 						float *error = &this->error[(h * time_step + t) * number_nodes];
 						float *prev_error = &parent_layer->error[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-						for (int j = 0; j < parent_layer->number_nodes; j++) {
+						for (int l = 0; l < parent_layer->number_nodes; l++) {
+							int k = l / parent_layer->map_size;
+
+							float *weight = &connection->weight[k * connection->kernel_size];
+
 							double sum = 0;
 
-							vector<Index> &from_error = connection->from_error[j];
+							vector<Index> &from_error = connection->from_error[l % parent_layer->map_size];
 
-							for (auto index = from_error.begin(); index != from_error.end(); index++) {
-								sum += error[index->next_node] * connection->weight[index->weight];
+							for (auto j = connection->channel_connection[1][k].begin(); j != connection->channel_connection[1][k].end(); j++) {
+								for (auto index = from_error.begin(); index != from_error.end(); index++) {
+									sum += error[(*j) * map_size + index->next_node] * weight[(*j) * connection->number_weights_per_map + index->weight];
+								}
 							}
-							prev_error[j] += sum;
+							prev_error[l] += sum;
 						}
 					}
 				}
@@ -1625,43 +1669,76 @@ void Layer::Forward(int time_index) {
 
 			Layer *parent_layer = connection->parent_layer;
 
+			if (strstr(connection->properties.c_str(), "attention")) {
+				Attention *attention = connection->attention;
+
+				#pragma omp parallel for
+				for (int h = 0; h < batch_size; h++) {
+					double sum = 0, *weight = new double[parent_layer->time_step];
+
+					memset(weight, 0, sizeof(double) * parent_layer->time_step);
+
+					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
+						float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+
+						double sum = 0;
+
+						for (int j = 0; j < parent_layer->number_nodes; j++) {
+							sum += prev_neuron[j] * attention->weight[j];
+						}
+						weight[*s] = sum;
+					}
+					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
+						sum += weight[*s];
+					}
+					for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
+						weight[*s] /= sum;
+					}
+					delete[] weight;
+				}
+			}
+
 			for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 				if (connection->properties[0] == 'P') {
 					if (strstr(connection->properties.c_str(), "average")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							float *neuron = &this->neuron[(h * time_step + t) * number_nodes];
-							float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+							for (int j = 0; j < number_maps; j++) {
+								float *neuron = &this->neuron[(h * time_step + t) * number_nodes + j * map_size];
+								float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
-							for (int j = 0; j < number_nodes; j++) {
-								double sum = 0;
+								for (int k = 0; k < map_size; k++) {
+									double sum = 0;
 
-								vector<Index> &from_neuron = connection->from_neuron[j];
+									vector<Index> &from_neuron = connection->from_neuron[k];
 
-								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-									sum += prev_neuron[index->prev_node];
+									for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+										sum += prev_neuron[index->prev_node];
+									}
+									neuron[k] += sum / from_neuron.size();
 								}
-								neuron[j] += sum / from_neuron.size();
 							}
 						}
 					}
 					else if (strstr(connection->properties.c_str(), "max")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							float *neuron = &this->neuron[(h * time_step + t) * number_nodes];
-							float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
+							for(int j = 0;j < number_maps;j++){
+								float *neuron = &this->neuron[(h * time_step + t) * number_nodes + j * map_size];
+								float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
-							for (int j = 0; j < number_nodes; j++) {
-								double max = 0;
+								for (int k = 0; k < map_size; k++) {
+									double max = 0;
 
-								vector<Index> &from_neuron = connection->from_neuron[j];
+									vector<Index> &from_neuron = connection->from_neuron[k];
 
-								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-									if (index == from_neuron.begin() || max < prev_neuron[index->prev_node]) {
-										max = prev_neuron[index->prev_node];
+									for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+										if (index == from_neuron.begin() || max < prev_neuron[index->prev_node]) {
+											max = prev_neuron[index->prev_node];
+										}
 									}
+									neuron[k] += max;
 								}
-								neuron[j] += max;
 							}
 						}
 					}
@@ -1673,12 +1750,18 @@ void Layer::Forward(int time_index) {
 						float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
 						for (int j = 0; j < number_nodes; j++) {
+							int k = j / map_size;
+							
+							float *weight = &connection->weight[k * connection->number_weights_per_map];
+
 							double sum = 0;
 
-							vector<Index> &from_neuron = connection->from_neuron[j];
+							vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-								sum += prev_neuron[index->prev_node] * connection->weight[index->weight];
+							for (auto l = connection->channel_connection[0][k].begin(); l != connection->channel_connection[0][k].end(); l++) {
+								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+									sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * weight[(*l) * connection->kernel_size + index->weight];
+								}
 							}
 							neuron[j] += sum;
 						}
@@ -3374,8 +3457,8 @@ vector<string>* Neural_Networks::Shuffle(vector<string> *data, int data_size, in
 	return data;
 }
 
-Connection* Neural_Networks::Connect(int from, int to, string properties, unordered_multimap<int, int> *time_connection) {
-	Connection *connection = new Connection(layer[from], layer[to], properties, time_connection);
+Connection* Neural_Networks::Connect(int from, int to, string properties, unordered_multimap<int, int> *channel_connection, unordered_multimap<int, int> *time_connection) {
+	Connection *connection = new Connection(layer[from], layer[to], properties, channel_connection, time_connection);
 
 	if (properties[0] == 'W') {
 		if (!strstr(properties.c_str(), "depthwise") && !layer[from]->rnn && layer[from]->bias == nullptr) {
