@@ -3223,8 +3223,6 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 		}
 
 		if (++h == batch_size || g == train_size - 1) {
-			printf("%d\n", g);
-
 			Resize_Memory(h);
 
 			// copy x_train to neuron
