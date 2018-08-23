@@ -96,6 +96,9 @@ struct Connection {
 	int stride_depth;
 	int type;
 
+	int *channel_connection_device[2];
+	int *time_connection_device[2];
+
 	float *weight;
 
 	string properties;
