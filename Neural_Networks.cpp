@@ -1496,10 +1496,6 @@ void Layer::Backward(int time_index) {
 
 								for (auto index = from_error.begin(); index != from_error.end(); index++) {
 									sum += error[offset[0] + index->next_node] * connection->weight[offset[1] + index->weight];
-
-									if (index->next_node != 0) {
-										printf("%d, %d\n", index->next_node, index->weight);
-									}
 								}
 							}
 							prev_error[j] += sum;
@@ -3231,8 +3227,6 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 		}
 
 		if (++h == batch_size || g == train_size - 1) {
-			printf("%d\n", g);
-
 			Resize_Memory(h);
 
 			// copy x_train to neuron
