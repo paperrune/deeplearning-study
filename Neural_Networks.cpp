@@ -463,9 +463,9 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	}
 	else {
 		for (int j = 0; j < layer->number_maps; j++) {
-			for (auto k = channel_connection->find(j); k != time_connection->end(); k++) {
-				this->time_connection[0][j].push_back(k->second);
-				this->time_connection[1][k->second].push_back(j);
+			for (auto k = channel_connection->equal_range(j).first; k != channel_connection->equal_range(j).second; k++) {
+				this->channel_connection[0][j].push_back(k->second);
+				this->channel_connection[1][k->second].push_back(j);
 			}
 		}
 	}
@@ -497,7 +497,7 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	}
 	else {
 		for (int t = 0; t < layer->time_step; t++) {
-			for (auto u = time_connection->find(t); u != time_connection->end(); u++) {
+			for (auto u = time_connection->equal_range(t).first; u != time_connection->equal_range(t).second; u++) {
 				this->time_connection[0][t].push_back(u->second);
 				this->time_connection[1][u->second].push_back(t);
 			}
@@ -658,35 +658,22 @@ void Connection::Optimizer(::Optimizer *optimizer) {
 }
 
 Connection *Connection::Copy(int type) {
-	Connection *connection = new Connection(layer, parent_layer, properties, nullptr, nullptr, type);
+	Connection *connection;
 
-	connection->channel_connection[0] = new vector<int>[layer->number_maps];
-	connection->channel_connection[1] = new vector<int>[parent_layer->number_maps];
+	unordered_multimap<int, int> channel_connection;
+	unordered_multimap<int, int> time_connection;
 
 	for (int j = 0; j < layer->number_maps; j++) {
-		for (int i = 0; i < channel_connection[0][j].size(); i++) {
-			connection->channel_connection[0][j].push_back(channel_connection[0][j][i]);
+		for (auto k = this->channel_connection[0][j].begin(); k != this->channel_connection[0][j].end(); k++) {
+			channel_connection.insert(pair<int, int>(j, *k));
 		}
 	}
-	for (int j = 0; j < parent_layer->number_maps; j++) {
-		for (int i = 0; i < channel_connection[1][j].size(); i++) {
-			connection->channel_connection[1][j].push_back(channel_connection[1][j][i]);
-		}
-	}
-
-	connection->time_connection[0] = new vector<int>[layer->time_step];
-	connection->time_connection[1] = new vector<int>[parent_layer->time_step];
-
 	for (int t = 0; t < layer->time_step; t++) {
-		for (int i = 0; i < time_connection[0][t].size(); i++) {
-			connection->time_connection[0][t].push_back(time_connection[0][t][i]);
+		for (auto u = this->time_connection[0][t].begin(); u != this->time_connection[0][t].end(); u++) {
+			time_connection.insert(pair<int, int>(t, *u));
 		}
 	}
-	for (int t = 0; t < parent_layer->time_step; t++) {
-		for (int i = 0; i < time_connection[1][t].size(); i++) {
-			connection->time_connection[1][t].push_back(time_connection[1][t][i]);
-		}
-	}
+	connection = new Connection(layer, parent_layer, properties, &channel_connection, &time_connection, type);
 	connection->initializer = initializer->Copy();
 	return connection;
 }
@@ -2325,7 +2312,7 @@ void LSTM::Forward(int time_index) {
 					float *neuron = &this->neuron[connection->type][0][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					memcpy(neuron, parent_layer->neuron, sizeof(float) * number_nodes);
+					memcpy(neuron, prev_neuron, sizeof(float) * number_nodes);
 				}
 			}
 		}
@@ -2981,7 +2968,7 @@ void RNN::Forward(int time_index) {
 					float *neuron = &this->neuron[0][(h * time_step + t) * number_nodes];
 					float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes];
 
-					memcpy(neuron, parent_layer->neuron, sizeof(float) * number_nodes);
+					memcpy(neuron, prev_neuron, sizeof(float) * number_nodes);
 				}
 			}
 		}
@@ -3236,6 +3223,8 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 		}
 
 		if (++h == batch_size || g == train_size - 1) {
+			printf("%d\n", g);
+
 			Resize_Memory(h);
 
 			// copy x_train to neuron
@@ -3489,10 +3478,10 @@ Connection* Neural_Networks::Connect(int from, int to, string properties, unorde
 
 	if (layer[from]->lstm) {
 		for (int i = 1; i < LSTM::number_weight_types; i++) {
-			connection = connection->Copy(i);
+			Connection *c = connection->Copy(i);
 
-			layer[from]->connection.push_back(connection);
-			layer[to]->child_connection.push_back(connection);
+			layer[from]->connection.push_back(c);
+			layer[to]->child_connection.push_back(c);
 		}
 	}
 	return connection;
