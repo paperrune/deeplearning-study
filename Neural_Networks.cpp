@@ -1492,8 +1492,14 @@ void Layer::Backward(int time_index) {
 							vector<Index> &from_error = connection->from_error[j % parent_layer->map_size];
 
 							for (auto l = connection->channel_connection[1][k = j / parent_layer->map_size].begin(); l != connection->channel_connection[1][k].end(); l++) {
+								int offset[] = { (*l) * map_size, (*l) * connection->number_weights_per_map + ((connection->depthwise) ? (0) : (k * connection->kernel_size)) };
+
 								for (auto index = from_error.begin(); index != from_error.end(); index++) {
-									sum += error[(*l) * map_size + index->next_node] * connection->weight[(*l) * connection->number_weights_per_map + ((connection->depthwise) ? (0) : (k * connection->kernel_size)) + index->weight];
+									sum += error[offset[0] + index->next_node] * connection->weight[offset[1] + index->weight];
+
+									if (index->next_node != 0) {
+										printf("%d, %d\n", index->next_node, index->weight);
+									}
 								}
 							}
 							prev_error[j] += sum;
@@ -1739,8 +1745,10 @@ void Layer::Forward(int time_index) {
 							vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
 							for (auto l = connection->channel_connection[0][k = j / map_size].begin(); l != connection->channel_connection[0][k].end(); l++) {
+								int offset[] = { (*l) * parent_layer->map_size, k * connection->number_weights_per_map + ((connection->depthwise) ? (0) : ((*l) * connection->kernel_size)) };
+
 								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-									sum += prev_neuron[(*l) * parent_layer->map_size + index->prev_node] * connection->weight[k * connection->number_weights_per_map + ((connection->depthwise) ? (0) : ((*l) * connection->kernel_size)) + index->weight];
+									sum += prev_neuron[offset[0] + index->prev_node] * connection->weight[offset[1] + index->weight];
 								}
 							}
 							neuron[j] += sum;
@@ -3223,6 +3231,8 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 		}
 
 		if (++h == batch_size || g == train_size - 1) {
+			printf("%d\n", g);
+
 			Resize_Memory(h);
 
 			// copy x_train to neuron
