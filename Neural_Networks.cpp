@@ -1687,7 +1687,7 @@ void Layer::Forward(int time_index) {
 					if (strstr(connection->properties.c_str(), "average")) {
 						#pragma omp parallel for
 						for (int h = 0; h < batch_size; h++) {
-							for (int j = 0; j < number_nodes; j++) {
+							for (int j = 0; j < number_maps; j++) {
 								float *neuron = &this->neuron[(h * time_step + t) * number_nodes + j * map_size];
 								float *prev_neuron = &parent_layer->neuron[(h * parent_layer->time_step + (*s)) * parent_layer->number_nodes + j * parent_layer->map_size];
 
