@@ -66,14 +66,14 @@ struct Batch_Normalization {
 	~Batch_Normalization();
 
 	void Activate(int time_index, float neuron[], bool training);
-	void Adjust_Parameter(int iterations);
+	void Adjust_Parameters(int iterations, bool update);
 	void Destruct();
 	void Differentiate(int time_index, float error[]);
 	void Initialize();
 	void Load(ifstream &file);
+	void Save(ofstream &file);
 	void Optimizer(Optimizer &optimizer);
 	void Resize_Memory(int batch_size);
-	void Save(ofstream &file);
 
 	Batch_Normalization* Beta_Initializer(Initializer initializer);
 	Batch_Normalization* Copy();
@@ -363,7 +363,7 @@ struct Layer {
 	~Layer();
 
 	void Activate(int time_index, bool training = false);
-	void Adjust_Parameter(int iterations);
+	void Adjust_Parameters(int iterations, bool update);
 	void Backward(int time_index);
 	void Compile(Optimizer *optimizer);
 	void Construct();
@@ -373,6 +373,8 @@ struct Layer {
 	void Initialize();
 	void Optimizer(Optimizer *optimizer);
 	void Resize_Memory(int batch_size);
+
+	float* Neuron(int batch_index = 0, int time_index = 0);
 
 	Batch_Normalization* Batch_Normalization(double epsilon = 0.001, double momentum = 0.99);
 
@@ -386,7 +388,7 @@ struct Layer {
 };
 
 struct Loss {
-	enum { connectionist_temporal_classification, cross_entropy, mean_squared_error };
+	enum { connectionist_temporal_classification, cross_entropy, logarithm, mean_squared_error, negative_logarithm, none };
 
 	struct CTC {
 		int number_labels;
@@ -481,7 +483,7 @@ struct LSTM {
 	~LSTM();
 
 	void Activate(int time_index, bool training);
-	void Adjust_Parameter(int iterations);
+	void Adjust_Parameters(int iterations, bool update);
 	void Backward(int time_index);
 	void Compile(Optimizer *optimizer);
 	void Construct(Layer *layer);
@@ -507,72 +509,112 @@ struct LSTM {
 
 struct Optimizer {
 	struct Adam {
+		bool minimize;
+
 		double decay;
 		double epsilon;
 		double momentum[2];
 		double learning_rate;
 
+		Adam(bool minimize, double learning_rate, double decay = 0, double epsilon = 0.00000001, double momentum_1 = 0.9, double momentum_2 = 0.999) {
+			this->decay = decay;
+			this->epsilon = epsilon;
+			this->learning_rate = learning_rate;
+			this->minimize = minimize;
+			this->momentum[0] = momentum_1;
+			this->momentum[1] = momentum_2;
+		}
 		Adam(double learning_rate, double decay = 0, double epsilon = 0.00000001, double momentum_1 = 0.9, double momentum_2 = 0.999) {
 			this->decay = decay;
 			this->epsilon = epsilon;
 			this->learning_rate = learning_rate;
+			this->minimize = true;
 			this->momentum[0] = momentum_1;
 			this->momentum[1] = momentum_2;
 		}
 	};
 	struct SGD {
+		bool minimize;
+
 		double decay;
 		double learning_rate;
 
+		SGD(bool minimize, double learning_rate, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+			this->minimize = minimize;
+		}
 		SGD(double learning_rate, double decay = 0) {
 			this->decay = decay;
 			this->learning_rate = learning_rate;
+			this->minimize = true;
 		}
 	};
 	struct Momentum {
+		bool minimize;
+
 		double decay;
 		double learning_rate;
 		double momentum;
 
+		Momentum(bool minimize, double learning_rate, double momentum, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+			this->minimize = minimize;
+			this->momentum = momentum;
+		}
 		Momentum(double learning_rate, double momentum, double decay = 0) {
 			this->decay = decay;
 			this->learning_rate = learning_rate;
+			this->minimize = true;
 			this->momentum = momentum;
 		}
 	};
 	struct Nesterov {
+		bool minimize;
+
 		double decay;
 		double learning_rate;
 		double momentum;
 
+		Nesterov(bool minimize, double learning_rate, double momentum, double decay = 0) {
+			this->decay = decay;
+			this->learning_rate = learning_rate;
+			this->minimize = minimize;
+			this->momentum = momentum;
+		}
 		Nesterov(double learning_rate, double momentum, double decay = 0) {
 			this->decay = decay;
 			this->learning_rate = learning_rate;
+			this->minimize = true;
 			this->momentum = momentum;
 		}
 	};
+
+	bool minimize;
 
 	int type;
 
 	float *gradient;
 	float *memory[2];
+	float *sum;
 
 	double decay;
 	double epsilon;
 	double learning_rate;
 	double momentum[2];
 
-	Optimizer(int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
+	Optimizer(bool minimize, int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
 	Optimizer(SGD SGD);
 	Optimizer(Momentum Momentum);
 	Optimizer(Nesterov Nesterov);
 	Optimizer(Adam Adam);
 	~Optimizer();
 
-	void Construct(int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
+	void Construct(bool minimize, int type, double learning_rate, double decay, double epsilon, double momentum_1, double momentum_2, int number_parameters);
 	void Destruct();
 
-	double Calculate_Gradient(int index, double gradient, int iterations);
+	double Calculate_Gradient(int index, double gradient, int iterations, bool update);
 
 	Optimizer* Copy(int number_parameters = 0);
 };
@@ -617,7 +659,7 @@ struct RNN {
 	~RNN();
 
 	void Activate(int time_index, bool training);
-	void Adjust_Parameter(int iterations);
+	void Adjust_Parameters(int iterations, bool update);
 	void Backward(int time_index);
 	void Compile(Optimizer *optimizer);
 	void Construct(Layer *layer);
@@ -644,26 +686,35 @@ private:
 
 	vector<Layer*> layer;
 
-	Loss *loss;
-
 	Optimizer *optimizer;
 
 	void Resize_Memory(int batch_size);
 
+	double Backward(float **y_train, vector<string> reference[], int sequence_length[], int batch_size);
 	double Calculate_Loss(Layer *layer, float **y_batch, vector<string> label[], int sequence_length_batch[], bool training = false);
 	double Evaluate(float **x_data, float **y_data, vector<string> reference[], int sequence_length[], int data_size, int batch_size);
-	double Fit(float **x_train, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size);
+	double Fit(float **x_train, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size, bool update);
+	double Fit(Layer *layer, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size, bool update);
 public:
 	struct Activation {
 		enum { linear, hard_sigmoid, relu, sigmoid, softmax, tanh };
 	};
 
+	Loss *loss;
+
 	Neural_Networks();
 	~Neural_Networks();
 
+	void Adjust_Parameters(bool update = true);
+	void Compile(Optimizer optimizer);
 	void Compile(Loss loss, Optimizer optimizer);
+	void Forward(float **x_train, int batch_size, int offset = 0);
+	void Forward(float **x_train, int sequence_length[], int batch_size, int offset = 0);
+	void Forward(Layer *layer, int batch_size, int offset = 0);
+	void Forward(Layer *layer, int sequence_length[], int batch_size, int offset = 0);
 	void Load_Parameters(string path);
 	void Save_Parameters(string path);
+	void Loss(Loss loss);
 	void Predict(float input[], float output[]);
 	void Predict(float **input, float **output, int batch_size = 1);
 
@@ -671,10 +722,14 @@ public:
 
 	float** Shuffle(float **data, int data_size, int seed = 0);
 
+	double Backward(int batch_size);
+	double Backward(float **y_train, int batch_size);
+	double Backward(vector<string> reference[], int sequence_length[], int batch_size);
 	double Evaluate(float **x_data, float **y_data, int data_size, int batch_size = 1);
 	double Evaluate(float **x_data, vector<string> hypothesis[], int sequence_length[], int data_size, int batch_size = 1);
-	double Fit(float **x_train, float **y_train, int train_size, int batch_size = 1);
-	double Fit(float **x_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size = 1);
+	double Fit(float **x_train, float **y_train, int train_size, int batch_size, bool update = true);
+	double Fit(float **x_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size, bool update = true);
+	double Fit(Layer *layer, float **y_train, int train_size, int batch_size, bool update = true);
 
 	vector<string>* Shuffle(vector<string> *data, int data_size, int seed = 0);
 
@@ -685,6 +740,7 @@ public:
 	Layer* Add(int number_maps, int map_width, int map_height, string properties = "");
 	Layer* Add(int number_maps, int map_width, int map_height, int map_depth, string properties = "");
 	Layer* Add(Layer layer);
+	Layer* Add(Layer *layer);
 
 	LSTM* Add(LSTM LSTM);
 
