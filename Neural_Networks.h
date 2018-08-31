@@ -374,7 +374,8 @@ struct Layer {
 	void Optimizer(Optimizer *optimizer);
 	void Resize_Memory(int batch_size);
 
-	float* Neuron(int batch_index = 0, int time_index = 0);
+	float* Error(int node_index = 0, int time_index = 0);
+	float* Neuron(int node_index = 0, int time_index = 0);
 
 	Batch_Normalization* Batch_Normalization(double epsilon = 0.001, double momentum = 0.99);
 
@@ -493,6 +494,9 @@ struct LSTM {
 	void Initialize();
 	void Optimizer(Optimizer *optimizer);
 	void Resize_Memory(int batch_size);
+
+	float* Error(int type, int index, int time_index = 0, int node_index = 0);
+	float* Neuron(int type, int index, int time_index = 0, int node_index = 0);
 
 	double Activation(double x, int activation);
 	double Derivation(double x, int activation);
@@ -669,6 +673,9 @@ struct RNN {
 	void Initialize();
 	void Optimizer(Optimizer *optimizer);
 	void Resize_Memory(int batch_size);
+
+	float *Error(int index, int time_index = 0, int node_index = 0);
+	float *Neuron(int index, int time_index = 0, int node_index = 0);
 
 	Batch_Normalization* Batch_Normalization(double epsilon, double momentum);
 
