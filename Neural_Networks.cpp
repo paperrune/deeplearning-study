@@ -3291,6 +3291,50 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 	}
 	return loss / train_size;
 }
+double Neural_Networks::Fit(Layer *layer, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size, bool update) {
+	double loss = 0;
+
+	if (batch_size != train_size) {
+		int *sequence_length_batch = (sequence_length) ? (new int[batch_size]) : (nullptr);
+
+		float **y_batch = (y_train) ? (new float*[batch_size]) : (nullptr);
+
+		vector<string> *reference_batch = (reference) ? (new vector<string>[batch_size]) : (nullptr);
+
+		for (int g = 0, h = 0; g < train_size; g++) {
+			if (y_batch) {
+				y_batch[h] = y_train[g];
+			}
+			if (reference_batch) {
+				reference_batch[h] = reference[g];
+			}
+			if (sequence_length_batch) {
+				sequence_length_batch[h] = sequence_length[g];
+			}
+			if (++h == batch_size || g == train_size - 1) {
+				Forward(layer, sequence_length_batch, h);
+				loss += Backward(y_batch, reference_batch, sequence_length_batch, h);
+				Adjust_Parameters(update);
+				h = 0;
+			}
+		}
+		if (y_batch) {
+			delete[] y_batch;
+		}
+		if (reference_batch) {
+			delete[] reference_batch;
+		}
+		if (sequence_length_batch) {
+			delete[] sequence_length_batch;
+		}
+	}
+	else {
+		Forward(layer, sequence_length, batch_size);
+		loss += Backward(y_train, reference, sequence_length, batch_size);
+		Adjust_Parameters(update);
+	}
+	return loss / train_size;
+}
 
 Neural_Networks::Neural_Networks() {
 	batch_size = 1;
@@ -3396,13 +3440,34 @@ void Neural_Networks::Forward(Layer *layer, int batch_size, int offset) {
 	Forward(layer, nullptr, batch_size, offset);
 }
 void Neural_Networks::Forward(Layer *layer, int sequence_length[], int batch_size, int offset) {
-	float **x_train = new float*[batch_size];
+	Resize_Memory(batch_size);
 
-	for (int h = 0; h < batch_size; h++) {
-		x_train[h] = layer->Neuron(h);
+	memcpy(this->layer[0]->neuron, &layer->neuron[offset * layer->time_step * layer->number_nodes], sizeof(float) * this->layer[0]->time_step * this->layer[0]->number_nodes * this->batch_size);
+
+	// add gaussian noise to the neuron if noise specified
+	for (int i = 0; i < this->layer.size(); i++) {
+		Layer *layer = this->layer[i];
+
+		if (strstr(layer->properties.c_str(), "noise")) {
+			default_random_engine generator(rand());
+
+			double stdv = atof(strstr(layer->properties.c_str(), "noise") + 5);
+
+			normal_distribution<double> distribution(0, stdv);
+
+			for (int j = 0; j < layer->batch_size * layer->time_step * layer->number_nodes; j++) {
+				layer->neuron[j] += distribution(generator);
+			}
+		}
 	}
-	Forward(x_train, nullptr, batch_size, offset);
-	delete[] x_train;
+
+	// forward propagation
+	for (int i = 1; i < this->layer.size(); i++) {
+		for (int t = 0; t < this->layer[i]->time_step; t++) {
+			this->layer[i]->Forward(t);
+			this->layer[i]->Activate(t, true);
+		}
+	}
 }
 void Neural_Networks::Load_Parameters(string path) {
 	ifstream file(path);
