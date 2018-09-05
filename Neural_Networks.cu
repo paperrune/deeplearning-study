@@ -14,22 +14,22 @@
 
 #define NUMBER_THREADS 64
 
-__device__ void Activate(float *neuron, int index, int activation, int number_nodes) {
+__device__ void Activate(float *neuron, int index, int activation, int batch_size, int number_nodes) {
 	if (activation == Activation::softmax) {
-		if (index % number_nodes == 0) {
+		if ((index / batch_size) % number_nodes == 0) {
 			double max;
 			double sum = 0;
 
 			for (int j = 0; j < number_nodes; j++) {
-				if (j == 0 || max < neuron[index + j]) {
-					max = neuron[index + j];
+				if (j == 0 || max < neuron[index + j * batch_size]) {
+					max = neuron[index + j * batch_size];
 				}
 			}
 			for (int j = 0; j < number_nodes; j++) {
-				sum += (neuron[index + j] = exp(neuron[index + j] - max));
+				sum += (neuron[index + j * batch_size] = exp(neuron[index + j * batch_size] - max));
 			}
 			for (int j = 0; j < number_nodes; j++) {
-				neuron[index + j] /= sum;
+				neuron[index + j * batch_size] /= sum;
 			}
 		}
 	}
@@ -178,26 +178,24 @@ __global__ void Activate(Batch_Normalization batch_normalization, int time_index
 	int j = blockIdx.x;
 	int t = time_index;
 
+	int index = (t * batch_normalization.number_nodes + j * batch_normalization.map_size) * batch_normalization.batch_size;
+
 	float *mean = &batch_normalization.mean[t * batch_normalization.number_maps];
 	float *variance = &batch_normalization.variance[t * batch_normalization.number_maps];
 	float *moving_mean = &batch_normalization.moving_mean[t * batch_normalization.number_maps];
 	float *moving_variance = &batch_normalization.moving_variance[t * batch_normalization.number_maps];
 
 	if (training) {
-		float *neuron = &_neuron[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-		float *neuron_backup = &batch_normalization.neuron_backup[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-		float *neuron_normalized = &batch_normalization.neuron_normalized[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
+		float *neuron = &_neuron[index];
+		float *neuron_backup = &batch_normalization.neuron_backup[index];
+		float *neuron_normalized = &batch_normalization.neuron_normalized[index];
 
 		__shared__ double standard_deviation;
 		__shared__ double sum[NUMBER_THREADS];
 
 		sum[threadIdx.x] = 0;
-		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-			int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-			for (int k = 0; k < batch_normalization.map_size; k++) {
-				sum[threadIdx.x] += neuron[index + k];
-			}
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			sum[threadIdx.x] += neuron[k];
 		}
 		for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
 			__syncthreads();
@@ -211,12 +209,8 @@ __global__ void Activate(Batch_Normalization batch_normalization, int time_index
 		}
 
 		sum[threadIdx.x] = 0;
-		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-			int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-			for (int k = 0; k < batch_normalization.map_size; k++) {
-				sum[threadIdx.x] += (neuron[index + k] - mean[j]) * (neuron[index + k] - mean[j]);
-			}
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			sum[threadIdx.x] += (neuron[k] - mean[j]) * (neuron[k] - mean[j]);
 		}
 		for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
 			__syncthreads();
@@ -231,125 +225,128 @@ __global__ void Activate(Batch_Normalization batch_normalization, int time_index
 		}
 		__syncthreads();
 
-		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-			int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-			for (int k = 0; k < batch_normalization.map_size; k++) {
-				neuron_backup[index + k] = neuron[index + k];
-				neuron_normalized[index + k] = (neuron[index + k] - mean[j]) / standard_deviation;
-				neuron[index + k] = batch_normalization.gamma[j] * neuron_normalized[index + k] + batch_normalization.beta[j];
-			}
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			neuron_backup[k] = neuron[k];
+			neuron_normalized[k] = (neuron[k] - mean[j]) / standard_deviation;
+			neuron[k] = batch_normalization.gamma[j] * neuron_normalized[k] + batch_normalization.beta[j];
 		}
 	}
 	else {
-		float *neuron = &_neuron[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-		float *neuron_backup = &batch_normalization.neuron_backup[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
+		float *neuron = &_neuron[index];
+		float *neuron_backup = &batch_normalization.neuron_backup[index];
 
 		double standard_deviation = sqrt(moving_variance[j] + batch_normalization.epsilon);
 
-		for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-			int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-			for (int k = 0; k < batch_normalization.map_size; k++) {
-				neuron_backup[index + k] = neuron[index + k];
-				neuron[index + k] = batch_normalization.gamma[j] / standard_deviation * neuron[index + k] + (batch_normalization.beta[j] - batch_normalization.gamma[j] * moving_mean[j] / standard_deviation);
-			}
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			neuron_backup[k] = neuron[k];
+			neuron[k] = batch_normalization.gamma[j] / standard_deviation * neuron[k] + (batch_normalization.beta[j] - batch_normalization.gamma[j] * moving_mean[j] / standard_deviation);
 		}
 	}
 }
 __global__ void Activate(Layer layer, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
-		Activate(layer.neuron, (blockIdx.x * layer.time_step + t) * layer.number_nodes + j, layer.activation, layer.number_nodes);
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+			Activate(layer.neuron, (t * layer.number_nodes + j) * layer.batch_size + h, layer.activation, layer.batch_size, layer.number_nodes);
+		}
 	}
 }
 __global__ void Activate(Layer layer, int time_index, Dropout dropout, bool training) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
-		int index = (blockIdx.x * layer.time_step + t) * layer.number_nodes + j;
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+			int index = (t * layer.number_nodes + j) * layer.batch_size + h;
 
-		if (training) {
-			if (dropout.mask[index]) {
-				layer.neuron[index] /= (1 - dropout.rate);
+			if (training) {
+				if (dropout.mask[j * layer.batch_size + h]) {
+					layer.neuron[index] /= (1 - dropout.rate);
+				}
+				else {
+					layer.neuron[index] = 0;
+				}
 			}
-			else {
-				layer.neuron[index] = 0;
-			}
+			Activate(layer.neuron, index, layer.activation, layer.batch_size, layer.number_nodes);
 		}
-		Activate(layer.neuron, index, layer.activation, layer.number_nodes);
 	}
 }
 __global__ void Activate(LSTM lstm, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
-		int index = (blockIdx.x * lstm.time_step + t) * lstm.number_nodes + j;
+	for(int j = blockIdx.x;j < lstm.number_nodes; j += gridDim.x){
+		for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+			int index = (t * lstm.number_nodes + j) * lstm.batch_size + h;
 
-		float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
-		float *input_neuron[] = { lstm.neuron[LSTM::input][0], lstm.neuron[LSTM::input][1] };
-		float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
-		float *cell_neuron[] = { lstm.neuron[LSTM::cell][0], lstm.neuron[LSTM::cell][1] };
-		float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
+			float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
+			float *input_neuron[] = { lstm.neuron[LSTM::input][0], lstm.neuron[LSTM::input][1] };
+			float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
+			float *cell_neuron[] = { lstm.neuron[LSTM::cell][0], lstm.neuron[LSTM::cell][1] };
+			float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
 
-		float *previous_cell_output_neuron = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.neuron[LSTM::cell_output][1][(blockIdx.x * lstm.time_step + t - lstm.direction) * lstm.number_nodes]) : (nullptr);
+			float *previous_cell_output_neuron = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.neuron[LSTM::cell_output][1][((t - lstm.direction) * lstm.number_nodes + j) * lstm.batch_size + h]) : (nullptr);
 
-		forget_neuron[0][index] += (forget_neuron[1][index] + lstm.bias[LSTM::forget][j / lstm.map_size]);
-		input_neuron[0][index] += (input_neuron[1][index] + lstm.bias[LSTM::input][j / lstm.map_size]);
-		output_neuron[0][index] += (output_neuron[1][index] + lstm.bias[LSTM::output][j / lstm.map_size]);
-		cell_neuron[0][index] += (cell_neuron[1][index] + lstm.bias[LSTM::cell][j / lstm.map_size]);
+			forget_neuron[0][index] += (forget_neuron[1][index] + lstm.bias[LSTM::forget][j / lstm.map_size]);
+			input_neuron[0][index] += (input_neuron[1][index] + lstm.bias[LSTM::input][j / lstm.map_size]);
+			output_neuron[0][index] += (output_neuron[1][index] + lstm.bias[LSTM::output][j / lstm.map_size]);
+			cell_neuron[0][index] += (cell_neuron[1][index] + lstm.bias[LSTM::cell][j / lstm.map_size]);
 
-		Activate(forget_neuron[0], index, lstm.recurrent_activation, lstm.number_nodes);
-		Activate(input_neuron[0], index, lstm.recurrent_activation, lstm.number_nodes);
-		Activate(output_neuron[0], index, lstm.recurrent_activation, lstm.number_nodes);
-		Activate(cell_neuron[0], index, lstm.activation, lstm.number_nodes);
+			Activate(forget_neuron[0], index, lstm.recurrent_activation, lstm.batch_size, lstm.number_nodes);
+			Activate(input_neuron[0], index, lstm.recurrent_activation, lstm.batch_size, lstm.number_nodes);
+			Activate(output_neuron[0], index, lstm.recurrent_activation, lstm.batch_size, lstm.number_nodes);
+			Activate(cell_neuron[0], index, lstm.activation, lstm.batch_size, lstm.number_nodes);
 
-		cell_output_neuron[0][index] = (previous_cell_output_neuron) ? (forget_neuron[0][index] * previous_cell_output_neuron[j] + input_neuron[0][index] * cell_neuron[0][index]) : (input_neuron[0][index] * cell_neuron[0][index]);
-		cell_output_neuron[1][index] = cell_output_neuron[0][index];
+			cell_output_neuron[0][index] = (previous_cell_output_neuron) ? (forget_neuron[0][index] * (*previous_cell_output_neuron) + input_neuron[0][index] * cell_neuron[0][index]) : (input_neuron[0][index] * cell_neuron[0][index]);
+			cell_output_neuron[1][index] = cell_output_neuron[0][index];
+		}
 	}
 }
 __global__ void Activate(LSTM lstm, Layer layer, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
-		int index = (blockIdx.x * lstm.time_step + t) * lstm.number_nodes + j;
+	for (int j = blockIdx.x; j < lstm.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+			int index = (t * lstm.number_nodes + j) * lstm.batch_size + h;
 
-		float *output_neuron = lstm.neuron[LSTM::output][0];
-		float *cell_output_neuron = lstm.neuron[LSTM::cell_output][0];
+			float *output_neuron = lstm.neuron[LSTM::output][0];
+			float *cell_output_neuron = lstm.neuron[LSTM::cell_output][0];
 
-		Activate(cell_output_neuron, index, Activation::tanh, lstm.number_nodes);
-		layer.neuron[index] = output_neuron[index] * cell_output_neuron[index];
+			Activate(cell_output_neuron, index, Activation::tanh, lstm.batch_size, lstm.number_nodes);
+			layer.neuron[index] = output_neuron[index] * cell_output_neuron[index];
+		}
 	}
 }
 __global__ void Activate(RNN rnn, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
-		Activate(rnn.neuron[0], (blockIdx.x * rnn.time_step + t) * rnn.number_nodes + j, rnn.activation, rnn.number_nodes);
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+			Activate(rnn.neuron[0], (t * rnn.number_nodes + j) * rnn.batch_size + h, rnn.activation, rnn.batch_size, rnn.number_nodes);
+		}
 	}
 }
 __global__ void Add_Bias(Layer layer, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
-		layer.neuron[(blockIdx.x * layer.time_step + t) * layer.number_nodes + j] += layer.bias[j / layer.map_size];
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
+		float *bias = &layer.bias[j / layer.map_size];
+		float *neuron = &layer.neuron[(t * layer.number_nodes + j) * layer.batch_size];
+
+		for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+			neuron[h] += (*bias);
+		}
 	}
 }
 __global__ void Add_Bias(RNN rnn, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
-		int index = (blockIdx.x * rnn.time_step + t) * rnn.number_nodes + j;
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
+		float *bias = &rnn.bias[j / rnn.map_size];
+		float *neuron[] = { &rnn.neuron[0][(t * rnn.number_nodes + j) * rnn.batch_size], &rnn.neuron[1][(t * rnn.number_nodes + j) * rnn.batch_size] };
 
-		rnn.neuron[0][index] += (rnn.neuron[1][index] + rnn.bias[j / rnn.map_size]);
+		for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+			neuron[0][h] += (neuron[1][h] + (*bias));
+		}
 	}
 }
 __global__ void Adjust_Bias(Layer layer, Optimizer optimizer, int iterations, bool update) {
@@ -358,9 +355,13 @@ __global__ void Adjust_Bias(Layer layer, Optimizer optimizer, int iterations, bo
 	if (j < layer.number_maps) {
 		double sum = 0;
 
-		for (int h = 0; h < layer.batch_size * layer.time_step; h++) {
-			for (int k = 0; k < layer.map_size; k++) {
-				sum += layer.error[h * layer.number_nodes + j * layer.map_size + k];
+		for (int k = 0; k < layer.map_size; k++) {
+			for(int t = 0;t < layer.time_step;t++){
+				float *error = &layer.error[(t * layer.number_nodes + j * layer.map_size + k) * layer.batch_size];
+
+				for (int h = 0; h < layer.batch_size; h++) {
+					sum += error[h];
+				}
 			}
 		}
 		layer.bias[j] += Calculate_Gradient(optimizer, j, sum, iterations, update);
@@ -372,9 +373,13 @@ __global__ void Adjust_Bias(LSTM lstm, Optimizer optimizer, int type, int iterat
 	if (j < lstm.number_maps) {
 		double sum = 0;
 
-		for (int h = 0; h < lstm.batch_size * lstm.time_step; h++) {
-			for (int k = 0; k < lstm.map_size; k++) {
-				sum += lstm.error[type][0][h * lstm.number_nodes + j * lstm.map_size + k];
+		for (int k = 0; k < lstm.map_size; k++) {
+			for (int t = 0; t < lstm.time_step; t++) {
+				float *error = &lstm.error[type][0][(t * lstm.number_nodes + j * lstm.map_size + k) * lstm.batch_size];
+
+				for (int h = 0; h < lstm.batch_size; h++) {
+					sum += error[h];
+				}
 			}
 		}
 		lstm.bias[type][j] += Calculate_Gradient(optimizer, j, sum, iterations, update);
@@ -386,9 +391,13 @@ __global__ void Adjust_Bias(LSTM lstm, Optimizer optimizer, Batch_Normalization 
 	if (j < lstm.number_maps) {
 		double sum = 0;
 
-		for (int h = 0; h < lstm.batch_size * lstm.time_step; h++) {
-			for (int k = 0; k < lstm.map_size; k++) {
-				sum += batch_normalization.error_backup[h * lstm.number_nodes + j * lstm.map_size + k];
+		for (int k = 0; k < lstm.map_size; k++) {
+			for (int t = 0; t < lstm.time_step; t++) {
+				float *error = &batch_normalization.error_backup[(t * lstm.number_nodes + j * lstm.map_size + k) * lstm.batch_size];
+
+				for (int h = 0; h < lstm.batch_size; h++) {
+					sum += error[h];
+				}
 			}
 		}
 		lstm.bias[type][j] += Calculate_Gradient(optimizer, j, sum, iterations, update);
@@ -400,9 +409,13 @@ __global__ void Adjust_Bias(RNN rnn, Optimizer optimizer, int iterations, bool u
 	if (j < rnn.number_maps) {
 		double sum = 0;
 
-		for (int h = 0; h < rnn.batch_size * rnn.time_step; h++) {
-			for (int k = 0; k < rnn.map_size; k++) {
-				sum += rnn.error[0][h * rnn.number_nodes + j * rnn.map_size + k];
+		for (int k = 0; k < rnn.map_size; k++) {
+			for (int t = 0; t < rnn.time_step; t++) {
+				float *error = &rnn.error[0][(t * rnn.number_nodes + j * rnn.map_size + k) * rnn.batch_size];
+
+				for (int h = 0; h < rnn.batch_size; h++) {
+					sum += error[h];
+				}
 			}
 		}
 		rnn.bias[j] += Calculate_Gradient(optimizer, j, sum, iterations, update);
@@ -414,9 +427,13 @@ __global__ void Adjust_Bias(RNN rnn, Optimizer optimizer, Batch_Normalization ba
 	if (j < rnn.number_maps) {
 		double sum = 0;
 
-		for (int h = 0; h < rnn.batch_size * rnn.time_step; h++) {
-			for (int k = 0; k < rnn.map_size; k++) {
-				sum += batch_normalization.error_backup[h * rnn.number_nodes + j * rnn.map_size + k];
+		for (int k = 0; k < rnn.map_size; k++) {
+			for (int t = 0; t < rnn.time_step; t++) {
+				float *error = &batch_normalization.error_backup[(t * rnn.number_nodes + j * rnn.map_size + k) * rnn.batch_size];
+
+				for (int h = 0; h < rnn.batch_size; h++) {
+					sum += error[h];
+				}
 			}
 		}
 		rnn.bias[j] += Calculate_Gradient(optimizer, j, sum, iterations, update);
@@ -425,17 +442,15 @@ __global__ void Adjust_Bias(RNN rnn, Optimizer optimizer, Batch_Normalization ba
 __global__ void Adjust_Parameter(Batch_Normalization batch_normalization, Optimizer gamma_optimizer, Optimizer beta_optimizer, int iterations, bool update) {
 	int j = blockIdx.x;
 
-	float *error_backup = &batch_normalization.error_backup[j * batch_normalization.map_size];
-	float *neuron_normalized = &batch_normalization.neuron_normalized[j * batch_normalization.map_size];
-
 	__shared__ double sum[NUMBER_THREADS];
 
 	sum[threadIdx.x] = 0;
-	for (int h = threadIdx.x; h < batch_normalization.batch_size * batch_normalization.time_step; h += blockDim.x) {
-		int index = h * batch_normalization.number_nodes;
+	for (int t = 0; t < batch_normalization.time_step; t++) {
+		float *error_backup = &batch_normalization.error_backup[(t * batch_normalization.number_nodes + j * batch_normalization.map_size) * batch_normalization.batch_size];
+		float *neuron_normalized = &batch_normalization.neuron_normalized[(t * batch_normalization.number_nodes + j * batch_normalization.map_size) * batch_normalization.batch_size];
 
-		for (int k = 0; k < batch_normalization.map_size; k++) {
-			sum[threadIdx.x] += error_backup[index + k] * neuron_normalized[index + k];
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			sum[threadIdx.x] += error_backup[k] * neuron_normalized[k];
 		}
 	}
 	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
@@ -450,11 +465,11 @@ __global__ void Adjust_Parameter(Batch_Normalization batch_normalization, Optimi
 	}
 
 	sum[threadIdx.x] = 0;
-	for (int h = threadIdx.x; h < batch_normalization.batch_size * batch_normalization.time_step; h += blockDim.x) {
-		int index = h * batch_normalization.number_nodes;
+	for (int t = 0; t < batch_normalization.time_step; t++) {
+		float *error_backup = &batch_normalization.error_backup[(t * batch_normalization.number_nodes + j * batch_normalization.map_size) * batch_normalization.batch_size];
 
-		for (int k = 0; k < batch_normalization.map_size; k++) {
-			sum[threadIdx.x] += error_backup[index + k];
+		for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+			sum[threadIdx.x] += error_backup[k];
 		}
 	}
 	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
@@ -476,12 +491,12 @@ __global__ void Adjust_Weight(Layer layer, Layer parent_layer, Connection connec
 
 		for (int t = 0, j = l / connection.number_weights_per_map, k = ((connection.depthwise) ? (j * layer.number_maps / parent_layer.number_maps) : ((l / connection.kernel_size) % parent_layer.number_maps)), m = l % connection.kernel_size; t < layer.time_step; t++) {
 			for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += layer.time_step) {
-				for (int h = 0; h < layer.batch_size; h++) {
-					float *error = &layer.error[(h * layer.time_step + t) * layer.number_nodes + j * layer.map_size];
-					float *prev_neuron = &parent_layer.neuron[(h * parent_layer.time_step + (*s)) * parent_layer.number_nodes + k * parent_layer.map_size];
+				for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
+					float *error = &layer.error[(t * layer.number_nodes + j * layer.map_size + index->next_node) * layer.batch_size];
+					float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + k * parent_layer.map_size + index->prev_node) * parent_layer.batch_size];
 
-					for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
-						sum += error[index->next_node] * prev_neuron[index->prev_node];
+					for (int h = 0; h < layer.batch_size; h++) {
+						sum += error[h] * prev_neuron[h];
 					}
 				}
 			}
@@ -496,13 +511,15 @@ __global__ void Adjust_Weight(LSTM lstm, Layer layer, Connection connection, Opt
 		double sum = 0;
 
 		if (recurrent) {
-			for (int h = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % lstm.number_maps, m = l % connection.kernel_size; h < lstm.batch_size * lstm.time_step; h++) {
-				if ((lstm.direction == 1 && h % lstm.time_step > 0) || (lstm.direction == -1 && h % lstm.time_step < lstm.time_step - 1)) {
-					float *error = &lstm.error[connection.type][1][h * lstm.number_nodes + j * lstm.map_size];
-					float *neuron = &layer.neuron[(h - lstm.direction) * lstm.number_nodes + k * layer.map_size];
-
+			for (int t = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % lstm.number_maps, m = l % connection.kernel_size; t < lstm.time_step; t++) {
+				if ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) {
 					for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
-						sum += error[index->next_node] * neuron[index->prev_node];
+						float *error = &lstm.error[connection.type][1][(t * lstm.number_nodes + j * lstm.map_size + index->next_node) * lstm.batch_size];
+						float *prev_neuron = &layer.neuron[((t - lstm.direction) * layer.number_nodes + k * layer.map_size + index->prev_node) * layer.batch_size];
+
+						for (int h = 0; h < lstm.batch_size; h++) {
+							sum += error[h] * prev_neuron[h];
+						}
 					}
 				}
 			}
@@ -510,12 +527,12 @@ __global__ void Adjust_Weight(LSTM lstm, Layer layer, Connection connection, Opt
 		else {
 			for (int t = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % layer.number_maps, m = l % connection.kernel_size; t < lstm.time_step; t++) {
 				for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += lstm.time_step) {
-					for (int h = 0; h < lstm.batch_size; h++) {
-						float *error = &lstm.error[connection.type][0][(h * lstm.time_step + t) * lstm.number_nodes + j * lstm.map_size];
-						float *neuron = &layer.neuron[(h * layer.time_step + (*s)) * layer.number_nodes + k * lstm.map_size];
+					for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
+						float *error = &lstm.error[connection.type][0][(t * lstm.number_nodes + j * lstm.map_size + index->next_node) * lstm.batch_size];
+						float *prev_neuron = &layer.neuron[((*s) * layer.number_nodes + k * layer.map_size + index->prev_node) * layer.batch_size];
 
-						for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
-							sum += error[index->next_node] * neuron[index->prev_node];
+						for (int h = 0; h < lstm.batch_size; h++) {
+							sum += error[h] * prev_neuron[h];
 						}
 					}
 				}
@@ -530,13 +547,15 @@ __global__ void Adjust_Weight(RNN rnn, Connection connection, Optimizer optimize
 	if (l < connection.number_weights) {
 		double sum = 0;
 
-		for (int h = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % rnn.number_maps, m = l % connection.kernel_size; h < rnn.batch_size * rnn.time_step; h++) {
-			if ((rnn.direction == 1 && h % rnn.time_step > 0) || (rnn.direction == -1 && h % rnn.time_step < rnn.time_step - 1)) {
-				float *error = &rnn.error[1][h * rnn.number_nodes + j * rnn.map_size];
-				float *neuron = &rnn.neuron[0][(h - rnn.direction) * rnn.number_nodes + k * rnn.map_size];
-
+		for (int t = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % rnn.number_maps, m = l % connection.kernel_size; t < rnn.time_step; t++) {
+			if ((rnn.direction == 1 && t > 0) || (rnn.direction == -1 && t < rnn.time_step - 1)) {
 				for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
-					sum += error[index->next_node] * neuron[index->prev_node];
+					float *error = &rnn.error[1][(t * rnn.number_nodes + j * rnn.map_size + index->next_node) * rnn.batch_size];
+					float *prev_neuron = &rnn.neuron[0][((t - rnn.direction) * rnn.number_nodes + k * rnn.map_size + index->prev_node) * rnn.batch_size];
+
+					for (int h = 0; h < rnn.batch_size; h++) {
+						sum += error[h] * prev_neuron[h];
+					}
 				}
 			}
 		}
@@ -551,12 +570,12 @@ __global__ void Adjust_Weight(RNN rnn, Layer parent_layer, Connection connection
 
 		for (int t = 0, j = l / connection.number_weights_per_map, k = (l / connection.kernel_size) % parent_layer.number_maps, m = l % connection.kernel_size; t < rnn.time_step; t++) {
 			for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += rnn.time_step) {
-				for (int h = 0; h < rnn.batch_size; h++) {
-					float *error = &rnn.error[0][(h * rnn.time_step + t) * rnn.number_nodes + j * rnn.map_size];
-					float *neuron = &parent_layer.neuron[(h * parent_layer.time_step + (*s)) * parent_layer.number_nodes + k * parent_layer.map_size];
+				for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
+					float *error = &rnn.error[0][(t * rnn.number_nodes + j * rnn.map_size + index->next_node) * rnn.batch_size];
+					float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + k * parent_layer.map_size + index->prev_node) * parent_layer.batch_size];
 
-					for (Index *index = &connection.from_weight_device[m]; index->weight != -1; index += connection.kernel_size) {
-						sum += error[index->next_node] * neuron[index->prev_node];
+					for (int h = 0; h < parent_layer.batch_size; h++) {
+						sum += error[h] * prev_neuron[h];
 					}
 				}
 			}
@@ -565,128 +584,134 @@ __global__ void Adjust_Weight(RNN rnn, Layer parent_layer, Connection connection
 	}
 }
 __global__ void Backward(Layer layer, Layer parent_layer, Connection connection, int time_index, int type) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < parent_layer.number_nodes) {
+	for (int j = blockIdx.x; j < parent_layer.number_nodes; j += gridDim.x) {
 		for (int *s = &connection.time_connection_device[0][t], k = j / parent_layer.map_size, l = j % parent_layer.map_size; *s != -1; s += layer.time_step) {
-			float *error = &layer.error[(blockIdx.x * layer.time_step + t) * layer.number_nodes];
-			float *prev_error = &parent_layer.error[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
-
-			double sum = 0;
-
 			if (type == 0) { // average-pooling
-				int offset = k * layer.map_size;
+				float *prev_error = &parent_layer.error[((*s) * parent_layer.number_nodes + j) * parent_layer.batch_size];
 
 				for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += parent_layer.map_size) {
-					sum += error[offset + index->next_node] / connection.from_neuron_device[index->next_node].weight;
-				}
-				prev_error[j] += sum;
-			}
-			else if (type == 1) { // max-pooling
-				int offset = k * layer.map_size;
+					float *error = &layer.error[(t * layer.number_nodes + k * layer.map_size + index->next_node) * layer.batch_size];
 
-				float *neuron = &layer.neuron[(blockIdx.x * layer.time_step + t) * layer.number_nodes + offset];
-				float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
-
-				for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += parent_layer.map_size) {
-					if (prev_neuron[j] == neuron[index->next_node]) {
-						sum += error[offset + index->next_node];
+					for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+						prev_error[h] += error[h] / connection.from_neuron_device[index->next_node].weight;
 					}
 				}
-				prev_error[j] += sum;
+			}
+			else if (type == 1) { // max-pooling
+				float *prev_error = &parent_layer.error[((*s) * parent_layer.number_nodes + j) * parent_layer.batch_size];
+				float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + j) * parent_layer.batch_size];
+
+				for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += parent_layer.map_size) {
+					float *error = &layer.error[(t * layer.number_nodes + k * layer.map_size + index->next_node) * layer.batch_size];
+					float *neuron = &layer.neuron[(t * layer.number_nodes + k * layer.map_size + index->next_node) * layer.batch_size];
+
+					for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+						if (prev_neuron[h] == neuron[h]) {
+							prev_error[h] += error[h];
+						}
+					}
+				}
 			}
 			else if (type == 2) {
+				float *prev_error = &parent_layer.error[((*s) * parent_layer.number_nodes + j) * parent_layer.batch_size];
+
 				for (int *m = &connection.channel_connection_device[1][k]; *m != -1; m += parent_layer.number_maps) {
 					int offset[] = { (*m) * layer.map_size, (*m) * connection.number_weights_per_map + ((connection.depthwise) ? (0) : (k * connection.kernel_size)) };
 
 					for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += parent_layer.map_size) {
-						sum += error[offset[0] + index->next_node] * connection.weight[offset[1] + index->weight];
+						float *error = &layer.error[(t * layer.number_nodes + offset[0] + index->next_node) * layer.batch_size];
+						float *weight = &connection.weight[offset[1] + index->weight];
+
+						for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+							prev_error[h] += error[h] * (*weight);
+						}
 					}
 				}
-				prev_error[j] += sum;
 			}
 		}
 	}
 }
 __global__ void Backward(LSTM lstm, Layer layer, Connection connection, int time_index, bool recurrent = false) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if ((recurrent && j < lstm.number_nodes) || j < layer.number_nodes) {
+	for (int j = blockIdx.x; (recurrent && j < lstm.number_nodes) || j < layer.number_nodes;j += gridDim.x) {
 		if (recurrent) {
-			float *error = &lstm.error[connection.type][1][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-			float *prev_error = &layer.error[(blockIdx.x * lstm.time_step + t - lstm.direction) * lstm.number_nodes];
-
-			double sum = 0;
+			float *prev_error = &layer.error[((t - lstm.direction) * lstm.number_nodes + j) * lstm.batch_size];
 
 			for (int k = j / lstm.map_size, l = j % lstm.map_size, *m = &connection.channel_connection_device[1][k]; *m != -1; m += lstm.number_maps) {
 				int offset[] = { (*m) * lstm.map_size, (*m) * connection.number_weights_per_map + k * connection.kernel_size };
 
 				for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += lstm.map_size) {
-					sum += error[offset[0] + index->next_node] * connection.weight[offset[1] + index->weight];
+					float *error = &lstm.error[connection.type][1][(t * lstm.number_nodes + offset[0] + index->next_node) * lstm.batch_size];
+					float *weight = &connection.weight[offset[1] + index->weight];
+
+					for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+						prev_error[h] += error[h] * (*weight);
+					}
 				}
 			}
-			prev_error[j] += sum;
 		}
 		else {
 			for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += lstm.time_step) {
-				float *error = &lstm.error[connection.type][0][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-				float *prev_error = &layer.error[(blockIdx.x * layer.time_step + (*s)) * layer.number_nodes];
-
-				double sum = 0;
+				float *prev_error = &layer.error[((*s) * layer.number_nodes + j) * layer.batch_size];
 
 				for (int k = j / layer.map_size, l = j % layer.map_size, *m = &connection.channel_connection_device[1][k]; *m != -1; m += layer.number_maps) {
 					int offset[] = { (*m) * lstm.map_size, (*m) * connection.number_weights_per_map + k * connection.kernel_size };
 
 					for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += layer.map_size) {
-						sum += error[offset[0] + index->next_node] * connection.weight[offset[1] + index->weight];
+						float *error = &lstm.error[connection.type][0][(t * lstm.number_nodes + offset[0] + index->next_node) * lstm.batch_size];
+						float *weight = &connection.weight[offset[1] + index->weight];
+
+						for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+							prev_error[h] += error[h] * (*weight);
+						}
 					}
 				}
-				prev_error[j] += sum;
 			}
 		}
 	}
 }
 __global__ void Backward(RNN rnn, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
-		float *error = &rnn.error[1][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-		float *prev_error = &rnn.error[0][(blockIdx.x * rnn.time_step + t - rnn.direction) * rnn.number_nodes];
-
-		double sum = 0;
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
+		float *prev_error = &rnn.error[0][((t - rnn.direction) * rnn.number_nodes + j) * rnn.batch_size];
 
 		for (int k = j / rnn.map_size, l = j % rnn.map_size, *m = &connection.channel_connection_device[1][k]; *m != -1; m += rnn.number_maps) {
 			int offset[] = { (*m) * rnn.map_size, (*m) * connection.number_weights_per_map + k * connection.kernel_size };
 
 			for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += rnn.map_size) {
-				sum += error[offset[0] + index->next_node] * connection.weight[offset[1] + index->weight];
+				float *error = &rnn.error[1][(t * rnn.number_nodes + offset[0] + index->next_node) * rnn.batch_size];
+				float *weight = &connection.weight[offset[1] + index->weight];
+
+				for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+					prev_error[h] += error[h] * (*weight);
+				}
 			}
 		}
-		prev_error[j] += sum;
 	}
 }
 __global__ void Backward(RNN rnn, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < parent_layer.number_nodes) {
+	for (int j = blockIdx.x; j < parent_layer.number_nodes; j += gridDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += rnn.time_step) {
-			float *error = &rnn.error[0][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-			float *prev_error = &parent_layer.error[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
-
-			double sum = 0;
+			float *prev_error = &parent_layer.error[((*s) * parent_layer.number_nodes + j) * parent_layer.batch_size];
 
 			for (int k = j / parent_layer.map_size, l = j % parent_layer.map_size, *m = &connection.channel_connection_device[1][k]; *m != -1; m += parent_layer.number_maps) {
 				int offset[] = { (*m) * rnn.map_size, (*m) * connection.number_weights_per_map + k * connection.kernel_size };
 
 				for (Index *index = &connection.from_error_device[l]; index->weight != -1; index += parent_layer.map_size) {
-					sum += error[offset[0] + index->next_node] * connection.weight[offset[1] + index->weight];
+					float *error = &rnn.error[0][(t * rnn.number_nodes + offset[0] + index->next_node) * rnn.batch_size];
+					float *weight = &connection.weight[offset[1] + index->weight];
+
+					for (int h = threadIdx.x; h < parent_layer.batch_size; h += blockDim.x) {
+						prev_error[h] += error[h] * (*weight);
+					}
 				}
 			}
-			prev_error[j] += sum;
 		}
 	}
 }
@@ -696,7 +721,7 @@ __global__ void Calculate_Loss(Layer layer, bool time_mask[], int loss, float y_
 	sum[threadIdx.x] = 0;
 
 	for (int j = threadIdx.x; j < layer.batch_size * layer.time_step * layer.number_nodes; j += blockDim.x) {
-		if (time_mask == nullptr || time_mask[(j / layer.number_nodes) % layer.time_step]) {
+		if (time_mask == nullptr || time_mask[(j / (layer.number_nodes * layer.batch_size)) % layer.time_step]) {
 			if (loss == Loss::cross_entropy) {
 				if (layer.activation == Activation::sigmoid) {
 					sum[threadIdx.x] -= (y_data[j] * log(layer.neuron[j] + 0.00000001) + (1 - y_data[j]) * log(1.00000001 - layer.neuron[j])) / layer.number_nodes;
@@ -728,78 +753,72 @@ __global__ void Calculate_Loss(Layer layer, bool time_mask[], int loss, float y_
 	}
 }
 __global__ void Copy_Backward(Layer layer, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < parent_layer.number_nodes * parent_layer.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += layer.time_step) {
-			float *error = &layer.error[(blockIdx.x * layer.time_step + t) * layer.number_nodes];
-			float *prev_error = &parent_layer.error[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *error = &layer.error[t * layer.number_nodes * layer.batch_size];
+			float *prev_error = &parent_layer.error[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			prev_error[j] = error[j];
 		}
 	}
 }
 __global__ void Copy_Backward(LSTM lstm, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < parent_layer.number_nodes * parent_layer.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += lstm.time_step) {
-			float *error = &lstm.error[connection.type][0][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-			float *prev_error = &parent_layer.error[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *error = &lstm.error[connection.type][0][t * lstm.number_nodes * lstm.batch_size];
+			float *prev_error = &parent_layer.error[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			prev_error[j] = error[j];
 		}
 	}
 }
 __global__ void Copy_Backward(RNN rnn, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < parent_layer.number_nodes * parent_layer.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += rnn.time_step) {
-			float *error = &rnn.error[0][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-			float *prev_error = &parent_layer.error[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *error = &rnn.error[0][t * rnn.number_nodes * rnn.batch_size];
+			float *prev_error = &parent_layer.error[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			prev_error[j] = error[j];
 		}
 	}
 }
 __global__ void Copy_Forward(Layer layer, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < layer.number_nodes * layer.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += layer.time_step) {
-			float *neuron = &layer.neuron[(blockIdx.x * layer.time_step + t) * layer.number_nodes];
-			float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *neuron = &layer.neuron[t * layer.number_nodes * layer.batch_size];
+			float *prev_neuron = &parent_layer.neuron[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			neuron[j] = prev_neuron[j];
 		}
 	}
 }
 __global__ void Copy_Forward(LSTM lstm, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < lstm.number_nodes * lstm.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += lstm.time_step) {
-			float *neuron = &lstm.neuron[connection.type][0][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-			float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *neuron = &lstm.neuron[connection.type][0][t * lstm.number_nodes * lstm.batch_size];
+			float *prev_neuron = &parent_layer.neuron[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			neuron[j] = prev_neuron[j];
 		}
 	}
 }
 __global__ void Copy_Forward(RNN rnn, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
+	for (int j = blockIdx.x * blockDim.x + threadIdx.x; j < rnn.number_nodes * rnn.batch_size; j += gridDim.x * blockDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += rnn.time_step) {
-			float *neuron = &rnn.neuron[0][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-			float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
+			float *neuron = &rnn.neuron[0][t * rnn.number_nodes * rnn.batch_size];
+			float *prev_neuron = &parent_layer.neuron[(*s) * parent_layer.number_nodes * parent_layer.batch_size];
 
 			neuron[j] = prev_neuron[j];
 		}
@@ -809,13 +828,15 @@ __global__ void Differentiate(Batch_Normalization batch_normalization, int time_
 	int j = blockIdx.x;
 	int t = time_index;
 
+	int index = (t * batch_normalization.number_nodes + j * batch_normalization.map_size) * batch_normalization.batch_size;
+
 	float *mean = &batch_normalization.mean[t * batch_normalization.number_maps];
 	float *variance = &batch_normalization.variance[t * batch_normalization.number_maps];
 
-	float *error = &_error[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-	float *error_backup = &batch_normalization.error_backup[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-	float *error_normalized = &batch_normalization.error_normalized[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
-	float *neuron_backup = &batch_normalization.neuron_backup[t * batch_normalization.number_nodes + j * batch_normalization.map_size];
+	float *error = &_error[index];
+	float *error_backup = &batch_normalization.error_backup[index];
+	float *error_normalized = &batch_normalization.error_normalized[index];
+	float *neuron_backup = &batch_normalization.neuron_backup[index];
 
 	double standard_deviation = sqrt(variance[j] + batch_normalization.epsilon);
 
@@ -824,13 +845,9 @@ __global__ void Differentiate(Batch_Normalization batch_normalization, int time_
 	__shared__ double sum[2][NUMBER_THREADS];
 
 	sum[0][threadIdx.x] = 0;
-	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-		int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-		for (int k = 0; k < batch_normalization.map_size; k++) {
-			error_normalized[index + k] = error[index + k] * batch_normalization.gamma[j];
-			sum[0][threadIdx.x] += error_normalized[index + k] * (neuron_backup[index + k] - mean[j]);
-		}
+	for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+		error_normalized[k] = error[k] * batch_normalization.gamma[j];
+		sum[0][threadIdx.x] += error_normalized[k] * (neuron_backup[k] - mean[j]);
 	}
 	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
 		__syncthreads();
@@ -845,13 +862,9 @@ __global__ void Differentiate(Batch_Normalization batch_normalization, int time_
 
 	sum[0][threadIdx.x] = 0;
 	sum[1][threadIdx.x] = 0;
-	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-		int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-		for (int k = 0; k < batch_normalization.map_size; k++) {
-			sum[0][threadIdx.x] += error_normalized[index + k];
-			sum[1][threadIdx.x] += (neuron_backup[index + k] - mean[j]);
-		}
+	for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+		sum[0][threadIdx.x] += error_normalized[k];
+		sum[1][threadIdx.x] += (neuron_backup[k] - mean[j]);
 	}
 	for (int h = (blockDim.x >> 1); h; h = (h >> 1)) {
 		__syncthreads();
@@ -866,222 +879,228 @@ __global__ void Differentiate(Batch_Normalization batch_normalization, int time_
 	}
 	__syncthreads();
 
-	for (int h = threadIdx.x; h < batch_normalization.batch_size; h += blockDim.x) {
-		int index = h * batch_normalization.time_step * batch_normalization.number_nodes;
-
-		for (int k = 0; k < batch_normalization.map_size; k++) {
-			error_backup[index + k] = error[index + k];
-			error[index + k] = error_normalized[index + k] / standard_deviation + error_variance * 2 * (neuron_backup[index + k] - mean[j]) / (batch_normalization.batch_size * batch_normalization.map_size) + error_mean / (batch_normalization.batch_size * batch_normalization.map_size);
-		}
+	for (int k = threadIdx.x; k < batch_normalization.map_size * batch_normalization.batch_size; k += blockDim.x) {
+		error_backup[k] = error[k];
+		error[k] = error_normalized[k] / standard_deviation + error_variance * 2 * (neuron_backup[k] - mean[j]) / (batch_normalization.batch_size * batch_normalization.map_size) + error_mean / (batch_normalization.batch_size * batch_normalization.map_size);
 	}
 }
 __global__ void Differentiate(Layer layer, int time_index, int loss = -1, float y_data[] = nullptr) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
+	int t = time_index;
 
-	if (j < layer.number_nodes) {
-		Differentiate(layer.error, layer.neuron, (blockIdx.x * layer.time_step + time_index) * layer.number_nodes + j, layer.activation, layer.batch_size, layer.number_nodes, 1, loss, (loss != -1), y_data);
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+			Differentiate(layer.error, layer.neuron, (t * layer.number_nodes + j) * layer.batch_size + h, layer.activation, layer.batch_size, layer.number_nodes, 1, loss, (loss != -1), y_data);
+		}
 	}
 }
 __global__ void Differentiate(Layer layer, Dropout dropout, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
+	int t = time_index;
 
-	if (j < layer.number_nodes) {
-		int index = (blockIdx.x * layer.time_step + time_index) * layer.number_nodes + j;
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < layer.batch_size; h += blockDim.x) {
+			int index = (t * layer.number_nodes + j) * layer.batch_size + h;
 
-		if (dropout.mask[index]) {
-			Differentiate(layer.error, layer.neuron, index, layer.activation, layer.batch_size, layer.number_nodes, 1 - dropout.rate);
-			layer.error[index] /= (1 - dropout.rate);
-		}
-		else {
-			layer.error[index] = 0;
+			if (dropout.mask[j * layer.batch_size + h]) {
+				Differentiate(layer.error, layer.neuron, index, layer.activation, layer.batch_size, layer.number_nodes, 1 - dropout.rate);
+				layer.error[index] /= (1 - dropout.rate);
+			}
+			else {
+				layer.error[index] = 0;
+			}
 		}
 	}
 }
 __global__ void DIfferentiate(LSTM lstm, Layer layer, int time_index, int type) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
-		int index = (blockIdx.x * lstm.time_step + t) * lstm.number_nodes + j;
+	for(int j = blockIdx.x;j < lstm.number_nodes; j+= gridDim.x){
+		for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+			int index = (t * lstm.number_nodes + j) * lstm.batch_size + h;
 
-		if (type == 0) {
-			float *error = layer.error;
-			float *cell_output_error[] = { lstm.error[LSTM::cell_output][0], lstm.error[LSTM::cell_output][1] };
-			float *previous_cell_output_error = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.error[LSTM::cell_output][0][(blockIdx.x * lstm.time_step + t - lstm.direction) * lstm.number_nodes]) : (nullptr);
+			if (type == 0) {
+				float *error = layer.error;
+				float *cell_output_error[] = { lstm.error[LSTM::cell_output][0], lstm.error[LSTM::cell_output][1] };
+				float *previous_cell_output_error = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.error[LSTM::cell_output][0][((t - lstm.direction) * lstm.number_nodes + j) * lstm.batch_size + h]) : (nullptr);
 
-			float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
-			float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
-			float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
+				float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
+				float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
+				float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
 
-			cell_output_error[0][index] += error[index] * output_neuron[0][index] * Derivation(cell_output_neuron[0][index], Activation::tanh);
+				cell_output_error[0][index] += error[index] * output_neuron[0][index] * Derivation(cell_output_neuron[0][index], Activation::tanh);
 
-			if (previous_cell_output_error) {
-				previous_cell_output_error[j] = forget_neuron[0][index] * cell_output_error[0][index];
+				if (previous_cell_output_error) {
+					(*previous_cell_output_error) = forget_neuron[0][index] * cell_output_error[0][index];
+				}
 			}
-		}
-		else {
-			float *error = layer.error;
-			float *forget_error[] = { lstm.error[LSTM::forget][0], lstm.error[LSTM::forget][1] };
-			float *input_error[] = { lstm.error[LSTM::input][0], lstm.error[LSTM::input][1] };
-			float *output_error[] = { lstm.error[LSTM::output][0], lstm.error[LSTM::output][1] };
-			float *cell_error[] = { lstm.error[LSTM::cell][0], lstm.error[LSTM::cell][1] };
-			float *cell_output_error[] = { lstm.error[LSTM::cell_output][0], lstm.error[LSTM::cell_output][1] };
+			else {
+				float *error = layer.error;
+				float *forget_error[] = { lstm.error[LSTM::forget][0], lstm.error[LSTM::forget][1] };
+				float *input_error[] = { lstm.error[LSTM::input][0], lstm.error[LSTM::input][1] };
+				float *output_error[] = { lstm.error[LSTM::output][0], lstm.error[LSTM::output][1] };
+				float *cell_error[] = { lstm.error[LSTM::cell][0], lstm.error[LSTM::cell][1] };
+				float *cell_output_error[] = { lstm.error[LSTM::cell_output][0], lstm.error[LSTM::cell_output][1] };
 
-			float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
-			float *input_neuron[] = { lstm.neuron[LSTM::input][0], lstm.neuron[LSTM::input][1] };
-			float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
-			float *cell_neuron[] = { lstm.neuron[LSTM::cell][0], lstm.neuron[LSTM::cell][1] };
-			float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
+				float *forget_neuron[] = { lstm.neuron[LSTM::forget][0], lstm.neuron[LSTM::forget][1] };
+				float *input_neuron[] = { lstm.neuron[LSTM::input][0], lstm.neuron[LSTM::input][1] };
+				float *output_neuron[] = { lstm.neuron[LSTM::output][0], lstm.neuron[LSTM::output][1] };
+				float *cell_neuron[] = { lstm.neuron[LSTM::cell][0], lstm.neuron[LSTM::cell][1] };
+				float *cell_output_neuron[] = { lstm.neuron[LSTM::cell_output][0], lstm.neuron[LSTM::cell_output][1] };
 
-			float *previous_cell_output_neuron = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.neuron[LSTM::cell_output][1][(blockIdx.x * lstm.time_step + t - lstm.direction) * lstm.number_nodes]) : (nullptr);
+				float *previous_cell_output_neuron = ((lstm.direction == 1 && t > 0) || (lstm.direction == -1 && t < lstm.time_step - 1)) ? (&lstm.neuron[LSTM::cell_output][1][((t - lstm.direction) * lstm.number_nodes + j) * lstm.batch_size + h]) : (nullptr);
 
-			forget_error[0][index] = (previous_cell_output_neuron) ? (cell_output_error[0][index] * previous_cell_output_neuron[j] * Derivation(forget_neuron[0][index], lstm.recurrent_activation)) : (0);
-			forget_error[1][index] = forget_error[0][index];
+				forget_error[0][index] = (previous_cell_output_neuron) ? (cell_output_error[0][index] * (*previous_cell_output_neuron) * Derivation(forget_neuron[0][index], lstm.recurrent_activation)) : (0);
+				forget_error[1][index] = forget_error[0][index];
 
-			input_error[0][index] = cell_output_error[0][index] * cell_neuron[0][index] * Derivation(input_neuron[0][index], lstm.recurrent_activation);
-			input_error[1][index] = input_error[0][index];
+				input_error[0][index] = cell_output_error[0][index] * cell_neuron[0][index] * Derivation(input_neuron[0][index], lstm.recurrent_activation);
+				input_error[1][index] = input_error[0][index];
 
-			output_error[0][index] = error[index] * cell_output_neuron[0][index] * Derivation(output_neuron[0][index], lstm.recurrent_activation);
-			output_error[1][index] = output_error[0][index];
+				output_error[0][index] = error[index] * cell_output_neuron[0][index] * Derivation(output_neuron[0][index], lstm.recurrent_activation);
+				output_error[1][index] = output_error[0][index];
 
-			cell_error[0][index] = cell_output_error[0][index] * input_neuron[0][index] * Derivation(cell_neuron[0][index], lstm.activation);
-			cell_error[1][index] = cell_error[0][index];
+				cell_error[0][index] = cell_output_error[0][index] * input_neuron[0][index] * Derivation(cell_neuron[0][index], lstm.activation);
+				cell_error[1][index] = cell_error[0][index];
+			}
 		}
 	}
 }
 __global__ void Differentiate(RNN rnn, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
+	int t = time_index;
 
-	if (j < rnn.number_nodes) {
-		int index = (blockIdx.x * rnn.time_step + time_index) * rnn.number_nodes + j;
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
+		for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+			int index = (t * rnn.number_nodes + j) * rnn.batch_size + h;
 
-		Differentiate(rnn.error[0], rnn.neuron[0], index, rnn.activation, rnn.batch_size, rnn.number_nodes);
-		rnn.error[1][index] = rnn.error[0][index];
+			Differentiate(rnn.error[0], rnn.neuron[0], index, rnn.activation, rnn.batch_size, rnn.number_nodes);
+			rnn.error[1][index] = rnn.error[0][index];
+		}
 	}
 }
 __global__ void Forward(Layer layer, Layer parent_layer, Connection connection, int time_index, int type) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < layer.number_nodes) {
+	for (int j = blockIdx.x; j < layer.number_nodes; j += gridDim.x) {
 		for (int *s = &connection.time_connection_device[0][t], k = j / layer.map_size, l = j % layer.map_size; *s != -1; s += layer.time_step) {
-			float *neuron = &layer.neuron[(blockIdx.x * layer.time_step + t) * layer.number_nodes];
-			float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
-
-			double sum = 0;
+			float *neuron = &layer.neuron[(t * layer.number_nodes + j) * layer.batch_size];
 
 			if (type == 0) { // average-pooling
-				int number_connections = 0;
-				int offset = k * parent_layer.map_size;
-
-				double sum = 0;
-
-				for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += layer.map_size, number_connections++) {
-					sum += prev_neuron[offset + index->prev_node];
-				}
-				neuron[j] += sum / number_connections;
-			}
-			else if (type == 1) { // max-pooling
-				int offset = k * parent_layer.map_size;
-
 				for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += layer.map_size) {
-					if (index == &connection.from_neuron_device[l] || sum < prev_neuron[offset + index->prev_node]) {
-						sum = prev_neuron[offset + index->prev_node];
+					float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + k * parent_layer.map_size + index->prev_node) * parent_layer.batch_size];
+
+					for (int h = threadIdx.x; h < parent_layer.batch_size; h += blockDim.x) {
+						neuron[h] += prev_neuron[h] / index->weight;
 					}
 				}
-				neuron[j] += sum;
+			}
+			else if (type == 1) { // max-pooling
+				for (int h = threadIdx.x; h < parent_layer.batch_size; h += blockDim.x) {
+					float max;
+
+					for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += layer.map_size) {
+						float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + k * parent_layer.map_size + index->prev_node) * parent_layer.batch_size];
+
+						if (index == &connection.from_neuron_device[l] || max < prev_neuron[h]) {
+							max = prev_neuron[h];
+						}
+					}
+					neuron[h] = max;
+				}
 			}
 			else if (type == 2) {
 				for (int *m = &connection.channel_connection_device[0][k]; *m != -1; m += layer.number_maps) {
 					int offset[] = { (*m) * parent_layer.map_size, k * connection.number_weights_per_map + ((connection.depthwise) ? (0) : ((*m) * connection.kernel_size)) };
 
 					for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += layer.map_size) {
-						sum += prev_neuron[offset[0] + index->prev_node] * connection.weight[offset[1] + index->weight];
+						float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + offset[0] + index->prev_node) * parent_layer.batch_size];
+						float *weight = &connection.weight[offset[1] + index->weight];
+
+						for (int h = threadIdx.x; h < parent_layer.batch_size; h += blockDim.x) {
+							neuron[h] += prev_neuron[h] * (*weight);
+						}
 					}
 				}
-				neuron[j] += sum;
 			}
 		}
 	}
 }
 __global__ void Forward(LSTM lstm, Layer layer, Connection connection, int time_index, bool recurrent = false) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < lstm.number_nodes) {
+	for (int j = blockIdx.x; j < lstm.number_nodes; j += gridDim.x) {
 		if (recurrent) {
-			float *neuron = &lstm.neuron[connection.type][1][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-			float *prev_neuron = &layer.neuron[(blockIdx.x * lstm.time_step + t - lstm.direction) * lstm.number_nodes];
-
-			double sum = 0;
+			float *neuron = &lstm.neuron[connection.type][1][(t * lstm.number_nodes + j) * lstm.batch_size];
 
 			for (int k = j / lstm.map_size, l = j % lstm.map_size, *m = &connection.channel_connection_device[0][k]; *m != -1; m += lstm.number_maps) {
 				int offset[] = { (*m) * lstm.map_size, k * connection.number_weights_per_map + (*m) * connection.kernel_size };
 
 				for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += lstm.map_size) {
-					sum += prev_neuron[offset[0] + index->prev_node] * connection.weight[offset[1] + index->weight];
+					float *prev_neuron = &layer.neuron[((t - lstm.direction) * layer.number_nodes + offset[0] + index->prev_node) * layer.batch_size];
+					float *weight = &connection.weight[offset[1] + index->weight];
+					
+					for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+						neuron[h] += prev_neuron[h] * (*weight);
+					}
 				}
 			}
-			neuron[j] += sum;
 		}
 		else {
 			for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += lstm.time_step) {
-				float *neuron = &lstm.neuron[connection.type][0][(blockIdx.x * lstm.time_step + t) * lstm.number_nodes];
-				float *prev_neuron = &layer.neuron[(blockIdx.x * layer.time_step + (*s)) * layer.number_nodes];
-
-				double sum = 0;
+				float *neuron = &lstm.neuron[connection.type][0][(t * lstm.number_nodes + j) * lstm.batch_size];
 
 				for (int k = j / lstm.map_size, l = j % lstm.map_size, *m = &connection.channel_connection_device[0][k]; *m != -1; m += lstm.number_maps) {
 					int offset[] = { (*m) * layer.map_size, k * connection.number_weights_per_map + (*m) * connection.kernel_size };
 
 					for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += lstm.map_size) {
-						sum += prev_neuron[offset[0] + index->prev_node] * connection.weight[offset[1] + index->weight];
+						float *prev_neuron = &layer.neuron[((*s) * layer.number_nodes + offset[0] + index->prev_node) * layer.batch_size];
+						float *weight = &connection.weight[offset[1] + index->weight];
+
+						for (int h = threadIdx.x; h < lstm.batch_size; h += blockDim.x) {
+							neuron[h] += prev_neuron[h] * (*weight);
+						}
 					}
 				}
-				neuron[j] += sum;
 			}
 		}
 	}
 }
 __global__ void Forward(RNN rnn, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
-		float *neuron = &rnn.neuron[1][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-		float *prev_neuron = &rnn.neuron[0][(blockIdx.x * rnn.time_step + t - rnn.direction) * rnn.number_nodes];
-
-		double sum = 0;
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
+		float *neuron = &rnn.neuron[1][(t * rnn.number_nodes + j) * rnn.batch_size];
 
 		for (int k = j / rnn.map_size, l = j % rnn.map_size, *m = &connection.channel_connection_device[0][k]; *m != -1; m += rnn.number_maps) {
 			int offset[] = { (*m) * rnn.map_size, k * connection.number_weights_per_map + (*m) * connection.kernel_size };
 
 			for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += rnn.map_size) {
-				sum += prev_neuron[offset[0] + index->prev_node] * connection.weight[offset[1] + index->weight];
+				float *prev_neuron = &rnn.neuron[0][((t - rnn.direction) * rnn.number_nodes + offset[0] + index->prev_node) * rnn.batch_size];
+				float *weight = &connection.weight[offset[1] + index->weight];
+
+				for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+					neuron[h] += prev_neuron[h] * (*weight);
+				}
 			}
 		}
-		neuron[j] += sum;
 	}
 }
 __global__ void Forward(RNN rnn, Layer parent_layer, Connection connection, int time_index) {
-	int j = blockIdx.y * blockDim.x + threadIdx.x;
 	int t = time_index;
 
-	if (j < rnn.number_nodes) {
+	for (int j = blockIdx.x; j < rnn.number_nodes; j += gridDim.x) {
 		for (int *s = &connection.time_connection_device[0][t]; *s != -1; s += rnn.time_step) {
-			float *neuron = &rnn.neuron[0][(blockIdx.x * rnn.time_step + t) * rnn.number_nodes];
-			float *prev_neuron = &parent_layer.neuron[(blockIdx.x * parent_layer.time_step + (*s)) * parent_layer.number_nodes];
-
-			double sum = 0;
+			float *neuron = &rnn.neuron[0][(t * rnn.number_nodes + j) * rnn.batch_size];
 
 			for (int k = j / rnn.map_size, l = j % rnn.map_size, *m = &connection.channel_connection_device[0][k]; *m != -1; m += rnn.number_maps) {
 				int offset[] = { (*m) * parent_layer.map_size, k * connection.number_weights_per_map + (*m) * connection.kernel_size };
 
 				for (Index *index = &connection.from_neuron_device[l]; index->weight != -1; index += rnn.map_size) {
-					sum += prev_neuron[offset[0] + index->prev_node] * connection.weight[offset[1] + index->weight];
+					float *prev_neuron = &parent_layer.neuron[((*s) * parent_layer.number_nodes + offset[0] + index->prev_node) * parent_layer.batch_size];
+					float *weight = &connection.weight[offset[1] + index->weight];
+
+					for (int h = threadIdx.x; h < rnn.batch_size; h += blockDim.x) {
+						neuron[h] += prev_neuron[h] * (*weight);
+					}
 				}
 			}
-			neuron[j] += sum;
 		}
 	}
 }
@@ -1558,7 +1577,11 @@ Connection::Connection(Layer *layer, Layer *parent_layer, string properties, uno
 	}
 
 	if (properties[0] == 'P' || properties[0] == 'W') {
-		int offset[3] = { kernel_depth - (abs(layer->map_depth * stride_depth - parent_layer->map_depth) + 1), kernel_height - (abs(layer->map_height * stride_height - parent_layer->map_height) + 1), kernel_width - (abs(layer->map_width * stride_width - parent_layer->map_width) + 1) };
+		int offset[3] = {
+			(layer->map_depth < parent_layer->map_depth) ? (kernel_depth - (abs(layer->map_depth * stride_depth - parent_layer->map_depth) + 1)) : (kernel_depth - (abs(layer->map_depth - parent_layer->map_depth * stride_depth) + 1)),
+			(layer->map_height < parent_layer->map_height) ? (kernel_height - (abs(layer->map_height * stride_height - parent_layer->map_height) + 1)) : (kernel_height - (abs(layer->map_height - parent_layer->map_height * stride_height) + 1)),
+			(layer->map_width < parent_layer->map_width) ? (kernel_width - (abs(layer->map_width * stride_width - parent_layer->map_width) + 1)) : (kernel_width - (abs(layer->map_width - parent_layer->map_width * stride_width) + 1)),
+		};
 
 		from_error = new vector<Index>[parent_layer->map_size];
 		from_neuron = new vector<Index>[layer->map_size];
@@ -2031,22 +2054,22 @@ void Dropout::Destruct() {
 	cudaFree(mask);
 }
 void Dropout::Initialize_Mask(int seed) {
-	bool *memory = new bool[batch_size * number_nodes];
+	bool *memory = new bool[number_nodes * batch_size];
 
 	default_random_engine *generator = ((seed) >= 0) ? (new default_random_engine(seed)) : (new default_random_engine(rand()));
 
 	uniform_real_distribution<double> distribution(0, 1);
 
-	for (int i = 0; i < batch_size * number_nodes; i++) {
+	for (int i = 0; i < number_nodes * batch_size; i++) {
 		memory[i] = (rate == 0 || distribution(*generator) > rate) ? (true) : (false);
 	}
-	cudaMemcpy(mask, memory, batch_size * number_nodes, cudaMemcpyHostToDevice);
+	cudaMemcpy(mask, memory, number_nodes * batch_size, cudaMemcpyHostToDevice);
 	delete[] memory;
 }
 void Dropout::Resize_Memory(int batch_size) {
 	if (this->batch_size != batch_size) {
 		cudaFree(mask);
-		cudaMalloc(&mask, (this->batch_size = batch_size) * number_nodes);
+		cudaMalloc(&mask, number_nodes * (this->batch_size = batch_size));
 	}
 }
 
@@ -2399,7 +2422,7 @@ void Layer::Activate(int time_index, bool training) {
 		rnn->Activate(time_index, training);
 	}
 	else {
-		dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+		dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 		if (bias) {
 			::Add_Bias << <number_blocks, NUMBER_THREADS >> > (*this, time_index);
@@ -2460,7 +2483,7 @@ void Layer::Backward(int time_index) {
 
 			Layer *parent_layer = connection->parent_layer;
 
-			dim3 number_blocks(parent_layer->batch_size, parent_layer->number_nodes / NUMBER_THREADS + 1);
+			dim3 number_blocks((parent_layer->number_nodes < 65536) ? (parent_layer->number_nodes) : (65536));
 
 			if (connection->properties[0] == 'P'){
 				if (strstr(connection->properties.c_str(), "average")) {
@@ -2474,6 +2497,8 @@ void Layer::Backward(int time_index) {
 				::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t, 2);
 			}
 			else if (strstr(connection->properties.c_str(), "copy")) {
+				dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
+
 				::Copy_Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 			}
 			if (strstr(connection->properties.c_str(), "copy") && t == time_step - 1) {
@@ -2532,7 +2557,7 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 	else {
 		int t = time_index;
 
-		dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+		dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 		if (loss) {
 			if (time_mask == nullptr || time_mask[t]) {
@@ -2540,13 +2565,19 @@ void Layer::Differentiate(int time_index, Loss *loss, float **y_batch) {
 				float *memory = nullptr;
 
 				if (y_batch) {
-					memory = new float[batch_size * time_step * number_nodes];
+					memory = new float[time_step * number_nodes * batch_size];
 
-					for (int h = 0; h < batch_size; h++) {
-						memcpy(&memory[h * time_step * number_nodes], y_batch[h], sizeof(float) * time_step * number_nodes);
+					#pragma omp parallel for
+					for (int s = 0; s < time_step * number_nodes; s++) {
+						int t = s / number_nodes;
+						int j = s % number_nodes;
+
+						for (int h = 0, offset = t * number_nodes + j; h < batch_size; h++) {
+							memory[offset * batch_size + h] = y_batch[h][offset];
+						}
 					}
-					cudaMalloc(&y_data, sizeof(float) * batch_size * time_step * number_nodes);
-					cudaMemcpy(y_data, memory, sizeof(float) * batch_size * time_step * number_nodes, cudaMemcpyHostToDevice);
+					cudaMalloc(&y_data, sizeof(float) * time_step * number_nodes * batch_size);
+					cudaMemcpy(y_data, memory, sizeof(float) * time_step * number_nodes * batch_size, cudaMemcpyHostToDevice);
 				}
 				::Differentiate << <number_blocks, NUMBER_THREADS >> > (*this, time_index, loss->type, y_data);
 
@@ -2613,7 +2644,7 @@ void Layer::Forward(int time_index) {
 	else {
 		int t = time_index;
 
-		dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+		dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 		for (int k = 0; k < connection.size(); k++) {
 			Connection *connection = this->connection[k];
@@ -2632,6 +2663,8 @@ void Layer::Forward(int time_index) {
 				::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t, 2);
 			}
 			if (strstr(connection->properties.c_str(), "copy")) {
+				dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
+
 				::Copy_Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 			}
 			if (strstr(connection->properties.c_str(), "copy") && t == 0) {
@@ -2795,7 +2828,7 @@ LSTM::~LSTM() {}
 void LSTM::Activate(int time_index, bool training) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	for (int i = 0; i < number_node_types - 1; i++) {
 		if (batch_normalization[i][0]) {
@@ -2855,18 +2888,18 @@ void LSTM::Backward(int time_index) {
 
 		if (connection->properties[0] == 'W' && strstr(connection->properties.c_str(), "recurrent")) {
 			if ((direction == 1 && t > 0) || (direction == -1 && t < time_step - 1)) {
-				dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+				dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 				::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *layer, *connection, t, true);
 			}
 		}
 		if (connection->properties[0] == 'W' && !strstr(connection->properties.c_str(), "recurrent")) {
-			dim3 number_blocks(parent_layer->batch_size, parent_layer->number_nodes / NUMBER_THREADS + 1);
+			dim3 number_blocks((parent_layer->number_nodes < 65536) ? (parent_layer->number_nodes) : (65536));
 
 			::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		else if (strstr(connection->properties.c_str(), "copy")) {
-			dim3 number_blocks(parent_layer->batch_size, parent_layer->number_nodes / NUMBER_THREADS + 1);
+			dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
 
 			::Copy_Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
@@ -2927,7 +2960,7 @@ void LSTM::Construct(Layer *layer) {
 void LSTM::Differentiate(int time_index) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	::DIfferentiate << <number_blocks, NUMBER_THREADS >> > (*this, *layer, t, 0);
 
@@ -2981,7 +3014,7 @@ void LSTM::Destruct() {
 void LSTM::Forward(int time_index) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	for (int k = 0; k < layer->connection.size(); k++) {
 		Connection *connection = layer->connection[k];
@@ -2997,6 +3030,8 @@ void LSTM::Forward(int time_index) {
 			::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		else if (strstr(connection->properties.c_str(), "copy")) {
+			dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
+
 			::Copy_Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		if (strstr(connection->properties.c_str(), "copy") && time_index == 0) {
@@ -3229,7 +3264,7 @@ RNN::~RNN() {}
 void RNN::Activate(int time_index, bool training) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	::Add_Bias << <number_blocks, NUMBER_THREADS >> > (*this, t);
 
@@ -3242,7 +3277,7 @@ void RNN::Activate(int time_index, bool training) {
 	::Activate << <number_blocks, NUMBER_THREADS >> > (*this, t);
 
 	if (time_index == time_step - 1) {
-		cudaMemcpy(layer->neuron, neuron[0], sizeof(float) * batch_size * time_step * number_nodes, cudaMemcpyDeviceToDevice);
+		cudaMemcpy(layer->neuron, neuron[0], sizeof(float) * time_step * number_nodes * batch_size, cudaMemcpyDeviceToDevice);
 	}
 }
 void RNN::Adjust_Parameters(int iterations, bool update) {
@@ -3287,18 +3322,18 @@ void RNN::Backward(int time_index) {
 
 		if (connection->properties[0] == 'W' && strstr(connection->properties.c_str(), "recurrent")) {
 			if ((direction == 1 && t > 0) || (direction == -1 && t < time_step - 1)) {
-				dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+				dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 				::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *connection, t);
 			}
 		}
 		if (connection->properties[0] == 'W' && !strstr(connection->properties.c_str(), "recurrent")) {
-			dim3 number_blocks(parent_layer->batch_size, parent_layer->number_nodes / NUMBER_THREADS + 1);
+			dim3 number_blocks((parent_layer->number_nodes < 65536) ? (parent_layer->number_nodes) : (65536));
 
 			::Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		else if (strstr(connection->properties.c_str(), "copy")) {
-			dim3 number_blocks(parent_layer->batch_size, parent_layer->number_nodes / NUMBER_THREADS + 1);
+			dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
 
 			::Copy_Backward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
@@ -3372,10 +3407,10 @@ void RNN::Destruct() {
 void RNN::Differentiate(int time_index) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	if (time_index == time_step - 1) {
-		cudaMemcpy(this->error[0], layer->error, sizeof(float) * batch_size * time_step * number_nodes, cudaMemcpyDeviceToDevice);
+		cudaMemcpy(this->error[0], layer->error, sizeof(float) * time_step * number_nodes * batch_size, cudaMemcpyDeviceToDevice);
 	}
 	::Differentiate << <number_blocks, NUMBER_THREADS >> > (*this, t);
 
@@ -3389,7 +3424,7 @@ void RNN::Differentiate(int time_index) {
 void RNN::Forward(int time_index) {
 	int t = (direction == 1) ? (time_index) : (time_step - 1 - time_index);
 
-	dim3 number_blocks(batch_size, number_nodes / NUMBER_THREADS + 1);
+	dim3 number_blocks((number_nodes < 65536) ? (number_nodes) : (65536));
 
 	for (int k = 0; k < layer->connection.size(); k++) {
 		Connection *connection = layer->connection[k];
@@ -3405,6 +3440,8 @@ void RNN::Forward(int time_index) {
 			::Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		else if (strstr(connection->properties.c_str(), "copy")) {
+			dim3 number_blocks((number_nodes * batch_size / NUMBER_THREADS + 1 < 65536) ? (number_nodes * batch_size / NUMBER_THREADS + 1) : (65536));
+
 			::Copy_Forward << <number_blocks, NUMBER_THREADS >> > (*this, *parent_layer, *connection, t);
 		}
 		if (strstr(connection->properties.c_str(), "copy") && time_index == 0) {
@@ -3578,19 +3615,25 @@ double Neural_Networks::Calculate_Loss(Layer *layer, float **y_batch, vector<str
 	else {
 		bool *time_mask = nullptr;
 
-		float *y_data, *memory = new float[layer->batch_size * layer->time_step * layer->number_nodes];
+		float *y_data, *memory = new float[layer->time_step * layer->number_nodes * layer->batch_size];
 
 		if (layer->time_mask) {
 			cudaMalloc(&time_mask, layer->time_step);
 			cudaMemcpy(time_mask, layer->time_mask, layer->time_step, cudaMemcpyHostToDevice);
 		}
-		cudaMalloc(&y_data, sizeof(float) * layer->batch_size * layer->time_step * layer->number_nodes);
+		cudaMalloc(&y_data, sizeof(float) * layer->time_step * layer->number_nodes * layer->batch_size);
 
 		if (y_batch) {
-			for (int h = 0; h < batch_size; h++) {
-				memcpy(&memory[h * layer->time_step * layer->number_nodes], y_batch[h], sizeof(float) * layer->time_step * layer->number_nodes);
+			#pragma omp parallel for
+			for (int s = 0; s < layer->time_step * layer->number_nodes; s++) {
+				int t = s / layer->number_nodes;
+				int j = s % layer->number_nodes;
+
+				for (int h = 0, offset = t * layer->number_nodes + j; h < batch_size; h++) {
+					memory[offset * layer->batch_size + h] = (t < ((sequence_length_batch) ? (sequence_length_batch[h]) : (layer->time_step))) ? (y_batch[h][offset]) : (0);
+				}
 			}
-			cudaMemcpy(y_data, memory, sizeof(float) * layer->batch_size * layer->time_step * layer->number_nodes, cudaMemcpyHostToDevice);
+			cudaMemcpy(y_data, memory, sizeof(float) * layer->time_step * layer->number_nodes * layer->batch_size, cudaMemcpyHostToDevice);
 		}
 		::Calculate_Loss << <1, NUMBER_THREADS >> > (*layer, time_mask, this->loss->type, y_data);
 		cudaMemcpy(&sum, y_data, sizeof(float), cudaMemcpyDeviceToHost);
@@ -3623,27 +3666,7 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, vector<string> 
 		}
 
 		if (++h == batch_size || g == test_size - 1) {
-			float *memory = new float[h * layer[0]->time_step * layer[0]->number_nodes];
-
-			Resize_Memory(h);
-			memset(memory, 0, sizeof(float) * h * layer[0]->time_step * layer[0]->number_nodes);
-
-			// copy x_test to neuron
-			for (int i = h; --i >= 0;) {
-				memcpy(&memory[i * layer[0]->time_step * layer[0]->number_nodes], x_batch[i], sizeof(float) * ((sequence_length_batch) ? (sequence_length_batch[i]) : (layer[0]->time_step)) * layer[0]->number_nodes);
-			}
-			cudaMemcpy(layer[0]->neuron, memory, sizeof(float) * this->batch_size * layer[0]->time_step * layer[0]->number_nodes, cudaMemcpyHostToDevice);
-			delete[] memory;
-
-			// forward propagation
-			for (int i = 1; i < layer.size(); i++) {
-				for (int t = 0; t < layer[i]->time_step; t++) {
-					layer[i]->Forward(t);
-					layer[i]->Activate(t);
-				}
-			}
-
-			// calculate loss
+			Forward(x_batch, sequence_length_batch, h);
 			loss += Calculate_Loss(layer.back(), y_batch, &hypothesis[g - h + 1], sequence_length_batch);
 			h = 0;
 		}
@@ -3657,7 +3680,6 @@ double Neural_Networks::Evaluate(float **x_test, float **y_test, vector<string> 
 	if (sequence_length_batch) {
 		delete[] sequence_length_batch;
 	}
-
 	return loss / test_size;
 }
 double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> reference[], int sequence_length[], int train_size, int batch_size, bool update) {
@@ -3684,7 +3706,6 @@ double Neural_Networks::Fit(float **x_train, float **y_train, vector<string> ref
 			if (sequence_length_batch) {
 				sequence_length_batch[h] = sequence_length[g];
 			}
-
 			if (++h == batch_size || g == train_size - 1) {
 				Forward(x_batch, sequence_length_batch, h);
 				loss += Backward(y_batch, reference_batch, sequence_length_batch, h);
@@ -3818,16 +3839,22 @@ void Neural_Networks::Forward(float **x_train, int batch_size, int offset) {
 	Forward(x_train, nullptr, batch_size, offset);
 }
 void Neural_Networks::Forward(float **x_train, int sequence_length[], int batch_size, int offset) {
-	float *memory = new float[batch_size * layer[0]->time_step * layer[0]->number_nodes];
+	float *memory = new float[layer[0]->time_step * layer[0]->number_nodes * batch_size];
 
 	Resize_Memory(batch_size);
-	memset(memory, 0, sizeof(float) * batch_size * layer[0]->time_step * layer[0]->number_nodes);
+	memset(memory, 0, sizeof(float) * layer[0]->time_step * layer[0]->number_nodes * batch_size);
 
 	// copy x_train to neuron
-	for (int h = 0; h < batch_size; h++) {
-		memcpy(&memory[h * layer[0]->time_step * layer[0]->number_nodes], x_train[h + offset], sizeof(float) * ((sequence_length) ? (sequence_length[h]) : (layer[0]->time_step)) * layer[0]->number_nodes);
+	#pragma omp parallel for
+	for (int s = 0; s < layer[0]->time_step * layer[0]->number_nodes; s++) {
+		int t = s / layer[0]->number_nodes;
+		int j = s % layer[0]->number_nodes;
+
+		for (int h = 0, offset = t * layer[0]->number_nodes + j; h < batch_size; h++) {
+			memory[offset * layer[0]->batch_size + h] = (t < ((sequence_length) ? (sequence_length[h]) : (layer[0]->time_step))) ? (x_train[h][offset]) : (0);
+		}
 	}
-	cudaMemcpy(layer[0]->neuron, memory, sizeof(float) * this->batch_size * layer[0]->time_step * layer[0]->number_nodes, cudaMemcpyHostToDevice);
+	cudaMemcpy(layer[0]->neuron, memory, sizeof(float) * layer[0]->time_step * layer[0]->number_nodes * this->batch_size, cudaMemcpyHostToDevice);
 	delete[] memory;
 
 	// add gaussian noise to the neuron if noise specified
@@ -3858,8 +3885,7 @@ void Neural_Networks::Forward(Layer *layer, int batch_size, int offset) {
 void Neural_Networks::Forward(Layer *layer, int sequence_length[], int batch_size, int offset) {
 	Resize_Memory(batch_size);
 
-	// copy x_train to neuron
-	cudaMemcpy(this->layer[0]->neuron, &layer->neuron[offset * layer->time_step * layer->number_nodes], sizeof(float) * this->batch_size * this->layer[0]->time_step * this->layer[0]->number_nodes, cudaMemcpyDeviceToDevice);
+	cudaMemcpy(this->layer[0]->neuron, &layer->neuron[offset * layer->time_step * layer->number_nodes], sizeof(float) * this->layer[0]->time_step * this->layer[0]->number_nodes * this->batch_size, cudaMemcpyDeviceToDevice);
 
 	// add gaussian noise to the neuron if noise specified
 	for (int i = 0; i < this->layer.size(); i++) {
@@ -3966,12 +3992,18 @@ void Neural_Networks::Predict(float input[], float output[]) {
 	Predict(&input, &output);
 }
 void Neural_Networks::Predict(float **input, float **output, int batch_size) {
-	float *memory = new float[batch_size * layer.front()->time_step * ((layer.front()->number_nodes > layer.back()->number_nodes) ? (layer.front()->number_nodes) : (layer.back()->number_nodes))];
+	float *memory = new float[layer.front()->time_step * ((layer.front()->number_nodes > layer.back()->number_nodes) ? (layer.front()->number_nodes) : (layer.back()->number_nodes)) * batch_size];
 
 	Resize_Memory(batch_size);
 
-	for (int h = 0, i = 0; h < batch_size; h++) {
-		memcpy(&memory[h * layer[i]->time_step * layer[i]->number_nodes], input[h], sizeof(float) * layer[i]->time_step * layer[i]->number_nodes);
+	#pragma omp parallel for
+	for (int s = 0; s < layer[0]->time_step * layer[0]->number_nodes; s++) {
+		int t = s / layer[0]->number_nodes;
+		int j = s % layer[0]->number_nodes;
+
+		for (int h = 0, offset = t * layer[0]->number_nodes + j; h < batch_size; h++) {
+			memory[offset * layer[0]->batch_size + h] = input[h][offset];
+		}
 	}
 	cudaMemcpy(layer.front()->neuron, memory, sizeof(float) * batch_size * layer.front()->time_step * layer.front()->number_nodes, cudaMemcpyHostToDevice);
 
@@ -3983,8 +4015,14 @@ void Neural_Networks::Predict(float **input, float **output, int batch_size) {
 	}
 	cudaMemcpy(memory, layer.back()->neuron, sizeof(float) * batch_size * layer.back()->time_step * layer.back()->number_nodes, cudaMemcpyDeviceToHost);
 
-	for (int h = 0, i = layer.size() - 1; h < batch_size; h++) {
-		memcpy(output[h], &memory[h * layer[i]->time_step * layer[i]->number_nodes], sizeof(float) * layer[i]->time_step * layer[i]->number_nodes);
+	#pragma omp parallel for
+	for (int s = 0; s < layer.back()->time_step * layer.back()->number_nodes; s++) {
+		int t = s / layer.back()->number_nodes;
+		int j = s % layer.back()->number_nodes;
+
+		for (int h = 0, offset = t * layer.back()->number_nodes + j; h < batch_size; h++) {
+			output[h][offset] = memory[offset * layer.back()->batch_size + h];
+		}
 	}
 	delete[] memory;
 }

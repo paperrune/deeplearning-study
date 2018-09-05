@@ -1436,13 +1436,11 @@ void Layer::Backward(int time_index) {
 							int k = j / parent_layer->map_size;
 
 							float *prev_error = parent_layer->Error(*s, j);
-							float *prev_neuron = parent_layer->Neuron(*s, j);
 
 							vector<Index> &from_error = connection->from_error[j % parent_layer->map_size];
 
 							for (auto index = from_error.begin(); index != from_error.end(); index++) {
 								float *error = Error(t, k * map_size + index->next_node);
-								float *neuron = Neuron(t, k * map_size + index->next_node);
 
 								for (int h = 0; h < batch_size; h++) {
 									prev_error[h] += error[h] / connection->from_neuron[index->next_node].size();
@@ -1715,24 +1713,22 @@ void Layer::Forward(int time_index) {
 						for(int j = 0;j < number_nodes;j++) {
 							int k = j / map_size;
 
-							float *max = new float[batch_size];
 							float *neuron = Neuron(t, j);
 
 							vector<Index> &from_neuron = connection->from_neuron[j % map_size];
 
-							for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
-								float *prev_neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
+							for (int h = 0; h < batch_size; h++) {
+								float max;
 
-								for (int h = 0; h < batch_size; h++) {
-									if (index == from_neuron.begin() || max[h] < prev_neuron[h]) {
-										max[h] = prev_neuron[h];
+								for (auto index = from_neuron.begin(); index != from_neuron.end(); index++) {
+									float *prev_neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
+
+									if (index == from_neuron.begin() || max < prev_neuron[h]) {
+										max = prev_neuron[h];
 									}
 								}
+								neuron[h] = max;
 							}
-							for (int h = 0; h < batch_size; h++) {
-								neuron[h] += max[h];
-							}
-							delete[] max;
 						}
 					}
 				}
@@ -2046,10 +2042,10 @@ void LSTM::Adjust_Parameters(int iterations, bool update) {
 						if ((direction == 1 && t > 0) || (direction == -1 && t < time_step - 1)) {
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								float *error = Error(connection->type, 1, t, j * map_size + index->next_node);
-								float *neuron = layer->Neuron(t - direction, k * map_size + index->prev_node);
+								float *prev_neuron = layer->Neuron(t - direction, k * map_size + index->prev_node);
 
 								for (int h = 0; h < batch_size; h++) {
-									sum += error[h] * neuron[h];
+									sum += error[h] * prev_neuron[h];
 								}
 							}
 						}
@@ -2070,10 +2066,10 @@ void LSTM::Adjust_Parameters(int iterations, bool update) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								float *error = Error(connection->type, 0, t, j * map_size + index->next_node);
-								float *neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
+								float *prev_neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
 
 								for (int h = 0; h < batch_size; h++) {
-									sum += error[h] * neuron[h];
+									sum += error[h] * prev_neuron[h];
 								}
 							}
 						}
@@ -2756,10 +2752,10 @@ void RNN::Adjust_Parameters(int iterations, bool update) {
 						if ((direction == 1 && t > 0) || (direction == -1 && t < time_step - 1)) {
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								float *error = Error(1, t, j * map_size + index->next_node);
-								float *neuron = Neuron(0, t - direction, k * map_size + index->prev_node);
+								float *prev_neuron = Neuron(0, t - direction, k * map_size + index->prev_node);
 
 								for (int h = 0; h < batch_size; h++) {
-									sum += error[h] * neuron[h];
+									sum += error[h] * prev_neuron[h];
 								}
 							}
 						}
@@ -2780,10 +2776,10 @@ void RNN::Adjust_Parameters(int iterations, bool update) {
 						for (auto s = connection->time_connection[0][t].begin(); s != connection->time_connection[0][t].end(); s++) {
 							for (auto index = from_weight.begin(); index != from_weight.end(); index++) {
 								float *error = Error(0, t, j * map_size + index->next_node);
-								float *neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
+								float *prev_neuron = parent_layer->Neuron(*s, k * parent_layer->map_size + index->prev_node);
 
 								for (int h = 0; h < batch_size; h++) {
-									sum += error[h] * neuron[h];
+									sum += error[h] * prev_neuron[h];
 								}
 							}
 						}
