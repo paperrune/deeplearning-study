@@ -7,7 +7,7 @@ from keras.optimizers import SGD
 
 batch_size = 128
 epochs = 30
-learning_rate = 0.5
+learning_rate = 0.1
 momentum = 0.9
 num_classes = 10
 
