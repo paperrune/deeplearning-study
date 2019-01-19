@@ -1,3 +1,3 @@
 # deeplearning-practice
-Keras / Tensorflow practice</br></br>
-1. [Perceptron](https://github.com/paperrune/Neural-Networks/tree/master/Perceptron)
+Keras / Tensorflow practice</br>
+1. [Perceptron](https://github.com/paperrune/deeplearning-practice/tree/master/Perceptron)
