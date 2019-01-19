@@ -1,20 +1,3 @@
 # deeplearning-practice
 Keras / Tensorflow practice</br></br>
-
 1. [Perceptron](https://github.com/paperrune/Neural-Networks/tree/master/Perceptron)
-2. [Batch](https://github.com/paperrune/Neural-Networks/tree/master/Batch)
-3. [Cross Entropy + Softmax](https://github.com/paperrune/Neural-Networks/tree/master/Cross-Entropy+Softmax)
-4. [Multilayer Perceptron](https://github.com/paperrune/Neural-Networks/tree/master/Multilayer-Perceptron)
-5. [tanh](https://github.com/paperrune/Neural-Networks/tree/master/tanh)
-6. [ReLU](https://github.com/paperrune/Neural-Networks/tree/master/ReLU)
-7. [Dropout](https://github.com/paperrune/Neural-Networks/tree/master/Dropout)
-8. [Momentum](https://github.com/paperrune/Neural-Networks/tree/master/Momentum)
-9. [Nesterov Accelerated Gradient](https://github.com/paperrune/Neural-Networks/tree/master/Nesterov-Accelerated-Gradient)
-10. [Convolution Layer](https://github.com/paperrune/Neural-Networks/tree/master/Convolution-Layer)
-11. [Pooling Layer](https://github.com/paperrune/Neural-Networks/tree/master/Pooling-Layer)
-12. [Glorot-He-Initialization](https://github.com/paperrune/Neural-Networks/tree/master/Glorot-He-Initialization)
-13. [Batch-Normalization](https://github.com/paperrune/Neural-Networks/tree/master/Batch-Normalization)
-14. [Depthwise-Separable-Convolution](https://github.com/paperrune/Neural-Networks/tree/master/Depthwise-Separable-Convolution)
-15. [Recurrent-Layer](https://github.com/paperrune/Neural-Networks/tree/master/Recurrent-Layer)
-16. [Bidirectional-Recurrent-Layer](https://github.com/paperrune/Neural-Networks/tree/master/Bidirectional-Recurrent-Layer)
-17. [LSTM](https://github.com/paperrune/Neural-Networks/tree/master/LSTM)
