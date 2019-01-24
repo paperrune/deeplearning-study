@@ -6,3 +6,4 @@ Keras / Tensorflow practice</br>
 3. [Cross-Entropy+Softmax](https://github.com/paperrune/deeplearning-study/tree/master/Cross-Entropy+Softmax)
 4. [Multilayer-Perceptron](https://github.com/paperrune/deeplearning-study/tree/master/Multilayer-Perceptron)
 5. [tanh](https://github.com/paperrune/deeplearning-study/tree/master/tanh)
+6. [ReLU](https://github.com/paperrune/deeplearning-study/tree/master/ReLU)
