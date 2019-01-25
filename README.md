@@ -7,3 +7,4 @@ Keras / Tensorflow practice</br>
 4. [Multilayer-Perceptron](https://github.com/paperrune/deeplearning-study/tree/master/Multilayer-Perceptron)
 5. [tanh](https://github.com/paperrune/deeplearning-study/tree/master/tanh)
 6. [ReLU](https://github.com/paperrune/deeplearning-study/tree/master/ReLU)
+7. [Dropout](https://github.com/paperrune/deeplearning-study/tree/master/Dropout)
