@@ -21,11 +21,11 @@ y_test = to_categorical(y_test, num_classes)
 
 model = Sequential()
 model.add(Dense(512,
-                activation='tanh',
+                activation='relu',
                 input_shape=(784,),
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01)))
 model.add(Dense(512,
-                activation='tanh',
+                activation='relu',
                 input_shape=(784,),
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01)))
 model.add(Dense(num_classes,
