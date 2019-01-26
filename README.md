@@ -8,3 +8,4 @@ Keras / Tensorflow practice</br>
 5. [tanh](https://github.com/paperrune/deeplearning-study/tree/master/tanh)
 6. [ReLU](https://github.com/paperrune/deeplearning-study/tree/master/ReLU)
 7. [Dropout](https://github.com/paperrune/deeplearning-study/tree/master/Dropout)
+8. [Momentum](https://github.com/paperrune/deeplearning-study/tree/master/Momentum)
