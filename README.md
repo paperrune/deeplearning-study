@@ -11,3 +11,4 @@ Keras / Tensorflow practice</br>
 8. [Momentum](https://github.com/paperrune/deeplearning-study/tree/master/Momentum)
 9. [Nesterov-Accelerated-Gradient](https://github.com/paperrune/deeplearning-study/tree/master/Nesterov-Accelerated-Gradient)
 10. [Convolution-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Convolution-Layer)
+11. [Pooling-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Pooling-Layer)
