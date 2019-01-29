@@ -25,22 +25,22 @@ y_test = to_categorical(y_test, num_classes)
 model = Sequential()
 model.add(Conv2D(24,
                  activation='relu',                 
-                 kernel_initializer="he_normal",
+                 kernel_initializer='he_normal',
                  kernel_size=(5, 5),
                  input_shape=(img_rows, img_cols, 1)))
 model.add(MaxPooling2D())
 model.add(Conv2D(48,
                  activation='relu',
-                 kernel_initializer="he_normal",
+                 kernel_initializer='he_normal',
                  kernel_size=(5, 5)))
 model.add(MaxPooling2D())
 model.add(Flatten())
 model.add(Dense(512,
                 activation='relu',
-                kernel_initializer="he_normal"))
+                kernel_initializer='he_normal'))
 model.add(Dense(num_classes,
                 activation='softmax',
-                kernel_initializer="he_normal"))
+                kernel_initializer='glorot_uniform'))
 model.summary()
 model.compile(loss='categorical_crossentropy',
               optimizer=SGD(lr=learning_rate, momentum=momentum, nesterov=True),
