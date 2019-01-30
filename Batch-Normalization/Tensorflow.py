@@ -40,7 +40,7 @@ P2 = tf.nn.max_pool(L2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME'
  
 P2_flat = tf.reshape(P2, [-1, 4 * 4 * 48])
  
-W3 = tf.get_variable(name="W3", shape=[4 * 4 * 48, 512], initializer=tf.keras.initializers.he_normal()) / 2
+W3 = tf.get_variable(name="W3", shape=[4 * 4 * 48, 512], initializer=tf.keras.initializers.he_normal())
 b3 = tf.get_variable(name="b3", shape=[512], initializer=tf.zeros_initializer())
 L3 = tf.matmul(P2_flat, W3) + b3
 L3 = tf.contrib.layers.batch_norm(L3, center=True, decay=decay, scale=True, is_training=is_training)
