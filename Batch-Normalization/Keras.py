@@ -1,6 +1,6 @@
 from keras.datasets import mnist
 from keras.initializers import RandomUniform
-from keras.layers import Conv2D, Dense, Flatten, MaxPooling2D
+from keras.layers import Activation, BatchNormalization, Conv2D, Dense, Flatten, MaxPooling2D
 from keras.models import Sequential
 from keras.optimizers import SGD
 from keras.utils import to_categorical
@@ -23,21 +23,23 @@ x_test = x_test.reshape([x_test.shape[0], img_rows, img_cols, 1]).astype('float3
 y_test = to_categorical(y_test, num_classes)
  
 model = Sequential()
-model.add(Conv2D(24,
-                 activation='relu',                 
+model.add(Conv2D(24,                
                  kernel_initializer='he_normal',
                  kernel_size=(5, 5),
                  input_shape=(img_rows, img_cols, 1)))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
 model.add(MaxPooling2D())
 model.add(Conv2D(48,
-                 activation='relu',
                  kernel_initializer='he_normal',
                  kernel_size=(5, 5)))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
 model.add(MaxPooling2D())
 model.add(Flatten())
-model.add(Dense(512,
-                activation='relu',
-                kernel_initializer='he_normal'))
+model.add(Dense(512, kernel_initializer='he_normal'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
 model.add(Dense(num_classes,
                 activation='softmax',
                 kernel_initializer='glorot_uniform'))
