@@ -15,3 +15,4 @@ Keras / Tensorflow practice</br>
 12. [Glorot-He-Initialization](https://github.com/paperrune/deeplearning-study/tree/master/Glorot-He-Initialization)
 13. [Batch-Normalization](https://github.com/paperrune/deeplearning-study/tree/master/Batch-Normalization)
 14. [Depthwise-Separable-Convolution](https://github.com/paperrune/deeplearning-study/tree/master/Depthwise-Separable-Convolution)
+15. [Recurrent-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Recurrent-Layer)
