@@ -48,7 +48,7 @@ W3 = tf.get_variable(name="W3", shape=[4 * 4 * 48, 512], initializer=tf.keras.in
 b3 = tf.get_variable(name="b3", shape=[512], initializer=tf.zeros_initializer())
 L3 = tf.nn.relu(tf.matmul(P2_flat, W3) + b3)
  
-W4 = tf.get_variable(name="W4", shape=[512, 10], initializer=tf.initializers.glorot_uniform())
+W4 = tf.get_variable(name="W4", shape=[512, 10], initializer=tf.glorot_uniform_initializer())
 b4 = tf.get_variable(name="b4", shape=[10], initializer=tf.zeros_initializer())
  
 hypothesis = tf.matmul(L3, W4) + b4
