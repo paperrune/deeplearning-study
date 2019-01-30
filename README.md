@@ -13,3 +13,4 @@ Keras / Tensorflow practice</br>
 10. [Convolution-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Convolution-Layer)
 11. [Pooling-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Pooling-Layer)
 12. [Glorot-He-Initialization](https://github.com/paperrune/deeplearning-study/tree/master/Glorot-He-Initialization)
+13. [Batch-Normalization](https://github.com/paperrune/deeplearning-study/tree/master/Batch-Normalization)
