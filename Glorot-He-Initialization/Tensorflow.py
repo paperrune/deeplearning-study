@@ -28,7 +28,7 @@ L1 = tf.nn.conv2d(X, W1, strides=[1, 1, 1, 1], padding='VALID')
 L1 = tf.nn.relu(tf.nn.bias_add(L1, b1))
 P1 = tf.nn.max_pool(L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
  
-W2 = tf.get_variable(name="W2", shape=[5, 5, 24, 48], initializer=tf.keras.initializers.he_normal()) / 2
+W2 = tf.get_variable(name="W2", shape=[5, 5, 24, 48], initializer=tf.keras.initializers.he_normal())
 b2 = tf.get_variable(name="b2", shape=[48], initializer=tf.zeros_initializer())
 L2 = tf.nn.conv2d(P1, W2, strides=[1, 1, 1, 1], padding='VALID')
 L2 = tf.nn.relu(tf.nn.bias_add(L2, b2))
