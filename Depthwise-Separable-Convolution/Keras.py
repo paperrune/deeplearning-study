@@ -1,5 +1,4 @@
 from keras.datasets import mnist
-from keras.initializers import RandomUniform
 from keras.layers import Conv2D, Dense, DepthwiseConv2D, Flatten, MaxPooling2D
 from keras.models import Sequential
 from keras.optimizers import SGD
