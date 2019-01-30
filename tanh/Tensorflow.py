@@ -1,6 +1,10 @@
 import tensorflow as tf
 import time
 
+batch_size = 128
+epochs = 30
+learning_rate = 0.5
+
 (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
 
 x_train = x_train.reshape([x_train.shape[0], -1]).astype('float32') / 255
@@ -8,10 +12,6 @@ y_train = tf.keras.utils.to_categorical(y_train, num_classes=10)
 
 x_test = x_test.reshape([x_test.shape[0], -1]).astype('float32') / 255
 y_test = tf.keras.utils.to_categorical(y_test, num_classes=10)
-
-batch_size = 128
-epochs = 30
-learning_rate = 0.5
 
 # input place holders
 X = tf.placeholder(tf.float32, [None, 784])
