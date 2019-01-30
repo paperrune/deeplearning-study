@@ -46,7 +46,7 @@ L3 = tf.matmul(P2_flat, W3) + b3
 L3 = tf.contrib.layers.batch_norm(L3, center=True, decay=decay, scale=True, is_training=is_training)
 L3 = tf.nn.relu(L3)
  
-W4 = tf.get_variable(name="W4", shape=[512, 10], initializer=tf.initializers.glorot_uniform())
+W4 = tf.get_variable(name="W4", shape=[512, 10], initializer=tf.glorot_uniform_initializer())
 b4 = tf.get_variable(name="b4", shape=[10], initializer=tf.zeros_initializer())
  
 hypothesis = tf.matmul(L3, W4) + b4
