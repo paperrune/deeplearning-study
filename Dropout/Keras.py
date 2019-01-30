@@ -25,12 +25,10 @@ model.add(Dense(512,
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01)))
 model.add(Dense(512,
                 activation='relu',
-                input_shape=(784,),
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01)))
 model.add(Dropout(0.5))
 model.add(Dense(num_classes,
                 activation='softmax',
-                input_shape=(784,),
                 kernel_initializer=RandomUniform(minval=-0.01, maxval=0.01)))
 model.summary()
 model.compile(loss='categorical_crossentropy',
