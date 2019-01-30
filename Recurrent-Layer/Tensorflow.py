@@ -23,7 +23,7 @@ Y = tf.placeholder(tf.float32, [None, 10])
 outputs, states = tf.contrib.cudnn_rnn.CudnnRNNRelu(1, 128, kernel_initializer=tf.keras.initializers.he_normal())(X)
 outputs = tf.transpose(outputs, [1, 0, 2])[-1]
  
-W = tf.get_variable(name="W", shape=[128, 10], initializer=tf.initializers.glorot_uniform())
+W = tf.get_variable(name="W", shape=[128, 10], initializer=tf.glorot_uniform_initializer())
 b = tf.get_variable(name="b", shape=[10], initializer=tf.zeros_initializer())
  
 hypothesis = tf.matmul(outputs, W) + b
