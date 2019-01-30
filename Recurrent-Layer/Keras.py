@@ -1,6 +1,7 @@
 import keras 
 from keras.datasets import mnist
-from keras.layers import Dense, SimpleRNN
+from keras.layers import Dense
+from keras.layers import SimpleRNN
 from keras.models import Sequential
 from keras.optimizers import SGD
  

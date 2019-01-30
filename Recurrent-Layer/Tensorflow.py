@@ -19,11 +19,9 @@ y_test = tf.keras.utils.to_categorical(y_test, num_classes=10)
 X = tf.placeholder(tf.float32, [None, time_step, 784 // time_step])
 Y = tf.placeholder(tf.float32, [None, 10])
 
-# weights & bias for networks
-with tf.variable_scope('rnn', initializer=tf.keras.initializers.he_normal()):
-    cell = tf.nn.rnn_cell.BasicRNNCell(128, activation=tf.nn.relu)
-    outputs, states = tf.nn.dynamic_rnn(cell, X, dtype=tf.float32)
-    outputs = tf.transpose(outputs, [1, 0, 2])[-1]
+# CUDA device required
+outputs, states = tf.contrib.cudnn_rnn.CudnnRNNRelu(1, 128, kernel_initializer=tf.keras.initializers.he_normal())(X)
+outputs = tf.transpose(outputs, [1, 0, 2])[-1]
  
 W = tf.get_variable(name="W", shape=[128, 10], initializer=tf.initializers.glorot_uniform())
 b = tf.get_variable(name="b", shape=[10], initializer=tf.zeros_initializer())
