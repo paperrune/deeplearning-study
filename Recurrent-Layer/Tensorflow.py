@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import time
 
@@ -19,9 +20,10 @@ y_test = tf.keras.utils.to_categorical(y_test, num_classes=10)
 X = tf.placeholder(tf.float32, [None, time_step, 784 // time_step])
 Y = tf.placeholder(tf.float32, [None, 10])
 
+Xt = tf.transpose(X, [1, 0, 2])
 # CUDA device required
-outputs, states = tf.contrib.cudnn_rnn.CudnnRNNRelu(1, 128, kernel_initializer=tf.keras.initializers.he_normal())(X)
-outputs = tf.transpose(outputs, [1, 0, 2])[-1]
+outputs, states = tf.contrib.cudnn_rnn.CudnnRNNRelu(1, 128, kernel_initializer=tf.keras.initializers.he_normal())(Xt)
+outputs = outputs[-1]
  
 W = tf.get_variable(name="W", shape=[128, 10], initializer=tf.glorot_uniform_initializer())
 b = tf.get_variable(name="b", shape=[10], initializer=tf.zeros_initializer())
@@ -40,6 +42,11 @@ with tf.Session() as sess:
     start_time = time.time()
 
     for step in range(epochs):
+        # shuffle data
+        p = np.random.permutation(len(x_train))
+        x_train = x_train[p]
+        y_train = y_train[p]
+        
         loss = [0, 0]
         score = [0, 0]
 
