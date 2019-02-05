@@ -17,3 +17,4 @@ Keras / Tensorflow practice</br>
 14. [Depthwise-Separable-Convolution](https://github.com/paperrune/deeplearning-study/tree/master/Depthwise-Separable-Convolution)
 15. [Recurrent-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Recurrent-Layer)
 16. [Bidirectional-Recurrent-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Bidirectional-Recurrent-Layer)
+17. [LSTM](https://github.com/paperrune/deeplearning-study/tree/master/LSTM)
