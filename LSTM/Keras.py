@@ -19,7 +19,12 @@ x_test = x_test.reshape(x_test.shape[0], time_step, 784 // time_step).astype('fl
 y_test = keras.utils.to_categorical(y_test, num_classes=10)
 
 model = Sequential()
-model.add(Bidirectional(LSTM(128, kernel_initializer='glorot_uniform'),
+model.add(Bidirectional(LSTM(128,
+                             activation='tanh',
+                             bias_initializer='zeros',
+                             kernel_initializer='glorot_uniform',
+                             recurrent_activation='hard_sigmoid',
+                             unit_forget_bias=True),
                         input_shape=(time_step, 784 // time_step)))
 model.add(Dense(10,
                 activation='softmax',
