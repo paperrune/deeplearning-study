@@ -1,8 +1,8 @@
-import keras 
 from keras.datasets import mnist
 from keras.layers import Bidirectional, Dense, LSTM
 from keras.models import Sequential
 from keras.optimizers import SGD
+from keras.utils import to_categorical
  
 batch_size = 128
 epochs = 30
@@ -13,10 +13,10 @@ time_step = 28
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 
 x_train = x_train.reshape(x_train.shape[0], time_step, 784 // time_step).astype('float32') / 255
-y_train = keras.utils.to_categorical(y_train, num_classes=10)
+y_train = to_categorical(y_train, num_classes=10)
 
 x_test = x_test.reshape(x_test.shape[0], time_step, 784 // time_step).astype('float32') / 255
-y_test = keras.utils.to_categorical(y_test, num_classes=10)
+y_test = to_categorical(y_test, num_classes=10)
 
 model = Sequential()
 model.add(Bidirectional(LSTM(128,
