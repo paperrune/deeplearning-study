@@ -1,4 +1,4 @@
-# deeplearning-practice
+# deeplearning-study
 Keras / Tensorflow practice</br>
 
 1. [Perceptron](https://github.com/paperrune/deeplearning-study/tree/master/Perceptron)
