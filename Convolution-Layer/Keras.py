@@ -40,8 +40,8 @@ model.compile(loss='categorical_crossentropy',
               optimizer=SGD(lr=learning_rate, momentum=momentum, nesterov=True),
               metrics=['accuracy'])
 
-history = model.fit(x_train,
-                    y_train,
-                    batch_size=batch_size,
-                    epochs=epochs,
-                    validation_data=(x_test, y_test))
+model.fit(x_train,
+          y_train,
+          batch_size=batch_size,
+          epochs=epochs,
+          validation_data=(x_test, y_test))
