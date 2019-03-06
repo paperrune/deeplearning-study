@@ -106,9 +106,9 @@ L5 = tf.nn.sigmoid(tf.matmul(L4, W5) + b5)
 decoder = L5
 
 # variational autoencoder
-hypothesis = tf.matmul(tf.nn.relu(tf.matmul(z, W4) + b4), W5) + b5
+hypothesis = tf.nn.sigmoid(tf.matmul(tf.nn.relu(tf.matmul(z, W4) + b4), W5) + b5)
 
-reconstruction_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=hypothesis, labels=X) * input_dim
+reconstruction_loss = (hypothesis - X) * (hypothesis - X) * input_dim
 reguralization_loss = 0.5 * tf.reduce_sum(tf.exp(z_log_var) + tf.square(z_mean) - z_log_var - 1, axis=-1, keepdims=True)
 
 # cost & optimizer
