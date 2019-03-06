@@ -141,3 +141,6 @@ loss: 36.9285 / 37.7773	step 28  41.75 sec
 loss: 36.8653 / 37.5504	step 29  43.26 sec
 loss: 36.8142 / 37.4639	step 30  44.70 sec
 ```
+
+![image1](/image/vae_mean.png)
+![image2](/image/digits_over_latent.png)
