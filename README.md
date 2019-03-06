@@ -19,3 +19,4 @@ Keras / Tensorflow practice</br>
 16. [Bidirectional-Recurrent-Layer](https://github.com/paperrune/deeplearning-study/tree/master/Bidirectional-Recurrent-Layer)
 17. [LSTM](https://github.com/paperrune/deeplearning-study/tree/master/LSTM)
 18. [Adam](https://github.com/paperrune/deeplearning-study/tree/master/Adam)
+19. [Variational-Autoencoder](https://github.com/paperrune/deeplearning-study/tree/master/Variational-Autoencoder)
