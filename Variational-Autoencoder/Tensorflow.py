@@ -60,18 +60,18 @@ def plot_results(models, data, session):
     plt.imshow(figure, cmap='Greys_r')
     plt.savefig(filename)
     plt.show()
-    
- 
-(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
- 
-x_train = x_train.reshape([x_train.shape[0], -1]).astype('float32') / 255 
-x_test = x_test.reshape([x_test.shape[0], -1]).astype('float32') / 255
- 
+   
+
 batch_size = 128
 epochs = 30
 input_dim = 784
 latent_dim = 2
 learning_rate = 0.001
+ 
+(x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+ 
+x_train = x_train.reshape([x_train.shape[0], -1]).astype('float32') / 255 
+x_test = x_test.reshape([x_test.shape[0], -1]).astype('float32') / 255
  
 # input place holders
 X = tf.placeholder(tf.float32, [None, input_dim])
