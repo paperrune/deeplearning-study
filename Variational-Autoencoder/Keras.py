@@ -76,6 +76,7 @@ def plot_results(models, data, batch_size):
     plt.colorbar()
     plt.xlabel("z[0]")
     plt.ylabel("z[1]")
+    plt.tight_layout()
     plt.savefig(filename)
     plt.show()
 
@@ -107,6 +108,7 @@ def plot_results(models, data, batch_size):
     plt.yticks(pixel_range, sample_range_y)
     plt.xlabel("z[0]")
     plt.ylabel("z[1]")
+    plt.tight_layout()
     plt.imshow(figure, cmap='Greys_r')
     plt.savefig(filename)
     plt.show()
