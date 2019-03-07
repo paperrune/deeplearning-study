@@ -32,12 +32,10 @@ b3 = tf.Variable(tf.zeros([10]))
  
 hypothesis = tf.matmul(L2, W3) + b3
  
-# cost & optimizer
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=hypothesis, labels=Y))
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-train = optimizer.minimize(cost)
- 
+# accuracy & cost & optimizer
 accuracy = tf.reduce_mean(tf.cast(tf.equal(tf.argmax(hypothesis, 1), tf.argmax(Y, 1)), tf.float32))
+cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=hypothesis, labels=Y))
+train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost) 
  
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
