@@ -1,5 +1,6 @@
 # deeplearning-study
 Keras / Tensorflow practice</br>
+https://blog.naver.com/paperrune/221287252256
 
 1. [Perceptron](https://github.com/paperrune/deeplearning-study/tree/master/Perceptron)
 2. [Batch](https://github.com/paperrune/deeplearning-study/tree/master/Batch)
