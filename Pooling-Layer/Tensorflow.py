@@ -17,7 +17,7 @@ y_train = tf.keras.utils.to_categorical(y_train, num_classes=10)
 x_test = x_test.reshape([x_test.shape[0], img_rows, img_cols, 1]).astype('float32') / 255
 y_test = tf.keras.utils.to_categorical(y_test, num_classes=10)
  
-# input place holders
+# input placeholders
 X = tf.placeholder(tf.float32, [None, img_rows, img_cols, 1])
 Y = tf.placeholder(tf.float32, [None, 10])
  
