@@ -73,7 +73,7 @@ learning_rate = 0.001
 x_train = x_train.reshape([x_train.shape[0], -1]).astype('float32') / 255 
 x_test = x_test.reshape([x_test.shape[0], -1]).astype('float32') / 255
  
-# input place holders
+# input placeholders
 X = tf.placeholder(tf.float32, [None, input_dim])
 Z = tf.placeholder(tf.float32, [None, latent_dim])
  
