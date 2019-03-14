@@ -69,7 +69,7 @@ for i in range(iteration):
     loss[0] = fake_real_discriminator.train_on_batch([noise, x_batch], [np.array([0] * batch_size), np.array([1] * batch_size)])
     loss[1] = fake_generator.train_on_batch(noise, np.array([1] * batch_size))
 
-    print(i, 'D_fake:', [loss[0][1], loss[0][3]], '\tD_real:', [loss[0][2], loss[0][4]], '\tG:', loss[1])
+    print(i + 1, 'D_fake:', [loss[0][1], loss[0][3]], '\tD_real:', [loss[0][2], loss[0][4]], '\tG:', loss[1])
 
     if i % 10000 == 9999:
         array = generator.predict(noise, batch_size=batch_size)
