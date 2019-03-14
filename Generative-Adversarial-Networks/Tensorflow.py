@@ -78,7 +78,7 @@ with tf.Session() as sess:
         loss[0], loss[1], score[0], score[1], _ = sess.run([d_fake_loss, d_real_loss, d_fake_acc, d_real_acc, d_train], feed_dict={X: x_batch, Z: noise})
         loss[2], score[2], _ = sess.run([g_loss, g_acc, g_train], feed_dict={Z: noise})
 
-        print(i, 'D_fake:', [loss[0], score[0]], '\tD_real:', [loss[1], score[1]], '\tG:', [loss[2], score[2]])
+        print(i + 1, 'D_fake:', [loss[0], score[0]], '\tD_real:', [loss[1], score[1]], '\tG:', [loss[2], score[2]])
 
         if i % 10000 == 9999:
             array = sess.run(G, feed_dict={Z: noise})
