@@ -21,3 +21,4 @@ https://blog.naver.com/paperrune/221287252256
 17. [LSTM](https://github.com/paperrune/deeplearning-study/tree/master/LSTM)
 18. [Adam](https://github.com/paperrune/deeplearning-study/tree/master/Adam)
 19. [Variational-Autoencoder](https://github.com/paperrune/deeplearning-study/tree/master/Variational-Autoencoder)
+20. [Generative-Adversarial-Networks](https://github.com/paperrune/deeplearning-study/tree/master/Generative-Adversarial-Networks)
