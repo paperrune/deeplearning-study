@@ -1,5 +1,4 @@
 ## Results
-### Keras CPU
 ```
 _________________________________________________________________
 Layer (type)                 Output Shape              Param #   
