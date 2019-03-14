@@ -14,17 +14,11 @@
 ### 50000 iteration
 ![50000](./image/50000.png)
 
-### 60000 iteration
-![60000](./image/60000.png)
-
-### 70000 iteration
-![70000](./image/70000.png)
-
-### 80000 iteration
-![80000](./image/80000.png)
-
-### 90000 iteration
-![90000](./image/90000.png)
-
 ### 100000 iteration
 ![100000](./image/100000.png)
+
+### 200000 iteration
+![200000](./image/200000.png)
+
+### 300000 iteration
+![300000](./image/300000.png)
