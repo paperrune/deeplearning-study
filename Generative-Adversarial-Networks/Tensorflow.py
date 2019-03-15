@@ -4,7 +4,6 @@ import tensorflow as tf
 from PIL import Image
 
 batch_size = 128
-epochs = 30
 input_dim = 784
 iteration = 100000
 learning_rate = 0.0001
