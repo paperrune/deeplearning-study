@@ -1,12 +1,8 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import os
 
-from keras import backend as K
 from keras.datasets import mnist
 from keras.initializers import RandomUniform
 from keras.layers import Dense, Input
-from keras.losses import mean_squared_error
 from keras.models import Model
 from keras.optimizers import Adam
 from PIL import Image
