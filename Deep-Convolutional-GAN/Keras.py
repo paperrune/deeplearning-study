@@ -110,7 +110,7 @@ fake_generator.compile(loss='binary_crossentropy',
 
 
 for i in range(iteration):
-    index = np.random.randint(0, len(x_train) - batch_size + 1)
+    index = (i * batch_size) % (len(x_train) - batch_size)
     loss  = [None] * 2
     noise = np.random.uniform(-1, 1, size=(batch_size, noise_dim))
 
