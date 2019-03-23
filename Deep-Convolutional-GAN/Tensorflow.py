@@ -122,7 +122,7 @@ d_ops = [var for var in u_ops if 'discriminator' in var.name]
 g_ops = [var for var in u_ops if 'generator' in var.name]
 
 with tf.control_dependencies(d_ops):
-    d_train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(d_fake_loss + d_real_loss, var_list=d_var)
+    d_train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(0.5 * d_fake_loss + 0.5 * d_real_loss, var_list=d_var)
 with tf.control_dependencies(g_ops):
     g_train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(g_loss, var_list=g_var)
 
