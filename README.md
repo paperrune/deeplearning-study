@@ -23,3 +23,4 @@ https://blog.naver.com/paperrune/221287252256
 19. [Variational Autoencoder](https://github.com/paperrune/deeplearning-study/tree/master/Variational-Autoencoder)
 20. [Generative Adversarial Networks](https://github.com/paperrune/deeplearning-study/tree/master/Generative-Adversarial-Networks)
 21. [Deep Convolutional GAN](https://github.com/paperrune/deeplearning-study/tree/master/Deep-Convolutional-GAN)
+22. [Class Activation Mapping](https://github.com/paperrune/deeplearning-study/tree/master/Class-Activation-Mapping)
