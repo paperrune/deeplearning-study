@@ -114,7 +114,7 @@ reconstruction_loss = (hypothesis - X) * (hypothesis - X) * input_dim
 regularization_loss = 0.5 * tf.reduce_sum(tf.exp(z_log_var) + tf.square(z_mean) - z_log_var - 1, axis=-1, keepdims=True) * latent_dim
 
 # cost & optimizer
-cost = tf.reduce_mean(regularization_loss + reconstruction_loss)
+cost = tf.reduce_mean(reconstruction_loss + regularization_loss)
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
 train = optimizer.minimize(cost)
 
