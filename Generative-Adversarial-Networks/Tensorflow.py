@@ -62,7 +62,6 @@ g_var = [var for var in t_var if 'generator' in var.name]
 d_train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(0.5 * d_fake_loss + 0.5 * d_real_loss, var_list=d_var)
 g_train = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(g_loss, var_list=g_var)
 
-
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
      
