@@ -44,7 +44,7 @@ generator.trainable = False
 
 fake_real_discriminator = Model(input, [discriminator(generator(input[0])), discriminator(input[1])])
 fake_real_discriminator.compile(loss='binary_crossentropy',
-                                optimizer=Adam(lr=learning_rate / 2),
+                                optimizer=Adam(lr=learning_rate),
                                 metrics=['accuracy'])
 
 discriminator.trainable = False
