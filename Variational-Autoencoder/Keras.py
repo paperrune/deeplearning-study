@@ -45,7 +45,7 @@ decoder.summary()
 VAE = Model(encoder.input, decoder(encoder(encoder.input)[2]))
 
 reconstruction_loss = mean_squared_error(VAE.input, VAE.output) * input_dim
-regularization_loss = 0.5 * K.sum(K.exp(z_log_var) + K.square(z_mean) - z_log_var - 1, axis=-1)
+regularization_loss = 0.5 * K.sum(K.exp(z_log_var) + K.square(z_mean) - z_log_var - 1, axis=-1) * latent_dim
 
 VAE.add_loss(K.mean(regularization_loss + reconstruction_loss))
 VAE.compile(optimizer=Adam(lr=learning_rate))
