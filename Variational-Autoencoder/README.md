@@ -110,36 +110,36 @@ Epoch 30/30
 
 ### Tensorflow GPU
 ```
-loss: 48.7781 / 43.9629	step 1  1.83 sec
-loss: 43.0576 / 42.1581	step 2  3.39 sec
-loss: 41.8477 / 41.4498	step 3  4.90 sec
-loss: 41.1159 / 40.7394	step 4  6.42 sec
-loss: 40.5461 / 40.1897	step 5  8.03 sec
-loss: 40.0837 / 39.8244	step 6  9.60 sec
-loss: 39.6981 / 39.4557	step 7  11.13 sec
-loss: 39.3400 / 39.2951	step 8  12.70 sec
-loss: 39.0901 / 38.9882	step 9  14.18 sec
-loss: 38.8410 / 38.9238	step 10  15.63 sec
-loss: 38.6069 / 38.6302	step 11  17.12 sec
-loss: 38.4204 / 38.4315	step 12  18.57 sec
-loss: 38.2586 / 38.4684	step 13  20.00 sec
-loss: 38.1087 / 38.3495	step 14  21.43 sec
-loss: 37.9735 / 38.1516	step 15  22.86 sec
-loss: 37.8413 / 38.1394	step 16  24.31 sec
-loss: 37.7303 / 38.0027	step 17  25.76 sec
-loss: 37.6329 / 38.0624	step 18  27.21 sec
-loss: 37.5593 / 37.8485	step 19  28.64 sec
-loss: 37.4595 / 37.8364	step 20  30.10 sec
-loss: 37.3831 / 37.8762	step 21  31.57 sec
-loss: 37.3093 / 37.7988	step 22  33.05 sec
-loss: 37.2419 / 37.7173	step 23  34.52 sec
-loss: 37.1730 / 37.7223	step 24  35.95 sec
-loss: 37.1225 / 37.7279	step 25  37.40 sec
-loss: 37.0469 / 37.5681	step 26  38.85 sec
-loss: 36.9953 / 37.6581	step 27  40.30 sec
-loss: 36.9285 / 37.7773	step 28  41.75 sec
-loss: 36.8653 / 37.5504	step 29  43.26 sec
-loss: 36.8142 / 37.4639	step 30  44.70 sec
+loss: 51.7836 / 47.0752 step 1  1.83 sec
+loss: 46.1579 / 45.5110 step 2  3.39 sec
+loss: 44.8643 / 44.3594 step 3  4.90 sec
+loss: 44.1961 / 43.8653 step 4  6.42 sec
+loss: 43.7184 / 43.5319 step 5  8.03 sec
+loss: 43.3639 / 43.2727 step 6  9.60 sec
+loss: 43.1359 / 43.0500 step 7  11.13 sec
+loss: 42.9054 / 42.8236 step 8  12.70 sec
+loss: 42.7351 / 42.7515 step 9  14.18 sec
+loss: 42.6410 / 42.6164 step 10  15.63 sec
+loss: 42.5302 / 42.4123 step 11  17.12 sec
+loss: 42.3745 / 42.3972 step 12  18.57 sec
+loss: 42.2604 / 42.3468 step 13  20.00 sec
+loss: 42.1831 / 42.2840 step 14  21.43 sec
+loss: 42.0942 / 42.2542 step 15  22.86 sec
+loss: 42.0081 / 42.1670 step 16  24.31 sec
+loss: 41.9447 / 42.0944 step 17  25.76 sec
+loss: 41.8811 / 42.1249 step 18  27.21 sec
+loss: 41.8300 / 41.9592 step 19  28.64 sec
+loss: 41.7589 / 41.8720 step 20  30.10 sec
+loss: 41.6997 / 41.7992 step 21  31.57 sec
+loss: 41.6809 / 42.0023 step 22  33.05 sec
+loss: 41.5915 / 41.8879 step 23  34.52 sec
+loss: 41.5582 / 41.7687 step 24  35.95 sec
+loss: 41.5477 / 41.7851 step 25  37.40 sec
+loss: 41.4681 / 41.7751 step 26  38.85 sec
+loss: 41.4313 / 41.6835 step 27  40.30 sec
+loss: 41.4074 / 41.6943 step 28  41.75 sec
+loss: 41.3481 / 41.5778 step 29  43.26 sec
+loss: 41.3405 / 41.6101 step 30  44.70 sec
 ```
 
 ![image1](./image/vae_mean.png)
